@@ -1,8 +1,9 @@
-from agent.lux.kit import obs_to_game_state, GameState
+from agent.lux.kit import obs_to_game_state
 from agent.lux.config import EnvConfig
 from agent.lux.utils import direction_to, my_turn_to_place_factory
 import numpy as np
-import sys
+from scipy.signal import convolve2d
+
 class Agent():
     def __init__(self, player: str, env_cfg: EnvConfig) -> None:
         self.player = player
@@ -12,7 +13,6 @@ class Agent():
 
     def early_setup(self, step: int, obs, remainingOverageTime: int = 60):
         if step == 0:
-            # bid 0 to not waste resources bidding and declare as the default faction
             return dict(faction="AlphaStrike", bid=0)
         else:
             game_state = obs_to_game_state(step, self.env_cfg, obs)
@@ -27,15 +27,12 @@ class Agent():
             # whether it is your turn to place a factory
             my_turn_to_place = my_turn_to_place_factory(game_state.teams[self.player].place_first, step)
             if factories_to_place > 0 and my_turn_to_place:
-                # we will spawn our factory in a random location with 150 metal and water if it is our turn to place
-                potential_spawns = np.array(list(zip(*np.where(obs["board"]["valid_spawns_mask"] == 1))))
-                spawn_loc = potential_spawns[np.random.randint(0, len(potential_spawns))]
+                spawn_loc = get_spawn_loc(obs)             
                 return dict(spawn=spawn_loc, metal=150, water=150)
             return dict()
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
         actions = dict()
-        
         """
         optionally do forward simulation to simulate positions of units, lichen, etc. in the future
         from lux.forward_sim import forward_sim
@@ -94,3 +91,51 @@ class Agent():
                         if move_cost is not None and unit.power >= move_cost + unit.action_queue_cost(game_state):
                             actions[unit_id] = [unit.move(direction, repeat=0, n=1)]
         return actions
+
+
+def get_spawn_loc(obs: dict) -> tuple:
+    neighbouring_ice = sum_closest_numbers(obs["board"]['ice'], r=4)
+    neighbouring_ice = zero_invalid_spawns(neighbouring_ice, valid_spawns=obs["board"]["valid_spawns_mask"])
+    spawn_loc = get_coordinate_biggest(neighbouring_ice)
+    return spawn_loc
+
+
+def sum_closest_numbers(x: np.ndarray, r: int) -> np.ndarray:
+    conv_array = _get_conv_filter(r=r)
+    sum_closest_numbers = convolve2d(x, conv_array, mode='same')
+    return sum_closest_numbers
+
+
+def _get_conv_filter(r: int) -> np.ndarray:
+    array_size = 2 * r + 1
+
+    list_filter = []
+
+    for i in range(array_size):
+        v = []
+        distance_i = abs(r - i)
+        for j in range(array_size):
+            distance_j = abs(r - j)
+            if distance_i + distance_j <= r:
+                v.append(1)
+            else:
+                v.append(0)
+
+        list_filter.append(v)
+
+    array = np.array(list_filter)
+
+    return array
+
+
+def zero_invalid_spawns(x: np.ndarray, valid_spawns: list) -> np.ndarray:
+    x = x.copy()
+    valid_spawns = np.array(valid_spawns)
+    x[~valid_spawns] = 0
+    return x
+
+
+def get_coordinate_biggest(x: np.ndarray):
+    biggest_loc_int = np.argmax(x)
+    x, y = np.unravel_index(biggest_loc_int, x.shape)
+    return (x, y)

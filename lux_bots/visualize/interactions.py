@@ -1,6 +1,5 @@
 import numpy as np
 import cv2
-import string
 import random
 from datetime import datetime
 
@@ -9,7 +8,7 @@ def animate(imgs):
     file_name = _get_file_name()
     height, width, _ = imgs[0].shape
     fourcc = cv2.VideoWriter_fourcc(*'VP90')
-    video = cv2.VideoWriter(file_name, fourcc, 10, (width, height))
+    video = cv2.VideoWriter(file_name, fourcc, 1, (width, height))
 
     for img in imgs:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
