@@ -1,6 +1,6 @@
 from agent.lux.kit import obs_to_game_state
 from agent.lux.config import EnvConfig
-from agent.lux.utils import direction_to, my_turn_to_place_factory
+from agent.lux.utils import direction_to, is_my_turn_to_place_factory
 import numpy as np
 from scipy.signal import convolve2d
 
@@ -16,18 +16,8 @@ class Agent():
             return dict(faction="AlphaStrike", bid=0)
         else:
             game_state = obs_to_game_state(step, self.env_cfg, obs)
-            # factory placement period
-
-            # how much water and metal you have in your starting pool to give to new factories
-            water_left = game_state.teams[self.player].water
-            metal_left = game_state.teams[self.player].metal
-
-            # how many factories you have left to place
-            factories_to_place = game_state.teams[self.player].factories_to_place
-            # whether it is your turn to place a factory
-            my_turn_to_place = my_turn_to_place_factory(game_state.teams[self.player].place_first, step)
-            if factories_to_place > 0 and my_turn_to_place:
-                spawn_loc = get_spawn_loc(obs)             
+            if is_my_turn_to_place_factory(self.player, game_state, step):
+                spawn_loc = get_factory_spawn_loc(obs)
                 return dict(spawn=spawn_loc, metal=150, water=150)
             return dict()
 
@@ -93,7 +83,7 @@ class Agent():
         return actions
 
 
-def get_spawn_loc(obs: dict) -> tuple:
+def get_factory_spawn_loc(obs: dict) -> tuple:
     neighbouring_ice = sum_closest_numbers(obs["board"]['ice'], r=4)
     neighbouring_ice = zero_invalid_spawns(neighbouring_ice, valid_spawns=obs["board"]["valid_spawns_mask"])
     spawn_loc = get_coordinate_biggest(neighbouring_ice)
