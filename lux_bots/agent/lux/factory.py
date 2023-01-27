@@ -2,8 +2,8 @@ import math
 from sys import stderr
 import numpy as np
 from dataclasses import dataclass
-from lux.cargo import UnitCargo
-from lux.config import EnvConfig
+from agent.lux.cargo import UnitCargo
+from agent.lux.config import EnvConfig
 @dataclass
 class Factory:
     team_id: int

@@ -1,11 +1,11 @@
 from dataclasses import dataclass, field
 from typing import Dict
 import numpy as np
-from lux.cargo import UnitCargo
-from lux.config import EnvConfig
-from lux.team import Team, FactionTypes
-from lux.unit import Unit
-from lux.factory import Factory
+from agent.lux.cargo import UnitCargo
+from agent.lux.config import EnvConfig
+from agent.lux.team import Team, FactionTypes
+from agent.lux.unit import Unit
+from agent.lux.factory import Factory
 def process_action(action):
     return to_json(action)
 def to_json(obj):

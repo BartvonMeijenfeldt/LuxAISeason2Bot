@@ -3,8 +3,8 @@ import sys
 from typing import List
 import numpy as np
 from dataclasses import dataclass
-from lux.cargo import UnitCargo
-from lux.config import EnvConfig
+from agent.lux.cargo import UnitCargo
+from agent.lux.config import EnvConfig
 
 # a[1] = direction (0 = center, 1 = up, 2 = right, 3 = down, 4 = left)
 move_deltas = np.array([[0, 0], [0, -1], [1, 0], [0, 1], [-1, 0]])
