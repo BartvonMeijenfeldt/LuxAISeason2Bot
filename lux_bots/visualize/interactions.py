@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import string
 import random
+from datetime import datetime
 
 
 def animate(imgs):
@@ -18,13 +19,15 @@ def animate(imgs):
 
 
 def _get_file_name() -> str:
-    FILE_NAME_LENGTH = 18
-    random_base_string = ''.join(random.choice(string.ascii_letters) for _ in range(FILE_NAME_LENGTH))
-    file_name = f'matches/{random_base_string}.webm'
+    datetime_now = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    file_name = f'matches/{datetime_now}.webm'
     return file_name
 
 
-def interact(env, agents, nr_steps: int, seed=42):
+def interact(env, agents, nr_steps: int, seed=None):
+    if not seed:
+        seed = random.randint(0, 10000)
+
     obs = env.reset(seed=seed)
     np.random.seed(0)
 

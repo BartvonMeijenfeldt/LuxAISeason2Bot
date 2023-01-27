@@ -1,10 +1,12 @@
 from luxai_s2.env import LuxAI_S2
 
+from random import randint
+
 from agent.agent import Agent
 from visualize.interactions import interact
 
 env = LuxAI_S2()
-obs = env.reset(seed=41)
+env.reset()
 
 # recreate our agents and run
 agents = {player: Agent(player, env.state.env_cfg) for player in env.agents}
