@@ -3,7 +3,7 @@ import numpy as np
 from scipy.signal import convolve2d
 
 
-from agent.objects.coordinate import Coordinate
+from agent.objects.coordinate import Coordinate, CoordinateList
 
 
 def get_factory_spawn_loc(obs: dict) -> tuple:
@@ -34,13 +34,12 @@ def get_ice_score(ice: np.ndarray) -> np.ndarray:
 
 def sum_closest_numbers(x: np.ndarray, r: int) -> np.ndarray:
     conv_array = _get_conv_filter_surrounding_factory(r=r)
-    sum_closest_numbers = convolve2d(x, conv_array, mode='same')
+    sum_closest_numbers = convolve2d(x, conv_array, mode="same")
     return sum_closest_numbers
 
 
 def _get_conv_filter_surrounding_factory(r: int) -> np.ndarray:
-    """Get the convolutional filter of coordinates surrounding a 3x3 tile up to distance r
-    """
+    """Get the convolutional filter of coordinates surrounding a 3x3 tile up to distance r"""
     array_size = 2 * r + 3
     coordinates_factory = _get_coordinates_factory(array_size)
     distance_array = _get_min_distance_to_object_array(array_size, object=coordinates_factory)
@@ -49,27 +48,22 @@ def _get_conv_filter_surrounding_factory(r: int) -> np.ndarray:
     return conv_filter
 
 
-def _get_coordinates_factory(array_size: int) -> list[Coordinate]:
+def _get_coordinates_factory(array_size: int) -> CoordinateList:
     """Get the 3x3 coordinates of the factory in the middle of an array of odd size"""
     assert array_size % 2 == 1
-
     center = array_size // 2
-
-    coordinates = [Coordinate(center + i, center + j)
-                   for i in [-1, 0, 1]
-                   for j in [-1, 0, 1]]
+    coordinates = CoordinateList([Coordinate(center + i, center + j) for i in [-1, 0, 1] for j in [-1, 0, 1]])
 
     return coordinates
 
 
-def _get_min_distance_to_object_array(array_size: int, object: list[Coordinate]) -> np.ndarray:
+def _get_min_distance_to_object_array(array_size: int, object: CoordinateList) -> np.ndarray:
     min_distance_array = np.empty((array_size, array_size))
 
     for i in range(array_size):
         for j in range(array_size):
             c_ij = Coordinate(i, j)
-            min_distance = _get_min_distance_coordinate_to_object(c_ij, object)
-            min_distance_array[i, j] = min_distance
+            min_distance_array[i, j] = object.min_dis_to(c_ij)
 
     return min_distance_array
 
@@ -77,10 +71,6 @@ def _get_min_distance_to_object_array(array_size: int, object: list[Coordinate])
 def _convert_min_distance_to_conv_filter(distance_array: np.ndarray, r: int) -> np.ndarray:
     between_0_and_r = (distance_array > 0) & (distance_array <= r)
     return np.where(between_0_and_r, 1, 0)
-
-
-def _get_min_distance_coordinate_to_object(c: Coordinate, object: list[Coordinate]):
-    return min(c_factory.distance(c) for c_factory in object)
 
 
 def get_scores(rubble_score: np.ndarray, ice_score: np.ndarray, valid_spawns: list) -> np.ndarray:

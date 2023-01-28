@@ -1,7 +1,5 @@
 from luxai_s2.env import LuxAI_S2
 
-from random import randint
-
 from agent.agent import Agent
 from visualize.interactions import interact
 
