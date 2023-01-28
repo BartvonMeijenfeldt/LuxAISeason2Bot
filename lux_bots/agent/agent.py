@@ -1,8 +1,10 @@
+import numpy as np
+
 from agent.lux.kit import obs_to_game_state
 from agent.lux.config import EnvConfig
 from agent.lux.utils import direction_to, is_my_turn_to_place_factory
-import numpy as np
-from scipy.signal import convolve2d
+from agent.logic.early_setup import get_factory_spawn_loc
+
 
 class Agent():
     def __init__(self, player: str, env_cfg: EnvConfig) -> None:
@@ -12,10 +14,11 @@ class Agent():
         self.env_cfg: EnvConfig = env_cfg
 
     def early_setup(self, step: int, obs, remainingOverageTime: int = 60):
+        game_state = obs_to_game_state(step, self.env_cfg, obs)
+
         if step == 0:
             return dict(faction="AlphaStrike", bid=0)
         else:
-            game_state = obs_to_game_state(step, self.env_cfg, obs)
             if is_my_turn_to_place_factory(self.player, game_state, step):
                 spawn_loc = get_factory_spawn_loc(obs)
                 return dict(spawn=spawn_loc, metal=150, water=150)
@@ -81,51 +84,3 @@ class Agent():
                         if move_cost is not None and unit.power >= move_cost + unit.action_queue_cost(game_state):
                             actions[unit_id] = [unit.move(direction, repeat=0, n=1)]
         return actions
-
-
-def get_factory_spawn_loc(obs: dict) -> tuple:
-    neighbouring_ice = sum_closest_numbers(obs["board"]['ice'], r=4)
-    neighbouring_ice = zero_invalid_spawns(neighbouring_ice, valid_spawns=obs["board"]["valid_spawns_mask"])
-    spawn_loc = get_coordinate_biggest(neighbouring_ice)
-    return spawn_loc
-
-
-def sum_closest_numbers(x: np.ndarray, r: int) -> np.ndarray:
-    conv_array = _get_conv_filter(r=r)
-    sum_closest_numbers = convolve2d(x, conv_array, mode='same')
-    return sum_closest_numbers
-
-
-def _get_conv_filter(r: int) -> np.ndarray:
-    array_size = 2 * r + 1
-
-    list_filter = []
-
-    for i in range(array_size):
-        v = []
-        distance_i = abs(r - i)
-        for j in range(array_size):
-            distance_j = abs(r - j)
-            if distance_i + distance_j <= r:
-                v.append(1)
-            else:
-                v.append(0)
-
-        list_filter.append(v)
-
-    array = np.array(list_filter)
-
-    return array
-
-
-def zero_invalid_spawns(x: np.ndarray, valid_spawns: list) -> np.ndarray:
-    x = x.copy()
-    valid_spawns = np.array(valid_spawns)
-    x[~valid_spawns] = 0
-    return x
-
-
-def get_coordinate_biggest(x: np.ndarray):
-    biggest_loc_int = np.argmax(x)
-    x, y = np.unravel_index(biggest_loc_int, x.shape)
-    return (x, y)
