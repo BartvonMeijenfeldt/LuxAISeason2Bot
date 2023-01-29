@@ -99,7 +99,7 @@ def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str):
     )
 
 
-def create_units(obs, env_cfg) -> dict[str, list[Unit]]:
+def create_units(obs, env_cfg: EnvConfig) -> dict[str, list[Unit]]:
     units = defaultdict(list)
 
     for agent in obs["units"]:
@@ -107,7 +107,8 @@ def create_units(obs, env_cfg) -> dict[str, list[Unit]]:
             unit_data = unit_data.copy()
             unit_data["pos"] = Coordinate(*unit_data["pos"])
             unit_data["cargo"] = UnitCargo(**unit_data["cargo"])
-            unit = Unit(**unit_data, unit_cfg=env_cfg.ROBOTS[unit_data["unit_type"]], env_cfg=env_cfg)
+            unit_data["unit_cfg"] = env_cfg.ROBOTS[unit_data["unit_type"]]
+            unit = Unit(**unit_data)
             units[agent].append(unit)
 
     return units

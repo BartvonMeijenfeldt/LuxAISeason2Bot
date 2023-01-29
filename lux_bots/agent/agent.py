@@ -45,8 +45,8 @@ def get_factory_actions(game_state: GameState) -> dict:
     for factory in game_state.player_factories:
         if factory.can_build_heavy(game_state):
             actions[factory.unit_id] = factory.build_heavy()
-        if factory.can_water(game_state):
-            actions[factory.unit_id] = factory.water()
+        # if factory.can_water(game_state):
+        #     actions[factory.unit_id] = factory.water()
 
     return actions
 
@@ -58,26 +58,28 @@ def get_unit_actions(game_state: GameState) -> dict:
         closest_factory_tile = game_state.get_closest_factory_tile(c=unit.pos)
         adjacent_to_factory = closest_factory_tile.distance_to(c=unit.pos) == 1
 
+        ICE_MINNIG_CUTOFF = 40
+
         # previous ice mining code
-        if unit.cargo.ice < 40:
+        if unit.cargo.ice < ICE_MINNIG_CUTOFF:
             closest_ice_tile = game_state.ice_coordinates.get_closest_tile(c=unit.pos)
-            if closest_ice_tile.distance_to(c=unit.pos) == 0:
-                if unit.power >= unit.dig_cost(game_state) + unit.action_queue_cost(game_state):
+            if closest_ice_tile == unit.pos:
+                if unit.power >= unit.dig_cost + unit.action_queue_cost:
                     unit_actions[unit.unit_id] = [unit.dig(repeat=0, n=1)]
             else:
                 direction = unit.pos.direction_to(target=closest_ice_tile)
                 move_cost = unit.move_cost(game_state, direction)
-                if move_cost is not None and unit.power >= move_cost + unit.action_queue_cost(game_state):
+                if move_cost is not None and unit.power >= move_cost + unit.action_queue_cost:
                     unit_actions[unit.unit_id] = [unit.move(direction, repeat=0, n=1)]
         # else if we have enough ice, we go back to the factory and dump it.
-        elif unit.cargo.ice >= 40:
+        elif unit.cargo.ice >= ICE_MINNIG_CUTOFF:
             direction = unit.pos.direction_to(target=closest_factory_tile)
             if adjacent_to_factory:
-                if unit.power >= unit.action_queue_cost(game_state):
+                if unit.power >= unit.action_queue_cost:
                     unit_actions[unit.unit_id] = [unit.transfer(direction, 0, unit.cargo.ice, repeat=0)]
             else:
                 move_cost = unit.move_cost(game_state, direction)
-                if move_cost is not None and unit.power >= move_cost + unit.action_queue_cost(game_state):
+                if move_cost is not None and unit.power >= move_cost + unit.action_queue_cost:
                     unit_actions[unit.unit_id] = [unit.move(direction, repeat=0, n=1)]
 
     return unit_actions

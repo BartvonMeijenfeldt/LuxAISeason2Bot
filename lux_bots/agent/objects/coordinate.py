@@ -11,6 +11,9 @@ class Coordinate:
         new_y = self.y + other.y
         return Coordinate(new_x, new_y)
 
+    def __eq__(self, other: "Coordinate") -> "Coordinate":
+        return self.x == other.x and self.y == other.y
+
     def distance_to(self, c: "Coordinate") -> int:
         """Manhatten distance to point
 
