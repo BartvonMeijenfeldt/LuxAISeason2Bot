@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 
 
 @dataclass
@@ -11,8 +12,16 @@ class Coordinate:
         new_y = self.y + other.y
         return Coordinate(new_x, new_y)
 
+    def __sub__(self, other: "Coordinate") -> "Coordinate":
+        new_x = self.x - other.x
+        new_y = self.y - other.y
+        return Coordinate(new_x, new_y)
+
     def __eq__(self, other: "Coordinate") -> "Coordinate":
         return self.x == other.x and self.y == other.y
+
+    def __iter__(self):
+        return iter((self.x, self.y))
 
     def distance_to(self, c: "Coordinate") -> int:
         """Manhatten distance to point
@@ -28,22 +37,20 @@ class Coordinate:
         return dis_x + dis_y
 
     def direction_to(self, target: "Coordinate") -> int:
-        # direction (0 = center, 1 = up, 2 = right, 3 = down, 4 = left)
-        dx = target.x - self.x
-        dy = target.y - self.y
+        dx, dy = target - self
 
         if dx == 0 and dy == 0:
-            return 0
+            return Direction.CENTER
         if abs(dx) > abs(dy):
             if dx > 0:
-                return 2
+                return Direction.RIGHT
             else:
-                return 4
+                return Direction.LEFT
         else:
             if dy > 0:
-                return 3
+                return Direction.DOWN
             else:
-                return 1
+                return Direction.UP
 
 
 @dataclass
@@ -68,3 +75,24 @@ class CoordinateList:
 
     def __getitem__(self, key):
         return self.coordinates[key]
+
+
+class Direction(Enum):
+    CENTER = Coordinate(0, 0)
+    UP = Coordinate(0, -1)
+    RIGHT = Coordinate(1, 0)
+    DOWN = Coordinate(0, 1)
+    LEFT = Coordinate(-1, 0)
+
+    @property
+    def number(self) -> int:
+        return DIRECTION_NUMBER[self]
+
+
+DIRECTION_NUMBER: dict = {
+    Direction.CENTER: 0,
+    Direction.UP: 1,
+    Direction.RIGHT: 2,
+    Direction.DOWN: 3,
+    Direction.LEFT: 4,
+}

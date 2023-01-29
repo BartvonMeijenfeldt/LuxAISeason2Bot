@@ -5,14 +5,7 @@ from dataclasses import dataclass
 from agent.lux.action import MoveAction, TransferAction, PickupAction, DigAction, DestructAction, RechargeAction
 from agent.lux.cargo import UnitCargo
 from agent.lux.config import UnitConfig
-from agent.objects.coordinate import Coordinate, CoordinateList
-
-# a[1] = direction (0 = center, 1 = up, 2 = right, 3 = down, 4 = left)
-move_deltas = np.array([[0, 0], [0, -1], [1, 0], [0, 1], [-1, 0]])
-
-move_deltas = CoordinateList(
-    [Coordinate(0, 0), Coordinate(0, -1), Coordinate(1, 0), Coordinate(0, 1), Coordinate(-1, 0)]
-)
+from agent.objects.coordinate import Coordinate, Direction
 
 
 @dataclass
@@ -39,7 +32,7 @@ class Unit:
 
     def move_cost(self, game_state, direction):
         board = game_state.board
-        target_pos = self.pos + move_deltas[direction]
+        target_pos = self.pos + direction.value
         if target_pos.x < 0 or target_pos.y < 0 or target_pos.x >= board.width or target_pos.y >= board.length:
             # print("Warning, tried to get move cost for going off the map", file=sys.stderr)
             return None
@@ -52,12 +45,11 @@ class Unit:
         return math.floor(self.unit_cfg.MOVE_COST + self.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target)
 
     def move(self, direction, repeat=0, n=1):
-        assert isinstance(direction, int)
+        assert isinstance(direction, Direction)
         return MoveAction(direction=direction, repeat=repeat, n=n).to_array()
 
-    def transfer(self, transfer_direction, transfer_resource, transfer_amount, repeat=0, n=1):
+    def transfer(self, transfer_direction: Direction, transfer_resource, transfer_amount, repeat=0, n=1):
         assert transfer_resource < 5 and transfer_resource >= 0
-        assert transfer_direction < 5 and transfer_direction >= 0
         return TransferAction(
             direction=transfer_direction, resource=transfer_resource, amount=transfer_amount, repeat=repeat, n=n
         ).to_array()
