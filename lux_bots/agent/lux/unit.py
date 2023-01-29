@@ -2,8 +2,9 @@ import math
 import numpy as np
 from dataclasses import dataclass
 
+from agent.lux.action import MoveAction, TransferAction, PickupAction, DigAction, DestructAction, RechargeAction
 from agent.lux.cargo import UnitCargo
-from agent.lux.config import EnvConfig
+from agent.lux.config import UnitConfig
 from agent.objects.coordinate import Coordinate, CoordinateList
 
 # a[1] = direction (0 = center, 1 = up, 2 = right, 3 = down, 4 = left)
@@ -22,8 +23,7 @@ class Unit:
     pos: Coordinate
     power: int
     cargo: UnitCargo
-    env_cfg: EnvConfig
-    unit_cfg: dict
+    unit_cfg: UnitConfig
     action_queue: list
 
     @property
@@ -32,8 +32,9 @@ class Unit:
             return "player_0"
         return "player_1"
 
-    def action_queue_cost(self, game_state):
-        cost = self.env_cfg.ROBOTS[self.unit_type].ACTION_QUEUE_POWER_COST
+    @property
+    def action_queue_cost(self):
+        cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
         return cost
 
     def move_cost(self, game_state, direction):
@@ -51,35 +52,38 @@ class Unit:
         return math.floor(self.unit_cfg.MOVE_COST + self.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target)
 
     def move(self, direction, repeat=0, n=1):
-        if isinstance(direction, int):
-            direction = direction
-        else:
-            pass
-        return np.array([0, direction, 0, 0, repeat, n])
+        assert isinstance(direction, int)
+        return MoveAction(direction=direction, repeat=repeat, n=n).to_array()
 
     def transfer(self, transfer_direction, transfer_resource, transfer_amount, repeat=0, n=1):
         assert transfer_resource < 5 and transfer_resource >= 0
         assert transfer_direction < 5 and transfer_direction >= 0
-        return np.array([1, transfer_direction, transfer_resource, transfer_amount, repeat, n])
+        return TransferAction(
+            direction=transfer_direction, resource=transfer_resource, amount=transfer_amount, repeat=repeat, n=n
+        ).to_array()
 
     def pickup(self, pickup_resource, pickup_amount, repeat=0, n=1):
         assert pickup_resource < 5 and pickup_resource >= 0
-        return np.array([2, 0, pickup_resource, pickup_amount, repeat, n])
+        return PickupAction(
+            action_identifier=2, resource=pickup_resource, amount=pickup_amount, repeat=repeat, n=n
+        ).to_array()
 
-    def dig_cost(self, game_state):
+    @property
+    def dig_cost(self):
         return self.unit_cfg.DIG_COST
 
     def dig(self, repeat=0, n=1):
-        return np.array([3, 0, 0, 0, repeat, n])
+        return DigAction(repeat=repeat, n=n).to_array()
 
-    def self_destruct_cost(self, game_state):
+    @property
+    def self_destruct_cost(self):
         return self.unit_cfg.SELF_DESTRUCT_COST
 
     def self_destruct(self, repeat=0, n=1):
-        return np.array([4, 0, 0, 0, repeat, n])
+        return DestructAction(repeat=repeat, n=n).to_array()
 
-    def recharge(self, x, repeat=0, n=1):
-        return np.array([5, 0, 0, x, repeat, n])
+    def recharge(self, charge_amount, repeat=0, n=1):
+        return RechargeAction(amount=charge_amount, repeat=repeat, n=n).to_array()
 
     def __str__(self) -> str:
         out = f"[{self.team_id}] {self.unit_id} {self.unit_type} at {self.pos}"
