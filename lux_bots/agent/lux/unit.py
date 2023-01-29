@@ -6,6 +6,8 @@ from agent.lux.cargo import UnitCargo
 from agent.lux.config import UnitConfig
 from agent.objects.coordinate import Coordinate, Direction
 
+from agent.lux.goal import Goal, CollectIceGoal
+
 
 @dataclass
 class Unit:
@@ -28,6 +30,11 @@ class Unit:
     def action_queue_cost(self):
         cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
         return cost
+
+    def generate_goals(self, game_state) -> list[Goal]:
+        closest_ice_tile = game_state.ice_coordinates.get_closest_tile(c=self.pos)
+        goals = [CollectIceGoal(unit_pos=self.pos, ice_pos=closest_ice_tile)]
+        return goals
 
     def move_cost(self, game_state, direction):
         board = game_state.board
@@ -75,6 +82,9 @@ class Unit:
 
     def recharge(self, charge_amount, repeat=0, n=1):
         return RechargeAction(amount=charge_amount, repeat=repeat, n=n).to_array()
+
+    def __hash__(self) -> int:
+        return hash(str(self))
 
     def __str__(self) -> str:
         out = f"[{self.team_id}] {self.unit_id} {self.unit_type} at {self.pos}"

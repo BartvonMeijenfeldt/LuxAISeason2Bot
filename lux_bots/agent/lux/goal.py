@@ -2,14 +2,17 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
 
-from agent.lux.kit import GameState
 from agent.lux.action import Action, MoveAction, DigAction
 from agent.objects.coordinate import Coordinate, Direction
 
 
 class Goal(metaclass=ABCMeta):
     @abstractmethod
-    def generate_plan(game_state: GameState) -> list[Action]:
+    def generate_action_plans(self, game_state) -> list[list[Action]]:
+        ...
+
+    @abstractmethod
+    def generate_plan(self, game_state) -> list[Action]:
         ...
 
 
@@ -19,7 +22,10 @@ class CollectIceGoal(Goal):
     ice_pos: Coordinate
     quantity: Optional[int] = None
 
-    def generate_plan(self, game_state: GameState) -> list[Action]:
+    def generate_action_plans(self, game_state) -> list[list[Action]]:
+        return [self.generate_plan(game_state=game_state)]
+
+    def generate_plan(self, game_state) -> list[Action]:
         dx, dy = self.ice_pos - self.unit_pos
         x_actions = self.get_x_actions(dx=dx)
         y_actions = self.get_y_actions(dy=dy)

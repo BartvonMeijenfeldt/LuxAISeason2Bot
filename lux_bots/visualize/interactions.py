@@ -1,7 +1,9 @@
 import numpy as np
 import cv2
 import random
+
 from datetime import datetime
+from luxai_s2.env import LuxAI_S2
 
 
 def animate(imgs):
@@ -23,7 +25,7 @@ def _get_file_name() -> str:
     return file_name
 
 
-def interact(env, agents, nr_steps: int, seed=None):
+def interact(env: LuxAI_S2, agents, nr_steps: int, seed=None):
     if not seed:
         seed = random.randint(0, 10000)
 
