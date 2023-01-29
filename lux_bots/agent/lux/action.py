@@ -18,6 +18,10 @@ class Action:
 
 @dataclass
 class MoveAction(Action):
+    direction: int
+    repeat: int
+    n: int
+
     action_identifier: int = field(default=0, init=False)
     resource: int = field(default=0, init=False)
     amount: int = field(default=0, init=False)
@@ -25,17 +29,31 @@ class MoveAction(Action):
 
 @dataclass
 class TransferAction(Action):
+    direction: int
+    resource: int
+    amount: int
+    repeat: int
+    n: int
+
     action_identifier: int = field(default=1, init=False)
 
 
 @dataclass
 class PickupAction(Action):
+    resource: int
+    amount: int
+    repeat: int
+    n: int
+
     action_identifier: int = field(default=2, init=False)
     direction: int = field(default=0, init=False)
 
 
 @dataclass
 class DigAction(Action):
+    repeat: int
+    n: int
+
     action_identifier: int = field(default=3, init=False)
     direction: int = field(default=0, init=False)
     resource: int = field(default=0, init=False)
@@ -44,6 +62,9 @@ class DigAction(Action):
 
 @dataclass
 class DestructAction(Action):
+    repeat: int
+    n: int
+
     action_identifier: int = field(default=4, init=False)
     direction: int = field(default=0, init=False)
     resource: int = field(default=0, init=False)
@@ -52,6 +73,10 @@ class DestructAction(Action):
 
 @dataclass
 class RechargeAction(Action):
+    amount: int
+    repeat: int
+    n: int
+
     action_identifier: int = field(default=5, init=False)
     direction: int = field(default=0, init=False)
     resource: int = field(default=0, init=False)
