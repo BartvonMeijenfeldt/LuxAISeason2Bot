@@ -1,5 +1,4 @@
 import math
-import numpy as np
 from dataclasses import dataclass
 
 from agent.lux.action import MoveAction, TransferAction, PickupAction, DigAction, DestructAction, RechargeAction

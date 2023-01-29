@@ -1,6 +1,7 @@
 import numpy as np
 
 from agent.lux.kit import obs_to_game_state, GameState
+from agent.lux.goal import CollectIceGoal
 from agent.lux.config import EnvConfig
 from agent.lux.utils import is_my_turn_to_place_factory
 from agent.logic.early_setup import get_factory_spawn_loc
@@ -67,10 +68,9 @@ def get_unit_actions(game_state: GameState) -> dict:
                 if unit.power >= unit.dig_cost + unit.action_queue_cost:
                     unit_actions[unit.unit_id] = [unit.dig(repeat=0, n=1)]
             else:
-                direction = unit.pos.direction_to(target=closest_ice_tile)
-                move_cost = unit.move_cost(game_state, direction)
-                if move_cost is not None and unit.power >= move_cost + unit.action_queue_cost:
-                    unit_actions[unit.unit_id] = [unit.move(direction, repeat=0, n=1)]
+                unit_actions[unit.unit_id] = CollectIceGoal(unit_pos=unit.pos, ice_pos=closest_ice_tile).generate_plan(
+                    game_state=game_state
+                )
         # else if we have enough ice, we go back to the factory and dump it.
         elif unit.cargo.ice >= ICE_MINNIG_CUTOFF:
             direction = unit.pos.direction_to(target=closest_factory_tile)
