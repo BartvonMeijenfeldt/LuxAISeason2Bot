@@ -2,7 +2,7 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
 
-from agent.lux.action import Action, MoveAction, DigAction
+from agent.objects.action import Action, MoveAction, DigAction
 from agent.objects.coordinate import Coordinate, Direction
 
 

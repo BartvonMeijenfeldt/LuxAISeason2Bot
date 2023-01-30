@@ -1,13 +1,13 @@
 import math
 from dataclasses import dataclass
 
-from agent.lux.action import MoveAction, TransferAction, PickupAction, DigAction, DestructAction, RechargeAction
-from agent.lux.cargo import UnitCargo
+from agent.objects.action import MoveAction, TransferAction, PickupAction, DigAction, DestructAction, RechargeAction
+from agent.objects.cargo import UnitCargo
 from agent.lux.config import UnitConfig
 from agent.objects.coordinate import Coordinate, Direction
 from agent.objects.game_state import GameState
 
-from agent.lux.goal import Goal, CollectIceGoal
+from agent.logic.goal import Goal, CollectIceGoal
 
 
 @dataclass
@@ -37,7 +37,7 @@ class Unit:
         goals = [CollectIceGoal(unit_pos=self.pos, ice_pos=closest_ice_tile)]
         return goals
 
-    def move_cost(self, game_state, direction):
+    def move_cost(self, game_state: GameState, direction: Direction):
         board = game_state.board
         target_pos = self.pos + direction.value
         if target_pos.x < 0 or target_pos.y < 0 or target_pos.x >= board.width or target_pos.y >= board.length:

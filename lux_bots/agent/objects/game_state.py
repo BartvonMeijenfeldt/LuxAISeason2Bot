@@ -5,8 +5,8 @@ from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from agent.objects.board import Board
-    from agent.lux.factory import Factory
-    from agent.lux.unit import Unit
+    from agent.objects.factory import Factory
+    from agent.objects.unit import Unit
     from agent.lux.team import Team
     from agent.objects.coordinate import Coordinate, CoordinateList
     from agent.lux.config import EnvConfig

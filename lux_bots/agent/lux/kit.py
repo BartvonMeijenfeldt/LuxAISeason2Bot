@@ -1,15 +1,15 @@
 import numpy as np
 
 from collections import defaultdict
-from agent.lux.cargo import UnitCargo
+from agent.objects.cargo import UnitCargo
 
 from agent.lux.config import EnvConfig
 from agent.lux.team import Team
-from agent.lux.unit import Unit
+from agent.objects.unit import Unit
 from agent.objects.game_state import GameState
 from agent.objects.board import Board
 from agent.objects.coordinate import Coordinate
-from agent.lux.factory import Factory
+from agent.objects.factory import Factory
 
 
 def process_action(action):

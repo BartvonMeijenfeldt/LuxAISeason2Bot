@@ -78,11 +78,11 @@ class CoordinateList:
 
 
 class Direction(Enum):
-    CENTER = Coordinate(0, 0)
-    UP = Coordinate(0, -1)
-    RIGHT = Coordinate(1, 0)
-    DOWN = Coordinate(0, 1)
-    LEFT = Coordinate(-1, 0)
+    CENTER: Coordinate = Coordinate(0, 0)
+    UP: Coordinate = Coordinate(0, -1)
+    RIGHT: Coordinate = Coordinate(1, 0)
+    DOWN: Coordinate = Coordinate(0, 1)
+    LEFT: Coordinate = Coordinate(-1, 0)
 
     @property
     def number(self) -> int:
