@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum
-from agent.lux.config import EnvConfig
 
 TERM_COLORS = False
 try:

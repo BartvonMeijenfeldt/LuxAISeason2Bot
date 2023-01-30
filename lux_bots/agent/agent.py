@@ -1,7 +1,6 @@
 import numpy as np
 
 from agent.lux.kit import obs_to_game_state, GameState
-from agent.lux.goal import CollectIceGoal
 from agent.lux.config import EnvConfig
 from agent.lux.utils import is_my_turn_to_place_factory
 from agent.logic.early_setup import get_factory_spawn_loc

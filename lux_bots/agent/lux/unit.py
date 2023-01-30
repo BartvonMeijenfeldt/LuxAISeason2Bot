@@ -5,6 +5,7 @@ from agent.lux.action import MoveAction, TransferAction, PickupAction, DigAction
 from agent.lux.cargo import UnitCargo
 from agent.lux.config import UnitConfig
 from agent.objects.coordinate import Coordinate, Direction
+from agent.objects.game_state import GameState
 
 from agent.lux.goal import Goal, CollectIceGoal
 
@@ -31,7 +32,7 @@ class Unit:
         cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
         return cost
 
-    def generate_goals(self, game_state) -> list[Goal]:
+    def generate_goals(self, game_state: GameState) -> list[Goal]:
         closest_ice_tile = game_state.ice_coordinates.get_closest_tile(c=self.pos)
         goals = [CollectIceGoal(unit_pos=self.pos, ice_pos=closest_ice_tile)]
         return goals

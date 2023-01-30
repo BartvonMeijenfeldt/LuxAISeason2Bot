@@ -1,13 +1,14 @@
 import numpy as np
 
-from dataclasses import dataclass
 from collections import defaultdict
 from agent.lux.cargo import UnitCargo
 
 from agent.lux.config import EnvConfig
 from agent.lux.team import Team
 from agent.lux.unit import Unit
-from agent.objects.coordinate import Coordinate, CoordinateList
+from agent.objects.game_state import GameState
+from agent.objects.board import Board
+from agent.objects.coordinate import Coordinate
 from agent.lux.factory import Factory
 
 
@@ -137,73 +138,3 @@ def create_factory_occupancy_map(factories: dict[str, list[Factory]], board_shap
             factory_occupancy_map[factory.pos_slice] = factory.strain_id
 
     return factory_occupancy_map
-
-
-@dataclass
-class Board:
-    rubble: np.ndarray
-    ice: np.ndarray
-    ore: np.ndarray
-    lichen: np.ndarray
-    lichen_strains: np.ndarray
-    factory_occupancy_map: np.ndarray
-    factories_per_team: int
-    valid_spawns_mask: np.ndarray
-
-    @property
-    def length(self):
-        return self.rubble.shape[0]
-
-    @property
-    def width(self):
-        return self.rubble.shape[1]
-
-    @property
-    def ice_coordinates(self) -> CoordinateList:
-        ice_locations = np.argwhere(self.ice == 1)
-        return CoordinateList([Coordinate(*xy) for xy in ice_locations])
-
-
-@dataclass
-class GameState:
-    """
-    A GameState object at step env_steps. Copied from luxai_s2/state/state.py
-    """
-
-    env_steps: int
-    env_cfg: dict
-    board: Board
-    player_units: list[Unit]
-    opp_units: list[Unit]
-    player_factories: list[Factory]
-    opp_factories: list[Factory]
-    player_team: Team
-    opp_team: Team
-
-    @property
-    def real_env_steps(self):
-        """
-        the actual env step in the environment, which subtracts the time spent bidding and placing factories
-        """
-        if self.env_cfg.BIDDING_SYSTEM:
-            # + 1 for extra factory placement and + 1 for bidding step
-            return self.env_steps - (self.board.factories_per_team * 2 + 1)
-        else:
-            return self.env_steps
-
-    def is_day(self):
-        return self.real_env_steps % self.env_cfg.CYCLE_LENGTH < self.env_cfg.DAY_LENGTH
-
-    @property
-    def ice_coordinates(self) -> CoordinateList:
-        return self.board.ice_coordinates
-
-    @property
-    def player_factory_tiles(self) -> CoordinateList:
-        return CoordinateList([c for factory in self.player_factories for c in factory.coordinates])
-
-    def get_all_closest_factory_tiles(self, c: Coordinate) -> CoordinateList:
-        return self.player_factory_tiles.get_all_closest_tiles(c)
-
-    def get_closest_factory_tile(self, c: Coordinate) -> Coordinate:
-        return self.player_factory_tiles.get_closest_tile(c)
