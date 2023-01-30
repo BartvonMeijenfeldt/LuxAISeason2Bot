@@ -45,6 +45,6 @@ class CollectIceGoal(Goal):
         if dy == 0:
             return []
 
-        direction = Direction.UP if dy > 0 else Direction.DOWN
+        direction = Direction.DOWN if dy > 0 else Direction.UP
         nr_actions = abs(dy)
         return [MoveAction(direction=direction, repeat=0, n=1) for _ in range(abs(nr_actions))]
