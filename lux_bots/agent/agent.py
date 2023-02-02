@@ -1,6 +1,9 @@
 import numpy as np
 
-from agent.lux.kit import obs_to_game_state, GameState
+from agent.lux.kit import obs_to_game_state
+from agent.objects.game_state import GameState
+from agent.objects.unit import Unit
+from agent.objects.action import Action
 from agent.lux.config import EnvConfig
 from agent.lux.utils import is_my_turn_to_place_factory
 from agent.logic.early_setup import get_factory_spawn_loc
@@ -97,7 +100,7 @@ def get_unit_actions(game_state: GameState) -> dict:
     return best_action_plans
 
 
-def pick_best_collective_action_plan(action_plans: dict):
+def pick_best_collective_action_plan(action_plans: dict[Unit, list[Action]]):
     # TODO
     best_action_plan = dict()
     for unit, action_plans in action_plans.items():

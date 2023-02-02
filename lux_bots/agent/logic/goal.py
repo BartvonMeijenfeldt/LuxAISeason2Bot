@@ -2,8 +2,10 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
 
+from agent.objects.game_state import GameState
 from agent.objects.action import Action, MoveAction, DigAction
 from agent.objects.coordinate import Coordinate, Direction
+from agent.search import get_plan_a_to_b, PowerCostGraph
 
 
 class Goal(metaclass=ABCMeta):
@@ -25,12 +27,11 @@ class CollectIceGoal(Goal):
     def generate_action_plans(self, game_state) -> list[list[Action]]:
         return [self.generate_plan(game_state=game_state)]
 
-    def generate_plan(self, game_state) -> list[Action]:
-        dx, dy = self.ice_pos - self.unit_pos
-        x_actions = self.get_x_actions(dx=dx)
-        y_actions = self.get_y_actions(dy=dy)
+    def generate_plan(self, game_state: GameState) -> list[Action]:
+        graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
+        move_actions = get_plan_a_to_b(graph=graph, start=self.unit_pos, end=self.ice_pos)
         dig_action = [DigAction(repeat=0, n=1)]
-        actions = x_actions + y_actions + dig_action
+        actions = move_actions + dig_action 
         return [a.to_array() for a in actions]
 
     def get_x_actions(self, dx: int) -> list[Action]:

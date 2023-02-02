@@ -39,8 +39,8 @@ class Unit:
 
     def move_cost(self, game_state: GameState, direction: Direction):
         board = game_state.board
-        target_pos = self.pos + direction.value
-        if target_pos.x < 0 or target_pos.y < 0 or target_pos.x >= board.width or target_pos.y >= board.length:
+        target_pos: Coordinate = self.pos + direction.value
+        if board.is_off_the_board(c=target_pos):
             # print("Warning, tried to get move cost for going off the map", file=sys.stderr)
             return None
         factory_there = board.factory_occupancy_map[target_pos.x, target_pos.y]

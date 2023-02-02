@@ -17,8 +17,17 @@ class Coordinate:
         new_y = self.y - other.y
         return Coordinate(new_x, new_y)
 
+    def __hash__(self) -> int:
+        return hash(tuple(self))
+
     def __eq__(self, other: "Coordinate") -> "Coordinate":
         return self.x == other.x and self.y == other.y
+
+    def __lt__(self, other: "Coordinate") -> "Coordinate":
+        if self.x != other.x:
+            return self.x < other.x
+        else:
+            return self.y < other.y
 
     def __iter__(self):
         return iter((self.x, self.y))
@@ -75,6 +84,9 @@ class CoordinateList:
 
     def __getitem__(self, key):
         return self.coordinates[key]
+
+    def __contains__(self, c):
+        return c in self.coordinates
 
 
 class Direction(Enum):

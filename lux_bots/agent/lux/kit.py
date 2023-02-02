@@ -85,16 +85,16 @@ def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str):
         factory_occupancy_map=factory_occupancy_map,
         factories_per_team=obs["board"]["factories_per_team"],
         valid_spawns_mask=obs["board"]["valid_spawns_mask"],
+        player_units=units[player],
+        opp_units=units[opp],
+        player_factories=factories[player],
+        opp_factories=factories[opp]
     )
 
     return GameState(
         env_cfg=env_cfg,
         env_steps=step,
         board=board,
-        player_units=units[player],
-        opp_units=units[opp],
-        player_factories=factories[player],
-        opp_factories=factories[opp],
         player_team=player_team,
         opp_team=opp_team,
     )
