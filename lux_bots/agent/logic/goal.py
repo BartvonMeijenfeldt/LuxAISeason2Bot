@@ -1,6 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
+from math import ceil
 
 from objects.game_state import GameState
 from objects.action import Action, DigAction, TransferAction, PickupAction
@@ -54,7 +55,10 @@ class ClearRubbleGoal(Goal):
         graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
         pickup_action = [PickupAction(4, 1000, 0, 1)]
         pos_to_ice_actions = get_plan_a_to_b(graph=graph, start=self.unit_pos, end=self.rubble_pos)
-        dig_action = [DigAction(repeat=0, n=2)]
+
+        rubble_at_pos = game_state.board.rubble[tuple(self.rubble_pos)]
+        required_digs = ceil(rubble_at_pos / 20)
+        dig_action = [DigAction(repeat=0, n=required_digs)]
         ice_to_factory_actions = get_plan_a_to_b(graph, start=self.rubble_pos, end=self.factory_pos)
         actions = pickup_action + pos_to_ice_actions + dig_action + ice_to_factory_actions
         return [a.to_array() for a in actions]
