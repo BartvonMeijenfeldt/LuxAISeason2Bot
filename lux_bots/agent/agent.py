@@ -7,6 +7,7 @@ from objects.action import ActionPlan
 from lux.config import EnvConfig
 from lux.utils import is_my_turn_to_place_factory
 from logic.early_setup import get_factory_spawn_loc
+from logic.goal import Goal
 
 
 class Agent:
@@ -43,7 +44,7 @@ class Agent:
         return actions
 
 
-def get_factory_actions(game_state: GameState) -> dict:
+def get_factory_actions(game_state: GameState) -> dict[str, list[np.array]]:
     actions = dict()
     for factory in game_state.player_factories:
         action = factory.act(game_state=game_state)
@@ -54,30 +55,24 @@ def get_factory_actions(game_state: GameState) -> dict:
 
 
 def get_unit_actions(game_state: GameState) -> dict[str, list[np.array]]:
-    action_plans_all = dict()
+    unit_goals = dict()
 
     for unit in game_state.player_units:
         if not unit.has_actions_in_queue:
             goals = unit.generate_goals(game_state=game_state)
-            actions_plans = [
-                action_plan
-                for goal in goals
-                for action_plan in goal.generate_action_plans(game_state)
-                if action_plan.is_valid
-            ]
-            action_plans_all[unit] = actions_plans
+            unit_goals[unit] = goals
 
-    best_action_plans = pick_best_collective_action_plan(action_plans_all)
+    best_action_plans = pick_best_collective_action_plan(unit_goals)
     unit_actions = {unit_id: plan.to_action_arrays() for unit_id, plan in best_action_plans.items()}
 
     return unit_actions
 
 
-def pick_best_collective_action_plan(action_plans: dict[Unit, list[ActionPlan]]) -> dict[str, ActionPlan]:
+def pick_best_collective_action_plan(unit_goals: dict[Unit, list[Goal]]) -> dict[str, ActionPlan]:
     # TODO
     best_action_plan = dict()
-    for unit, plans in action_plans.items():
-        if plans:
-            best_action_plan[unit.unit_id] = plans[0]
+    for unit, goals in unit_goals.items():
+        if goals:
+            best_action_plan[unit.unit_id] = goals[0].best_action_plan
 
     return best_action_plan

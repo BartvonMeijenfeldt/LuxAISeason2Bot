@@ -106,7 +106,8 @@ def create_units(obs, env_cfg: EnvConfig) -> dict[str, list[Unit]]:
     for agent in obs["units"]:
         for unit_data in obs["units"][agent].values():
             unit_data = unit_data.copy()
-            unit_data["pos"] = Coordinate(*unit_data["pos"])
+            unit_data["c"] = Coordinate(*unit_data["pos"])
+            del unit_data["pos"]
             unit_data["cargo"] = UnitCargo(**unit_data["cargo"])
             unit_data["unit_cfg"] = env_cfg.ROBOTS[unit_data["unit_type"]]
             unit = Unit(**unit_data)

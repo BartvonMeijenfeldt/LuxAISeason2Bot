@@ -3,6 +3,7 @@ import numpy as np
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field, replace
 from math import floor
+from collections.abc import Iterator
 
 from lux.config import UnitConfig
 from objects.coordinate import Direction, Coordinate
@@ -149,6 +150,9 @@ class ActionPlan:
 
         return condensed_actions
 
+    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
+        return sum([action.get_power_required(unit_cfg=unit_cfg, unit_c=unit_c, board=board) for action in self])
+
     def _init_current_action(self, action: Action) -> None:
         self.cur_action: Action = action
         self.repeat_count: int = action.n
@@ -161,6 +165,12 @@ class ActionPlan:
     def to_action_arrays(self) -> list[np.array]:
         return [action.to_array() for action in self.actions]
 
+    def __iter__(self) -> Iterator[Action]:
+        return iter(self.actions)
+
+    def __len__(self) -> int:
+        return len(self.actions)
+
     @property
     def is_valid(self) -> bool:
-        return len(self.actions) <= 20
+        return len(self) <= 20

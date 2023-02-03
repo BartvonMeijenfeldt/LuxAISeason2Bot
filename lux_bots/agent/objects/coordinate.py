@@ -7,7 +7,10 @@ class Coordinate:
     x: int
     y: int
 
-    def __add__(self, other: "Coordinate") -> "Coordinate":
+    def __add__(self, other) -> "Coordinate":
+        if isinstance(other, Direction):
+            other = other.value
+
         new_x = self.x + other.x
         new_y = self.y + other.y
         return Coordinate(new_x, new_y)
