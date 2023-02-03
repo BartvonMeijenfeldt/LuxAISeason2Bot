@@ -2,13 +2,21 @@ import numpy as np
 
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field, replace
-from objects.coordinate import Direction
+from math import floor
+
+from lux.config import UnitConfig
+from objects.coordinate import Direction, Coordinate
+from objects.board import Board
 
 
 @dataclass
 class Action(metaclass=ABCMeta):
     @abstractmethod
     def to_array(self) -> np.ndarray:
+        ...
+
+    @abstractmethod
+    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
         ...
 
 
@@ -24,6 +32,11 @@ class MoveAction(Action):
         amount = 0
         return np.array([action_identifier, self.direction.number, resource, amount, self.repeat, self.n])
 
+    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
+        target_c = unit_c + self.direction
+        rubble_at_target = board.rubble[tuple(target_c)]
+        return floor(unit_cfg.MOVE_COST + unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target)
+
 
 @dataclass
 class TransferAction(Action):
@@ -36,6 +49,9 @@ class TransferAction(Action):
     def to_array(self) -> np.ndarray:
         action_identifier = 1
         return np.array([action_identifier, self.direction.number, self.resource, self.amount, self.repeat, self.n])
+
+    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
+        return 0
 
 
 @dataclass
@@ -50,6 +66,9 @@ class PickupAction(Action):
         direction = 0
         return np.array([action_identifier, direction, self.resource, self.amount, self.repeat, self.n])
 
+    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
+        return 0
+
 
 @dataclass
 class DigAction(Action):
@@ -63,9 +82,12 @@ class DigAction(Action):
         amount = 0
         return np.array([action_identifier, direction, resource, amount, self.repeat, self.n])
 
+    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
+        return unit_cfg.DIG_COST
+
 
 @dataclass
-class DestructAction(Action):
+class SelfDestructAction(Action):
     repeat: int
     n: int
 
@@ -81,6 +103,9 @@ class DestructAction(Action):
         amount = 0
         return np.array([action_identifier, direction, resource, amount, self.repeat, self.n])
 
+    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
+        return unit_cfg.SELF_DESTRUCT_COST
+
 
 @dataclass
 class RechargeAction(Action):
@@ -93,6 +118,9 @@ class RechargeAction(Action):
         direction = 0
         resource = 0
         return np.array([action_identifier, direction, resource, self.amount, self.repeat, self.n])
+
+    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
+        return 0
 
 
 class ActionPlan:
