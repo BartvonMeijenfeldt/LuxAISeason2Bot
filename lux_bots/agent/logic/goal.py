@@ -17,22 +17,24 @@ if TYPE_CHECKING:
 
 
 class Goal(metaclass=ABCMeta):
-    action_plans: ActionPlan
+    action_plans: list[ActionPlan]
 
     @abstractmethod
     def generate_action_plans(self, unit: Unit, game_state: GameState) -> None:
         ...
 
     def evaluate_action_plans(self, unit: Unit, game_state: GameState) -> None:
-        self.action_plan_evaluations = [
-            self._evaluate_action_plan(unit=unit, game_state=game_state, action_plan=action_plan)
-            for action_plan in self.action_plans
-        ]
+        for action_plan in self.action_plans:
+            value_action_plan = self._evaluate_action_plan(unit=unit, game_state=game_state, action_plan=action_plan)
+            action_plan.value = value_action_plan
 
     @property
     def best_action_plan(self) -> ActionPlan:
-        index_best_plan = self.action_plan_evaluations.index(max(self.action_plan_evaluations))
-        return self.action_plans[index_best_plan]
+        return max(self.action_plans)
+
+    @property
+    def __eq__(self, other: "Goal") -> bool:
+        self.best_action_plan < other.best_action_plan
 
     @abstractmethod
     def _evaluate_action_plan(self, unit: Unit, game_state: GameState) -> float:
@@ -108,3 +110,18 @@ class ClearRubbleGoal(Goal):
         number_of_steps = len(action_plan)
         power_cost = action_plan.get_power_required(unit_cfg=unit.unit_cfg, unit_c=unit.c, board=game_state.board)
         return number_of_steps + 0.1 * power_cost
+
+
+@dataclass
+class GoalCollection:
+    goals: list[Goal]
+
+    def generate_action_plans(self, unit: Unit, game_state: GameState) -> None:
+        for goal in self.goals:
+            goal.generate_action_plans(unit=unit, game_state=game_state)
+            goal.evaluate_action_plans(unit=unit, game_state=game_state)
+
+    @property
+    def best_action_plan(self) -> ActionPlan:
+        best_goal = max(self.goals)
+        return best_goal.best_action_plan

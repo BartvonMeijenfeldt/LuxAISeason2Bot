@@ -7,7 +7,7 @@ from objects.action import ActionPlan
 from lux.config import EnvConfig
 from lux.utils import is_my_turn_to_place_factory
 from logic.early_setup import get_factory_spawn_loc
-from logic.goal import Goal
+from logic.goal import GoalCollection
 
 
 class Agent:
@@ -68,11 +68,11 @@ def get_unit_actions(game_state: GameState) -> dict[str, list[np.array]]:
     return unit_actions
 
 
-def pick_best_collective_action_plan(unit_goals: dict[Unit, list[Goal]]) -> dict[str, ActionPlan]:
+def pick_best_collective_action_plan(unit_goals: dict[Unit, GoalCollection]) -> dict[str, ActionPlan]:
     # TODO
     best_action_plan = dict()
     for unit, goals in unit_goals.items():
         if goals:
-            best_action_plan[unit.unit_id] = goals[0].best_action_plan
+            best_action_plan[unit.unit_id] = goals.best_action_plan
 
     return best_action_plan

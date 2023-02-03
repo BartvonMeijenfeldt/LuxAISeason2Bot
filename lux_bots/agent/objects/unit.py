@@ -5,7 +5,7 @@ from lux.config import UnitConfig
 from objects.coordinate import Coordinate
 from objects.game_state import GameState
 
-from logic.goal import Goal, CollectIceGoal, ClearRubbleGoal
+from logic.goal import Goal, GoalCollection, CollectIceGoal, ClearRubbleGoal
 
 
 @dataclass
@@ -39,9 +39,6 @@ class Unit:
             target_ice_c = game_state.get_closest_ice_tile(c=self.c)
             target_factory_c = game_state.get_closest_factory_tile(c=target_ice_c)
             goals = [CollectIceGoal(ice_pos=target_ice_c, factory_pos=target_factory_c)]
-            for goal in goals:
-                goal.generate_action_plans(unit=self, game_state=game_state)
-                goal.evaluate_action_plans(unit=self, game_state=game_state)
 
         else:
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.c, n=4)
@@ -50,9 +47,8 @@ class Unit:
                 ClearRubbleGoal(rubble_positions=closest_rubble_tiles, factory_pos=target_factory_c)
             ]
 
-            for goal in goals:
-                goal.generate_action_plans(unit=self, game_state=game_state)
-                goal.evaluate_action_plans(unit=self, game_state=game_state)
+        goals = GoalCollection(goals)
+        goals.generate_action_plans(unit=self, game_state=game_state)
 
         return goals
 

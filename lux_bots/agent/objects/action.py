@@ -128,6 +128,7 @@ class ActionPlan:
     def __init__(self, actions: list[Action]) -> None:
         self.base_actions = actions
         self.actions = self.get_condensed_action_plan(self.base_actions)
+        self.value: float = None
 
     def get_condensed_action_plan(self, actions: list[Action]) -> list[Action]:
         condensed_actions = []
@@ -164,6 +165,9 @@ class ActionPlan:
 
     def to_action_arrays(self) -> list[np.array]:
         return [action.to_array() for action in self.actions]
+
+    def __lt__(self, other: "ActionPlan") -> bool:
+        self.value < other.value
 
     def __iter__(self) -> Iterator[Action]:
         return iter(self.actions)
