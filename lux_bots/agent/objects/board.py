@@ -58,7 +58,13 @@ class Board:
         return 0 <= c.x < self.width and 0 <= c.y < self.length
 
     def is_off_the_board(self, c: Coordinate) -> bool:
-        return not self.is_off_the_board(c)
+        return not self.is_off_the_board(c=c)
+
+    def get_closest_factory_tile(self, c: Coordinate) -> Coordinate:
+        return self.player_factory_tiles.get_closest_tile(c)
+
+    def get_closest_ice_tile(self, c: Coordinate) -> Coordinate:
+        return self.ice_coordinates.get_closest_tile(c=c)
 
     def get_neighbors_coordinate(self, c: Coordinate) -> CoordinateList:
         coordinates = [c + direction.value for direction in Direction if self.is_on_the_board(c + direction.value)]

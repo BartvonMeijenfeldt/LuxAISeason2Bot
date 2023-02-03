@@ -48,8 +48,8 @@ def get_factory_actions(game_state: GameState) -> dict:
     for factory in game_state.player_factories:
         if factory.can_build_heavy(game_state):
             actions[factory.unit_id] = factory.build_heavy()
-        # if factory.can_water(game_state):
-        #     actions[factory.unit_id] = factory.water()
+        elif game_state.env_steps > 800 and factory.can_water(game_state):
+            actions[factory.unit_id] = factory.water()
 
     return actions
 
@@ -91,9 +91,10 @@ def get_unit_actions(game_state: GameState) -> dict:
     action_plans_all = dict()
 
     for unit in game_state.player_units:
-        goals = unit.generate_goals(game_state=game_state)
-        actions_plans = [action_plan for goal in goals for action_plan in goal.generate_action_plans(game_state)]
-        action_plans_all[unit] = actions_plans
+        if not unit.has_actions_in_queue:
+            goals = unit.generate_goals(game_state=game_state)
+            actions_plans = [action_plan for goal in goals for action_plan in goal.generate_action_plans(game_state)]
+            action_plans_all[unit] = actions_plans
 
     best_action_plans = pick_best_collective_action_plan(action_plans_all)
 

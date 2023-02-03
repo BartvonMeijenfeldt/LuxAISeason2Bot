@@ -28,13 +28,18 @@ class Unit:
         return "player_1"
 
     @property
+    def has_actions_in_queue(self) -> bool:
+        return len(self.action_queue) > 0
+
+    @property
     def action_queue_cost(self):
         cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
         return cost
 
     def generate_goals(self, game_state: GameState) -> list[Goal]:
-        closest_ice_tile = game_state.ice_coordinates.get_closest_tile(c=self.pos)
-        goals = [CollectIceGoal(unit_pos=self.pos, ice_pos=closest_ice_tile)]
+        target_ice_tile = game_state.get_closest_ice_tile(c=self.pos)
+        target_factory_ice_tile = game_state.get_closest_factory_tile(c=target_ice_tile)
+        goals = [CollectIceGoal(unit_pos=self.pos, ice_pos=target_ice_tile, factory_pos=target_factory_ice_tile)]
         return goals
 
     def move_cost(self, game_state: GameState, direction: Direction):
