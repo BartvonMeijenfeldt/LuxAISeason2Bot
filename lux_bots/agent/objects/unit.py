@@ -44,7 +44,9 @@ class Unit:
         else:
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.pos, n=2)
             target_factory_c = game_state.get_closest_factory_tile(c=closest_rubble_tiles[-1])
-            goals = [ClearRubbleGoal(unit_pos=self.pos, rubble_positions=closest_rubble_tiles, factory_pos=target_factory_c)]
+            goals = [
+                ClearRubbleGoal(unit_pos=self.pos, rubble_positions=closest_rubble_tiles, factory_pos=target_factory_c)
+            ]
 
         return goals
 

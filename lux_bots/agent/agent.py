@@ -3,7 +3,7 @@ import numpy as np
 from lux.kit import obs_to_game_state
 from objects.game_state import GameState
 from objects.unit import Unit
-from objects.action import Action
+from objects.action import Action, ActionPlan
 from lux.config import EnvConfig
 from lux.utils import is_my_turn_to_place_factory
 from logic.early_setup import get_factory_spawn_loc
@@ -87,13 +87,18 @@ def get_factory_actions(game_state: GameState) -> dict:
 #     return unit_actions
 
 
-def get_unit_actions(game_state: GameState) -> dict:
+def get_unit_actions(game_state: GameState) -> dict[str, ActionPlan]:
     action_plans_all = dict()
 
     for unit in game_state.player_units:
         if not unit.has_actions_in_queue:
             goals = unit.generate_goals(game_state=game_state)
-            actions_plans = [action_plan for goal in goals for action_plan in goal.generate_action_plans(game_state)]
+            actions_plans = [
+                action_plan
+                for goal in goals
+                for action_plan in goal.generate_action_plans(game_state)
+                if action_plan.is_valid
+            ]
             action_plans_all[unit] = actions_plans
 
     best_action_plans = pick_best_collective_action_plan(action_plans_all)
@@ -101,10 +106,11 @@ def get_unit_actions(game_state: GameState) -> dict:
     return best_action_plans
 
 
-def pick_best_collective_action_plan(action_plans: dict[Unit, list[Action]]):
+def pick_best_collective_action_plan(action_plans: dict[Unit, list[ActionPlan]]) -> dict[str, ActionPlan]:
     # TODO
     best_action_plan = dict()
-    for unit, action_plans in action_plans.items():
-        best_action_plan[unit.unit_id] = action_plans[0]
+    for unit, plans in action_plans.items():
+        if plans:
+            best_action_plan[unit.unit_id] = [a.to_array() for a in plans[0].actions]
 
     return best_action_plan

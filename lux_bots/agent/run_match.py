@@ -1,6 +1,6 @@
 from luxai_s2.env import LuxAI_S2
 
-from agent.agent import Agent
+from agent import Agent
 from visualize.interactions import interact
 
 env = LuxAI_S2()

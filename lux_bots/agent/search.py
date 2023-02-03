@@ -79,7 +79,7 @@ class PowerCostGraph(Graph):
         return dis_ab * self.time_to_power_cost
 
 
-def get_plan_a_to_b(graph: Graph, start: Coordinate, end: Coordinate) -> list[MoveAction]:
+def get_actions_a_to_b(graph: Graph, start: Coordinate, end: Coordinate) -> list[MoveAction]:
     frontier = PriorityQueue()
     came_from: dict[Coordinate, Coordinate] = {}
     cost_so_far: dict[Coordinate, float] = {}
