@@ -41,8 +41,17 @@ class Board:
         return CoordinateList([Coordinate(*xy) for xy in ice_locations])
 
     @property
+    def rubble_coordinates(self) -> CoordinateList:
+        is_rubble = self.rubble > 0
+        is_no_ice = self.ice == 0
+        is_no_ore = self.ore == 0
+
+        rubble_locations = np.argwhere(is_rubble & is_no_ice & is_no_ore)
+        return CoordinateList([Coordinate(*xy) for xy in rubble_locations])
+
+    @property
     def player_factory_tiles(self) -> CoordinateList:
-        return CoordinateList([c for factory in self.player_factories for c in factory.coordinates])
+        return CoordinateList([c for factory in self.player_factories for c in factory.coordinates])   
 
     @property
     def opponent_factory_tiles(self) -> CoordinateList:
@@ -65,6 +74,9 @@ class Board:
 
     def get_closest_ice_tile(self, c: Coordinate) -> Coordinate:
         return self.ice_coordinates.get_closest_tile(c=c)
+
+    def get_closest_rubble_tile(self, c: Coordinate) -> Coordinate:
+        return self.rubble_coordinates.get_closest_tile(c=c)
 
     def get_neighbors_coordinate(self, c: Coordinate) -> CoordinateList:
         coordinates = [c + direction.value for direction in Direction if self.is_on_the_board(c + direction.value)]

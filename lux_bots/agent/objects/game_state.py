@@ -66,3 +66,6 @@ class GameState:
 
     def get_closest_ice_tile(self, c: Coordinate) -> Coordinate:
         return self.board.get_closest_ice_tile(c=c)
+
+    def get_closest_rubble_tile(self, c: Coordinate) -> Coordinate:
+        return self.board.get_closest_rubble_tile(c=c)

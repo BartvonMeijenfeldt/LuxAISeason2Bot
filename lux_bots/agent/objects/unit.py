@@ -7,7 +7,7 @@ from lux.config import UnitConfig
 from objects.coordinate import Coordinate, Direction
 from objects.game_state import GameState
 
-from logic.goal import Goal, CollectIceGoal
+from logic.goal import Goal, CollectIceGoal, ClearRubbleGoal
 
 
 @dataclass
@@ -37,9 +37,15 @@ class Unit:
         return cost
 
     def generate_goals(self, game_state: GameState) -> list[Goal]:
-        target_ice_tile = game_state.get_closest_ice_tile(c=self.pos)
-        target_factory_ice_tile = game_state.get_closest_factory_tile(c=target_ice_tile)
-        goals = [CollectIceGoal(unit_pos=self.pos, ice_pos=target_ice_tile, factory_pos=target_factory_ice_tile)]
+        if game_state.env_steps <= 800:
+            target_ice_c = game_state.get_closest_ice_tile(c=self.pos)
+            target_factory_c = game_state.get_closest_factory_tile(c=target_ice_c)
+            goals = [CollectIceGoal(unit_pos=self.pos, ice_pos=target_ice_c, factory_pos=target_factory_c)]
+        else:
+            closest_rubble_c = game_state.get_closest_rubble_tile(c=self.pos)
+            target_factory_c = game_state.get_closest_factory_tile(c=closest_rubble_c)
+            goals = [ClearRubbleGoal(unit_pos=self.pos, rubble_pos=closest_rubble_c, factory_pos=target_factory_c)]
+
         return goals
 
     def move_cost(self, game_state: GameState, direction: Direction):
