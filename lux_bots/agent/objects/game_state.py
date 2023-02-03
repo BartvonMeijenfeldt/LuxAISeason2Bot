@@ -69,3 +69,6 @@ class GameState:
 
     def get_closest_rubble_tile(self, c: Coordinate) -> Coordinate:
         return self.board.get_closest_rubble_tile(c=c)
+
+    def get_n_closest_rubble_tiles(self, c: Coordinate, n: int) -> CoordinateList:
+        return self.board.get_n_closest_rubble_tiles(c=c, n=n)

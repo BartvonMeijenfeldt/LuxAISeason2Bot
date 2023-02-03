@@ -79,6 +79,11 @@ class CoordinateList:
     def get_closest_tile(self, c: Coordinate) -> Coordinate:
         return self.get_all_closest_tiles(c)[0]
 
+    def get_n_closest_tiles(self, c: Coordinate, n: int) -> "CoordinateList":
+        coordinates_sorted = sorted(self.coordinates, key=c.distance_to)
+        n_closest_coordinates = coordinates_sorted[:n]
+        return CoordinateList(n_closest_coordinates)
+
     def __iter__(self):
         return iter(self.coordinates)
 
@@ -87,6 +92,9 @@ class CoordinateList:
 
     def __contains__(self, c):
         return c in self.coordinates
+
+    def __len__(self):
+        return len(self.coordinates)
 
 
 class Direction(Enum):

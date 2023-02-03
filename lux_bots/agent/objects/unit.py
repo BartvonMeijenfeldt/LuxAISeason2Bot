@@ -37,14 +37,14 @@ class Unit:
         return cost
 
     def generate_goals(self, game_state: GameState) -> list[Goal]:
-        if game_state.env_steps <= 800:
+        if game_state.env_steps <= 790:
             target_ice_c = game_state.get_closest_ice_tile(c=self.pos)
             target_factory_c = game_state.get_closest_factory_tile(c=target_ice_c)
             goals = [CollectIceGoal(unit_pos=self.pos, ice_pos=target_ice_c, factory_pos=target_factory_c)]
         else:
-            closest_rubble_c = game_state.get_closest_rubble_tile(c=self.pos)
-            target_factory_c = game_state.get_closest_factory_tile(c=closest_rubble_c)
-            goals = [ClearRubbleGoal(unit_pos=self.pos, rubble_pos=closest_rubble_c, factory_pos=target_factory_c)]
+            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.pos, n=2)
+            target_factory_c = game_state.get_closest_factory_tile(c=closest_rubble_tiles[-1])
+            goals = [ClearRubbleGoal(unit_pos=self.pos, rubble_positions=closest_rubble_tiles, factory_pos=target_factory_c)]
 
         return goals
 
