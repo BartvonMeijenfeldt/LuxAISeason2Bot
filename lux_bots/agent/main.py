@@ -1,9 +1,9 @@
 import json
 from argparse import Namespace
 
-from agent.agent import Agent
-from agent.lux.config import EnvConfig
-from agent.lux.kit import process_obs, process_action
+from agent import Agent
+from lux.config import EnvConfig
+from lux.kit import process_obs, process_action
 
 ### DO NOT REMOVE THE FOLLOWING CODE ###
 agent_dict = dict()  # store potentially multiple dictionaries as kaggle imports code directly

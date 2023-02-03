@@ -3,7 +3,7 @@ import numpy as np
 from scipy.signal import convolve2d
 
 
-from agent.objects.coordinate import Coordinate, CoordinateList
+from objects.coordinate import Coordinate, CoordinateList
 
 
 def get_factory_spawn_loc(obs: dict) -> tuple:

@@ -2,10 +2,10 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
 
-from agent.objects.game_state import GameState
-from agent.objects.action import Action, DigAction, TransferAction, PickupAction
-from agent.objects.coordinate import Coordinate
-from agent.search import get_plan_a_to_b, PowerCostGraph
+from objects.game_state import GameState
+from objects.action import Action, DigAction, TransferAction, PickupAction
+from objects.coordinate import Coordinate
+from search import get_plan_a_to_b, PowerCostGraph
 
 
 class Goal(metaclass=ABCMeta):

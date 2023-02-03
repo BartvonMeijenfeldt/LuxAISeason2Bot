@@ -1,13 +1,13 @@
 import math
 from dataclasses import dataclass
 
-from agent.objects.action import MoveAction, TransferAction, PickupAction, DigAction, DestructAction, RechargeAction
-from agent.objects.cargo import UnitCargo
-from agent.lux.config import UnitConfig
-from agent.objects.coordinate import Coordinate, Direction
-from agent.objects.game_state import GameState
+from objects.action import MoveAction, TransferAction, PickupAction, DigAction, DestructAction, RechargeAction
+from objects.cargo import UnitCargo
+from lux.config import UnitConfig
+from objects.coordinate import Coordinate, Direction
+from objects.game_state import GameState
 
-from agent.logic.goal import Goal, CollectIceGoal
+from logic.goal import Goal, CollectIceGoal
 
 
 @dataclass

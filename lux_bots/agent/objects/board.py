@@ -5,11 +5,11 @@ import numpy as np
 
 from dataclasses import dataclass
 
-from agent.objects.coordinate import Coordinate, CoordinateList, Direction
+from objects.coordinate import Coordinate, CoordinateList, Direction
 
 if TYPE_CHECKING:
-    from agent.objects.unit import Unit
-    from agent.objects.factory import Factory
+    from objects.unit import Unit
+    from objects.factory import Factory
 
 
 @dataclass

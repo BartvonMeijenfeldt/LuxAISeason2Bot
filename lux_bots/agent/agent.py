@@ -1,12 +1,12 @@
 import numpy as np
 
-from agent.lux.kit import obs_to_game_state
-from agent.objects.game_state import GameState
-from agent.objects.unit import Unit
-from agent.objects.action import Action
-from agent.lux.config import EnvConfig
-from agent.lux.utils import is_my_turn_to_place_factory
-from agent.logic.early_setup import get_factory_spawn_loc
+from lux.kit import obs_to_game_state
+from objects.game_state import GameState
+from objects.unit import Unit
+from objects.action import Action
+from lux.config import EnvConfig
+from lux.utils import is_my_turn_to_place_factory
+from logic.early_setup import get_factory_spawn_loc
 
 
 class Agent:

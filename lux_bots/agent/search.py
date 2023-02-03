@@ -4,9 +4,9 @@ from typing import TypeVar
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 
-from agent.objects.coordinate import Coordinate, CoordinateList, Direction
-from agent.objects.board import Board
-from agent.objects.action import MoveAction
+from objects.coordinate import Coordinate, CoordinateList, Direction
+from objects.board import Board
+from objects.action import MoveAction
 
 
 T = TypeVar("T")

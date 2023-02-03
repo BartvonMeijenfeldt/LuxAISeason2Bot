@@ -2,9 +2,9 @@ import numpy as np
 
 from dataclasses import dataclass
 
-from agent.objects.cargo import UnitCargo
-from agent.lux.config import EnvConfig
-from agent.objects.coordinate import Coordinate, CoordinateList
+from objects.cargo import UnitCargo
+from lux.config import EnvConfig
+from objects.coordinate import Coordinate, CoordinateList
 
 
 @dataclass

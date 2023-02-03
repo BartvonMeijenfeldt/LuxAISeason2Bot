@@ -2,7 +2,7 @@ import numpy as np
 
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
-from agent.objects.coordinate import Direction
+from objects.coordinate import Direction
 
 
 class Action(metaclass=ABCMeta):

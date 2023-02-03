@@ -1,4 +1,4 @@
-from agent.lux.kit import GameState
+from lux.kit import GameState
 
 
 def is_my_turn_to_place_factory(game_state: GameState, step: int) -> bool:
