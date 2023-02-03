@@ -1,7 +1,7 @@
 import math
 from dataclasses import dataclass
 
-from objects.action import MoveAction, TransferAction, PickupAction, DigAction, DestructAction, RechargeAction
+from objects.action import MoveAction, TransferAction, PickupAction, DigAction, SelfDestructAction, RechargeAction
 from objects.cargo import UnitCargo
 from lux.config import UnitConfig
 from objects.coordinate import Coordinate, Direction
@@ -37,12 +37,12 @@ class Unit:
         return cost
 
     def generate_goals(self, game_state: GameState) -> list[Goal]:
-        if game_state.env_steps <= 790:
+        if game_state.env_steps <= 800:
             target_ice_c = game_state.get_closest_ice_tile(c=self.pos)
             target_factory_c = game_state.get_closest_factory_tile(c=target_ice_c)
             goals = [CollectIceGoal(unit_pos=self.pos, ice_pos=target_ice_c, factory_pos=target_factory_c)]
         else:
-            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.pos, n=2)
+            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.pos, n=4)
             target_factory_c = game_state.get_closest_factory_tile(c=closest_rubble_tiles[-1])
             goals = [
                 ClearRubbleGoal(unit_pos=self.pos, rubble_positions=closest_rubble_tiles, factory_pos=target_factory_c)
@@ -92,7 +92,7 @@ class Unit:
         return self.unit_cfg.SELF_DESTRUCT_COST
 
     def self_destruct(self, repeat=0, n=1):
-        return DestructAction(repeat=repeat, n=n).to_array()
+        return SelfDestructAction(repeat=repeat, n=n).to_array()
 
     def recharge(self, charge_amount, repeat=0, n=1):
         return RechargeAction(amount=charge_amount, repeat=repeat, n=n).to_array()

@@ -158,6 +158,9 @@ class ActionPlan:
         condensed_action.n = self.repeat_count
         return condensed_action
 
+    def to_action_arrays(self) -> list[np.array]:
+        return [action.to_array() for action in self.actions]
+
     @property
     def is_valid(self) -> bool:
         return len(self.actions) <= 20

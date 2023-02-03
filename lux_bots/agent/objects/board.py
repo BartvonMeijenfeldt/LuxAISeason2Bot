@@ -51,7 +51,7 @@ class Board:
 
     @property
     def player_factory_tiles(self) -> CoordinateList:
-        return CoordinateList([c for factory in self.player_factories for c in factory.coordinates])   
+        return CoordinateList([c for factory in self.player_factories for c in factory.coordinates])
 
     @property
     def opponent_factory_tiles(self) -> CoordinateList:

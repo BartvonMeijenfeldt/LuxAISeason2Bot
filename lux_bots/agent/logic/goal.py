@@ -32,9 +32,9 @@ class CollectIceGoal(Goal):
 
     def generate_plan(self, game_state: GameState) -> ActionPlan:
         graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
-        pickup_action = [PickupAction(4, 250, 0, 1)]
+        pickup_action = [PickupAction(4, 850, 0, 1)]
         pos_to_ice_actions = get_actions_a_to_b(graph=graph, start=self.unit_pos, end=self.ice_pos)
-        dig_action = [DigAction(repeat=0, n=4)]
+        dig_action = [DigAction(repeat=0, n=11)]
         ice_to_factory_actions = get_actions_a_to_b(graph, start=self.ice_pos, end=self.factory_pos)
         transfer_action = [
             TransferAction(direction=ice_to_factory_actions[0].direction, resource=0, amount=100, repeat=0, n=1)

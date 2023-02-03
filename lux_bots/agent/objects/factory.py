@@ -2,9 +2,10 @@ import numpy as np
 
 from dataclasses import dataclass
 
-from objects.cargo import UnitCargo
 from lux.config import EnvConfig
+from objects.cargo import UnitCargo
 from objects.coordinate import Coordinate, CoordinateList
+from objects.game_state import GameState
 
 
 @dataclass
@@ -17,6 +18,14 @@ class Factory:
     center: Coordinate
     env_cfg: EnvConfig
     radius = 1
+
+    def act(self, game_state: GameState) -> np.array:
+        if self.can_build_heavy(game_state):
+            return self.build_heavy()
+        elif game_state.env_steps > 900 and self.can_water(game_state):
+            return self.water()
+        else:
+            return None
 
     def build_heavy_metal_cost(self, game_state):
         unit_cfg = self.env_cfg.ROBOTS["HEAVY"]

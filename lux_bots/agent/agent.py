@@ -3,7 +3,7 @@ import numpy as np
 from lux.kit import obs_to_game_state
 from objects.game_state import GameState
 from objects.unit import Unit
-from objects.action import Action, ActionPlan
+from objects.action import ActionPlan
 from lux.config import EnvConfig
 from lux.utils import is_my_turn_to_place_factory
 from logic.early_setup import get_factory_spawn_loc
@@ -46,48 +46,14 @@ class Agent:
 def get_factory_actions(game_state: GameState) -> dict:
     actions = dict()
     for factory in game_state.player_factories:
-        if factory.can_build_heavy(game_state):
-            actions[factory.unit_id] = factory.build_heavy()
-        elif game_state.env_steps > 800 and factory.can_water(game_state):
-            actions[factory.unit_id] = factory.water()
+        action = factory.act(game_state=game_state)
+        if action:
+            actions[factory.unit_id] = action
 
     return actions
 
 
-# def get_unit_actions(game_state: GameState) -> dict:
-#     unit_actions = dict()
-
-#     for unit in game_state.player_units:
-#         closest_factory_tile = game_state.get_closest_factory_tile(c=unit.pos)
-#         adjacent_to_factory = closest_factory_tile.distance_to(c=unit.pos) == 1
-
-#         ICE_MINNIG_CUTOFF = 40
-
-#         # previous ice mining code
-#         if unit.cargo.ice < ICE_MINNIG_CUTOFF:
-#             closest_ice_tile = game_state.ice_coordinates.get_closest_tile(c=unit.pos)
-#             if closest_ice_tile == unit.pos:
-#                 if unit.power >= unit.dig_cost + unit.action_queue_cost:
-#                     unit_actions[unit.unit_id] = [unit.dig(repeat=0, n=1)]
-#             else:
-#                 unit_actions[unit.unit_id] = CollectIceGoal(unit_pos=unit.pos, ice_pos=closest_ice_tile).generate_plan(
-#                     game_state=game_state
-#                 )
-#         # else if we have enough ice, we go back to the factory and dump it.
-#         elif unit.cargo.ice >= ICE_MINNIG_CUTOFF:
-#             direction = unit.pos.direction_to(target=closest_factory_tile)
-#             if adjacent_to_factory:
-#                 if unit.power >= unit.action_queue_cost:
-#                     unit_actions[unit.unit_id] = [unit.transfer(direction, 0, unit.cargo.ice, repeat=0)]
-#             else:
-#                 move_cost = unit.move_cost(game_state, direction)
-#                 if move_cost is not None and unit.power >= move_cost + unit.action_queue_cost:
-#                     unit_actions[unit.unit_id] = [unit.move(direction, repeat=0, n=1)]
-
-#     return unit_actions
-
-
-def get_unit_actions(game_state: GameState) -> dict[str, ActionPlan]:
+def get_unit_actions(game_state: GameState) -> dict[str, list[np.array]]:
     action_plans_all = dict()
 
     for unit in game_state.player_units:
@@ -102,8 +68,9 @@ def get_unit_actions(game_state: GameState) -> dict[str, ActionPlan]:
             action_plans_all[unit] = actions_plans
 
     best_action_plans = pick_best_collective_action_plan(action_plans_all)
+    unit_actions = {unit_id: plan.to_action_arrays() for unit_id, plan in best_action_plans.items()}
 
-    return best_action_plans
+    return unit_actions
 
 
 def pick_best_collective_action_plan(action_plans: dict[Unit, list[ActionPlan]]) -> dict[str, ActionPlan]:
@@ -111,6 +78,6 @@ def pick_best_collective_action_plan(action_plans: dict[Unit, list[ActionPlan]])
     best_action_plan = dict()
     for unit, plans in action_plans.items():
         if plans:
-            best_action_plan[unit.unit_id] = [a.to_array() for a in plans[0].actions]
+            best_action_plan[unit.unit_id] = plans[0]
 
     return best_action_plan
