@@ -1,13 +1,18 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field, replace
 from math import floor
 from collections.abc import Iterator
+from objects.resource import Resource
 
-from lux.config import UnitConfig
-from objects.coordinate import Direction, Coordinate
-from objects.board import Board
+if TYPE_CHECKING:
+    from objects.unit import Unit
+    from objects.coordinate import Direction
+    from objects.board import Board
 
 
 @dataclass
@@ -17,7 +22,7 @@ class Action(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
+    def get_power_required(self, unit: Unit, board: Board) -> float:
         ...
 
 
@@ -33,41 +38,41 @@ class MoveAction(Action):
         amount = 0
         return np.array([action_identifier, self.direction.number, resource, amount, self.repeat, self.n])
 
-    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
-        target_c = unit_c + self.direction
+    def get_power_required(self, unit: Unit, board: Board) -> float:
+        target_c = unit.c + self.direction
         rubble_at_target = board.rubble[tuple(target_c)]
-        return floor(unit_cfg.MOVE_COST + unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target)
+        return floor(unit.unit_cfg.MOVE_COST + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target)
 
 
 @dataclass
 class TransferAction(Action):
     direction: Direction
-    resource: int
     amount: int
+    resource: Resource
     repeat: int
     n: int
 
     def to_array(self) -> np.ndarray:
         action_identifier = 1
-        return np.array([action_identifier, self.direction.number, self.resource, self.amount, self.repeat, self.n])
+        return np.array([action_identifier, self.direction.number, self.resource.value, self.amount, self.repeat, self.n])
 
-    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
+    def get_power_required(self, unit: Unit, board: Board) -> float:
         return 0
 
 
 @dataclass
 class PickupAction(Action):
-    resource: int
     amount: int
+    resource: Resource
     repeat: int
     n: int
 
     def to_array(self) -> np.ndarray:
         action_identifier = 2
         direction = 0
-        return np.array([action_identifier, direction, self.resource, self.amount, self.repeat, self.n])
+        return np.array([action_identifier, direction, self.resource.value, self.amount, self.repeat, self.n])
 
-    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
+    def get_power_required(self, unit: Unit, board: Board) -> float:
         return 0
 
 
@@ -83,8 +88,8 @@ class DigAction(Action):
         amount = 0
         return np.array([action_identifier, direction, resource, amount, self.repeat, self.n])
 
-    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
-        return unit_cfg.DIG_COST
+    def get_power_required(self, unit: Unit, board: Board) -> float:
+        return unit.unit_cfg.DIG_COST
 
 
 @dataclass
@@ -94,8 +99,8 @@ class SelfDestructAction(Action):
 
     action_identifier: int = field(default=4, init=False)
     direction: int = field(default=None, init=False)
-    resource: int = field(default=0, init=False)
     amount: int = field(default=0, init=False)
+    resource: int = field(default=0, init=False)
 
     def to_array(self) -> np.ndarray:
         action_identifier = 4
@@ -104,8 +109,8 @@ class SelfDestructAction(Action):
         amount = 0
         return np.array([action_identifier, direction, resource, amount, self.repeat, self.n])
 
-    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
-        return unit_cfg.SELF_DESTRUCT_COST
+    def get_power_required(self, unit: Unit, board: Board) -> float:
+        return unit.unit_cfg.SELF_DESTRUCT_COST
 
 
 @dataclass
@@ -120,7 +125,7 @@ class RechargeAction(Action):
         resource = 0
         return np.array([action_identifier, direction, resource, self.amount, self.repeat, self.n])
 
-    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
+    def get_power_required(self, unit: Unit, board: Board) -> float:
         return 0
 
 
@@ -151,8 +156,8 @@ class ActionPlan:
 
         return condensed_actions
 
-    def get_power_required(self, unit_cfg: UnitConfig, unit_c: Coordinate, board: Board) -> float:
-        return sum([action.get_power_required(unit_cfg=unit_cfg, unit_c=unit_c, board=board) for action in self])
+    def get_power_required(self, unit: Unit, board: Board) -> float:
+        return sum([action.get_power_required(unit=unit, board=board) for action in self])
 
     def _init_current_action(self, action: Action) -> None:
         self.cur_action: Action = action

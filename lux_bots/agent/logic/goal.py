@@ -9,6 +9,7 @@ from math import floor, ceil
 from search import get_actions_a_to_b, Graph, PowerCostGraph
 from objects.action import Action, DigAction, MoveAction, TransferAction, PickupAction, ActionPlan
 from objects.coordinate import Direction
+from objects.resource import Resource
 
 if TYPE_CHECKING:
     from objects.unit import Unit
@@ -64,7 +65,7 @@ class CollectIceGoal(Goal):
             move_actions=pos_to_ice_actions + ice_to_factory_actions,
         )
 
-        transfer_action = TransferAction(direction=Direction.CENTER, resource=0, amount=3000, repeat=0, n=1)
+        transfer_action = TransferAction(direction=Direction.CENTER, amount=3000, resource=Resource.Ice, repeat=0, n=1)
 
         actions = [power_pickup_action] + pos_to_ice_actions + [dig_action] + ice_to_factory_actions + [transfer_action]
         return ActionPlan(actions)
@@ -74,7 +75,7 @@ class CollectIceGoal(Goal):
         power_in_factory = game_state.get_closest_factory(c=unit.c).power
         cargo_to_pickup = min(power_space_left, power_in_factory)
 
-        return PickupAction(4, cargo_to_pickup, 0, 1)
+        return PickupAction(cargo_to_pickup, Resource.Power, 0, 1)
 
     def _get_pos_to_ice_actions(self, unit: Unit, game_state: GameState) -> list[MoveAction]:
         graph = self._get_power_cost_graph(game_state=game_state)
@@ -92,10 +93,7 @@ class CollectIceGoal(Goal):
     ) -> DigAction:
         power_after_pickup = unit.power + power_pickup.amount
         power_required_moving = sum(
-            [
-                move.get_power_required(unit_cfg=unit.unit_cfg, unit_c=unit.c, board=game_state.board)
-                for move in move_actions
-            ]
+            [move.get_power_required(unit=unit, board=game_state.board) for move in move_actions]
         )
 
         # TODO adjust for charging on the way
@@ -106,7 +104,7 @@ class CollectIceGoal(Goal):
 
     def _evaluate_action_plan(self, unit: Unit, game_state: GameState, action_plan: ActionPlan) -> float:
         number_of_steps = len(action_plan)
-        power_cost = action_plan.get_power_required(unit_cfg=unit.unit_cfg, unit_c=unit.c, board=game_state.board)
+        power_cost = action_plan.get_power_required(unit=unit, board=game_state.board)
         return number_of_steps + 0.1 * power_cost
 
 
@@ -120,7 +118,7 @@ class ClearRubbleGoal(Goal):
 
     def _generate_plan(self, unit: Unit, game_state: GameState) -> ActionPlan:
         graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
-        pickup_action = [PickupAction(4, 1000, 0, 1)]
+        pickup_action = [PickupAction(1000, Resource.Power, 0, 1)]
 
         # TODO, something smarter, e.g. only give single rubble_position, but then iteratively find next rubble position
         # based on number of rubble positions, grab power
@@ -152,7 +150,7 @@ class ClearRubbleGoal(Goal):
 
     def _evaluate_action_plan(self, unit: Unit, game_state: GameState, action_plan: ActionPlan) -> float:
         number_of_steps = len(action_plan)
-        power_cost = action_plan.get_power_required(unit_cfg=unit.unit_cfg, unit_c=unit.c, board=game_state.board)
+        power_cost = action_plan.get_power_required(unit=unit, board=game_state.board)
         return number_of_steps + 0.1 * power_cost
 
 
