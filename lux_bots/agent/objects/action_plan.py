@@ -63,13 +63,14 @@ class ActionPlan:
         primitive_action.n = 1
         return primitive_action
 
-    def get_power_required(self, board: Board) -> float:
+    def get_power_used(self, board: Board) -> float:
         cur_c = self.unit.c
-        total_power = 0
+        total_power = self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
 
         for action in self:
             power_action = action.get_power_change(unit=self.unit, start_c=cur_c, board=board)
-            total_power += power_action
+            power_used = max(power_action, 0)
+            total_power += power_used
             cur_c = action.get_final_pos(start_c=cur_c)
 
         return total_power

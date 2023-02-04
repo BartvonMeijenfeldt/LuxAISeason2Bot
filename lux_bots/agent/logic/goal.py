@@ -60,6 +60,13 @@ class Goal(metaclass=ABCMeta):
     def _append_action(self, action: Action) -> None:
         self.cur_actions.append(action)
 
+    @property
+    def value(self):
+        return max(self.action_plans).value
+
+    def __lt__(self, other: Goal):
+        return self.value < other.value
+
 
 @dataclass
 class CollectIceGoal(Goal):
@@ -129,7 +136,7 @@ class CollectIceGoal(Goal):
 
     def _evaluate_action_plan(self, game_state: GameState, action_plan: ActionPlan) -> float:
         number_of_steps = len(action_plan)
-        power_cost = action_plan.get_power_required(board=game_state.board)
+        power_cost = action_plan.get_power_used(board=game_state.board)
         return number_of_steps + 0.1 * power_cost
 
 
@@ -228,8 +235,11 @@ class ClearRubbleGoal(Goal):
 
     def _evaluate_action_plan(self, game_state: GameState, action_plan: ActionPlan) -> float:
         number_of_steps = len(action_plan)
-        power_cost = action_plan.get_power_required(board=game_state.board)
-        return number_of_steps + 0.1 * power_cost
+        power_cost = action_plan.get_power_used(board=game_state.board)
+        number_of_rubble_cleared = len(self.rubble_positions)
+        rubble_cleared_per_step = number_of_rubble_cleared / number_of_steps
+        rubble_cleared_per_power = number_of_rubble_cleared / power_cost
+        return rubble_cleared_per_step + rubble_cleared_per_power
 
 
 @dataclass
