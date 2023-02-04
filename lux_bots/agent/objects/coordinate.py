@@ -69,23 +69,38 @@ class Coordinate:
 class CoordinateList:
     coordinates: list[Coordinate]
 
-    def dis_to_tiles(self, c: Coordinate) -> list[int]:
-        return [c.distance_to(factory_c) for factory_c in self.coordinates]
+    def dis_to_tiles(self, c: Coordinate, exclude_c: "CoordinateList" = None) -> list[int]:
+        if exclude_c is None:
+            exclude_c = []
 
-    def min_dis_to(self, c: Coordinate) -> int:
-        return min(self.dis_to_tiles(c))
+        return [c.distance_to(factory_c) for factory_c in self.coordinates if factory_c not in exclude_c]
 
-    def get_all_closest_tiles(self, c: Coordinate) -> "CoordinateList":
-        min_dis = self.min_dis_to(c)
-        return CoordinateList([c_l for c_l in self.coordinates if min_dis == c_l.distance_to(c)])
+    def min_dis_to(self, c: Coordinate, exclude_c: "CoordinateList" = None) -> int:
+        return min(self.dis_to_tiles(c, exclude_c=exclude_c))
 
-    def get_closest_tile(self, c: Coordinate) -> Coordinate:
-        return self.get_all_closest_tiles(c)[0]
+    def get_all_closest_tiles(self, c: Coordinate, exclude_c: "CoordinateList" = None) -> "CoordinateList":
+        if exclude_c is None:
+            exclude_c = []
+
+        min_dis = self.min_dis_to(c, exclude_c=exclude_c)
+
+        coordinates = [c_l for c_l in self.coordinates if min_dis == c_l.distance_to(c) and c_l not in exclude_c]
+
+        return CoordinateList(coordinates)
+
+    def get_closest_tile(self, c: Coordinate, exclude_c: "CoordinateList" = None) -> Coordinate:
+        return self.get_all_closest_tiles(c=c, exclude_c=exclude_c)[0]
 
     def get_n_closest_tiles(self, c: Coordinate, n: int) -> "CoordinateList":
         coordinates_sorted = sorted(self.coordinates, key=c.distance_to)
         n_closest_coordinates = coordinates_sorted[:n]
         return CoordinateList(n_closest_coordinates)
+
+    def append(self, c: Coordinate) -> None:
+        self.coordinates.append(c)
+
+    def __add__(self, other: "CoordinateList") -> "CoordinateList":
+        return CoordinateList(self.coordinates + other.coordinates)
 
     def __iter__(self):
         return iter(self.coordinates)

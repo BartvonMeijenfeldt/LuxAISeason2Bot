@@ -53,10 +53,11 @@ class CollectIceGoal(Goal):
         self.action_plans = [self._generate_plan(unit=unit, game_state=game_state)]
 
     def _generate_plan(self, unit: Unit, game_state: GameState) -> ActionPlan:
-        power_pickup_action = self._get_power_pickup_action(unit=unit, game_state=game_state)
+        graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
 
-        pos_to_ice_actions = self._get_pos_to_ice_actions(unit=unit, game_state=game_state)
-        ice_to_factory_actions = self._get_ice_to_factory_actions(game_state=game_state)
+        power_pickup_action = self._get_power_pickup_action(unit=unit, game_state=game_state)
+        pos_to_ice_actions = self._get_pos_to_ice_actions(unit=unit, graph=graph)
+        ice_to_factory_actions = self._get_ice_to_factory_actions(graph=graph)
 
         dig_action = self._get_dig_action(
             unit=unit,
@@ -77,15 +78,10 @@ class CollectIceGoal(Goal):
 
         return PickupAction(cargo_to_pickup, Resource.Power)
 
-    def _get_pos_to_ice_actions(self, unit: Unit, game_state: GameState) -> list[MoveAction]:
-        graph = self._get_power_cost_graph(game_state=game_state)
+    def _get_pos_to_ice_actions(self, unit: Unit, graph: Graph) -> list[MoveAction]:
         return get_actions_a_to_b(graph=graph, start=unit.c, end=self.ice_c)
 
-    def _get_power_cost_graph(self, game_state: GameState) -> PowerCostGraph:
-        return PowerCostGraph(game_state.board, time_to_power_cost=20)
-
-    def _get_ice_to_factory_actions(self, game_state: GameState) -> list[MoveAction]:
-        graph = self._get_power_cost_graph(game_state=game_state)
+    def _get_ice_to_factory_actions(self, graph: Graph) -> list[MoveAction]:
         return get_actions_a_to_b(graph=graph, start=self.ice_c, end=self.factory_pos)
 
     def _get_dig_action(
@@ -93,7 +89,7 @@ class CollectIceGoal(Goal):
     ) -> DigAction:
         power_after_pickup = unit.power + power_pickup.amount
         power_required_moving = sum(
-            [move.get_power_required(unit=unit, board=game_state.board) for move in move_actions]
+            [move.get_power_required(unit=unit, start_c=unit.c, board=game_state.board) for move in move_actions]
         )
 
         # TODO adjust for charging on the way
@@ -117,36 +113,82 @@ class ClearRubbleGoal(Goal):
         self.action_plans = [self._generate_plan(unit=unit, game_state=game_state)]
 
     def _generate_plan(self, unit: Unit, game_state: GameState) -> ActionPlan:
-        graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
-        pickup_action = [PickupAction(1000, Resource.Power)]
+        self.graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
 
-        # TODO, something smarter, e.g. only give single rubble_position, but then iteratively find next rubble position
-        # based on number of rubble positions, grab power
+        pickup_action = self._get_power_pickup_action(unit=unit, game_state=game_state)
+        rubble_actions = self._clear_initial_rubble_actions(unit=unit, game_state=game_state)
 
+        self.cur_actions = [pickup_action] + rubble_actions
+
+        self._add_additional_rubble_actions(unit=unit, pickup_power=pickup_action.amount, game_state=game_state)
+        rubble_to_factory_actions = get_actions_a_to_b(self.graph, start=self.cur_c, end=self.factory_pos)
+
+        # rubble_to_factory_actions = get_actions_a_to_b(graph, start=rubble_c, end=self.factory_pos)
+        actions = self.cur_actions + rubble_to_factory_actions
+        return ActionPlan(actions)
+
+    def _get_power_pickup_action(self, unit: Unit, game_state: GameState) -> PickupAction:
+        power_space_left = unit.power_space_left
+        power_in_factory = game_state.get_closest_factory(c=unit.c).power
+        cargo_to_pickup = min(power_space_left, power_in_factory)
+
+        return PickupAction(cargo_to_pickup, Resource.Power)
+
+    def _clear_initial_rubble_actions(self, unit: Unit, game_state: GameState) -> list[Action]:
         rubble_actions = []
         starts = [unit.c] + self.rubble_positions[:-1]
 
         for start_c, rubble_c in zip(starts, self.rubble_positions):
             new_actions = self._get_rubble_actions(
-                start_c=start_c, rubble_c=rubble_c, graph=graph, board=game_state.board
+                unit=unit, start_c=start_c, rubble_c=rubble_c, board=game_state.board
             )
             rubble_actions += new_actions
 
-        rubble_to_factory_actions = get_actions_a_to_b(graph, start=rubble_c, end=self.factory_pos)
-        actions = pickup_action + rubble_actions + rubble_to_factory_actions
-        return ActionPlan(actions)
+        self.cur_c = rubble_c
+        return rubble_actions
 
-    def _get_rubble_actions(
-        self, start_c: Coordinate, rubble_c: Coordinate, graph: Graph, board: Board
-    ) -> list[Action]:
-        pos_to_rubble_actions = get_actions_a_to_b(graph=graph, start=start_c, end=rubble_c)
+    def _get_rubble_actions(self, unit: Unit, start_c: Coordinate, rubble_c: Coordinate, board: Board) -> list[Action]:
+        pos_to_rubble_actions = get_actions_a_to_b(graph=self.graph, start=start_c, end=rubble_c)
 
         rubble_at_pos = board.rubble[tuple(rubble_c)]
-        required_digs = ceil(rubble_at_pos / 20)
-        dig_action = [DigAction(n=required_digs)]
+        nr_required_digs = ceil(rubble_at_pos / unit.unit_cfg.DIG_RUBBLE_REMOVED)
+        dig_action = [DigAction(n=nr_required_digs)]
 
         actions = pos_to_rubble_actions + dig_action
         return actions
+
+    def _add_additional_rubble_actions(self, unit: Unit, pickup_power: int, game_state: GameState) -> list[Action]:
+        power_after_pickup = unit.power + pickup_power
+
+        while True:
+            closest_rubble = game_state.board.get_closest_rubble_tile(self.cur_c, exclude_c=self.rubble_positions)
+            dig_rubble_actions = self._get_rubble_actions(
+                unit=unit, start_c=self.cur_c, rubble_c=closest_rubble, board=game_state.board
+            )
+
+            if self._can_still_go_back(
+                unit=unit,
+                new_actions=dig_rubble_actions,
+                new_c=closest_rubble,
+                game_state=game_state,
+                power_available=power_after_pickup,
+            ):
+                self.cur_actions += dig_rubble_actions
+                self.rubble_positions.append(c=closest_rubble)
+                self.cur_c = closest_rubble
+            else:
+                return
+
+    def _can_still_go_back(
+        self, unit: Unit, new_actions: list[Action], new_c: Coordinate, game_state: GameState, power_available: int
+    ) -> bool:
+        rubble_to_factory_actions = get_actions_a_to_b(self.graph, start=new_c, end=self.factory_pos)
+        action_plan = ActionPlan(self.cur_actions + new_actions + rubble_to_factory_actions)
+        if not action_plan.is_valid:
+            return False
+
+        total_power_required = action_plan.get_power_required(unit=unit, board=game_state.board)
+        return total_power_required <= power_available
 
     def _evaluate_action_plan(self, unit: Unit, game_state: GameState, action_plan: ActionPlan) -> float:
         number_of_steps = len(action_plan)

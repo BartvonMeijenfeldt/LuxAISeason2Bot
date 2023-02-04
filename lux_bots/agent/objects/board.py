@@ -78,8 +78,8 @@ class Board:
     def get_closest_ice_tile(self, c: Coordinate) -> Coordinate:
         return self.ice_coordinates.get_closest_tile(c=c)
 
-    def get_closest_rubble_tile(self, c: Coordinate) -> Coordinate:
-        return self.rubble_coordinates.get_closest_tile(c=c)
+    def get_closest_rubble_tile(self, c: Coordinate, exclude_c: CoordinateList = None) -> Coordinate:
+        return self.rubble_coordinates.get_closest_tile(c=c, exclude_c=exclude_c)
 
     def get_n_closest_rubble_tiles(self, c: Coordinate, n: int) -> CoordinateList:
         return self.rubble_coordinates.get_n_closest_tiles(c=c, n=n)
