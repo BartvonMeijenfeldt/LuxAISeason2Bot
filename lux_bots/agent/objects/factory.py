@@ -22,7 +22,7 @@ class Factory:
     def act(self, game_state: GameState) -> np.array:
         if self.can_build_heavy(game_state):
             return self.build_heavy()
-        elif game_state.env_steps > 900 and self.can_water(game_state):
+        elif game_state.env_steps > 800 and self.can_water(game_state):
             return self.water()
         else:
             return None

@@ -4,10 +4,11 @@ from typing import TYPE_CHECKING
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
-from math import ceil
+from math import floor, ceil
 
 from search import get_actions_a_to_b, Graph, PowerCostGraph
-from objects.action import Action, DigAction, TransferAction, PickupAction, ActionPlan
+from objects.action import Action, DigAction, MoveAction, TransferAction, PickupAction, ActionPlan
+from objects.coordinate import Direction
 
 if TYPE_CHECKING:
     from objects.unit import Unit
@@ -43,7 +44,7 @@ class Goal(metaclass=ABCMeta):
 
 @dataclass
 class CollectIceGoal(Goal):
-    ice_pos: Coordinate
+    ice_c: Coordinate
     factory_pos: Coordinate
     quantity: Optional[int] = None
 
@@ -51,16 +52,57 @@ class CollectIceGoal(Goal):
         self.action_plans = [self._generate_plan(unit=unit, game_state=game_state)]
 
     def _generate_plan(self, unit: Unit, game_state: GameState) -> ActionPlan:
-        graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
-        pickup_action = [PickupAction(4, 850, 0, 1)]
-        pos_to_ice_actions = get_actions_a_to_b(graph=graph, start=unit.c, end=self.ice_pos)
-        dig_action = [DigAction(repeat=0, n=11)]
-        ice_to_factory_actions = get_actions_a_to_b(graph, start=self.ice_pos, end=self.factory_pos)
-        transfer_action = [
-            TransferAction(direction=ice_to_factory_actions[0].direction, resource=0, amount=100, repeat=0, n=1)
-        ]
-        actions = pickup_action + pos_to_ice_actions + dig_action + ice_to_factory_actions + transfer_action
+        power_pickup_action = self._get_power_pickup_action(unit=unit, game_state=game_state)
+
+        pos_to_ice_actions = self._get_pos_to_ice_actions(unit=unit, game_state=game_state)
+        ice_to_factory_actions = self._get_ice_to_factory_actions(game_state=game_state)
+
+        dig_action = self._get_dig_action(
+            unit=unit,
+            game_state=game_state,
+            power_pickup=power_pickup_action,
+            move_actions=pos_to_ice_actions + ice_to_factory_actions,
+        )
+
+        transfer_action = TransferAction(direction=Direction.CENTER, resource=0, amount=3000, repeat=0, n=1)
+
+        actions = [power_pickup_action] + pos_to_ice_actions + [dig_action] + ice_to_factory_actions + [transfer_action]
         return ActionPlan(actions)
+
+    def _get_power_pickup_action(self, unit: Unit, game_state: GameState) -> PickupAction:
+        power_space_left = unit.power_space_left
+        power_in_factory = game_state.get_closest_factory(c=unit.c).power
+        cargo_to_pickup = min(power_space_left, power_in_factory)
+
+        return PickupAction(4, cargo_to_pickup, 0, 1)
+
+    def _get_pos_to_ice_actions(self, unit: Unit, game_state: GameState) -> list[MoveAction]:
+        graph = self._get_power_cost_graph(game_state=game_state)
+        return get_actions_a_to_b(graph=graph, start=unit.c, end=self.ice_c)
+
+    def _get_power_cost_graph(self, game_state: GameState) -> PowerCostGraph:
+        return PowerCostGraph(game_state.board, time_to_power_cost=20)
+
+    def _get_ice_to_factory_actions(self, game_state: GameState) -> list[MoveAction]:
+        graph = self._get_power_cost_graph(game_state=game_state)
+        return get_actions_a_to_b(graph=graph, start=self.ice_c, end=self.factory_pos)
+
+    def _get_dig_action(
+        self, unit: Unit, game_state: GameState, power_pickup: PickupAction, move_actions: list[MoveAction]
+    ) -> DigAction:
+        power_after_pickup = unit.power + power_pickup.amount
+        power_required_moving = sum(
+            [
+                move.get_power_required(unit_cfg=unit.unit_cfg, unit_c=unit.c, board=game_state.board)
+                for move in move_actions
+            ]
+        )
+
+        # TODO adjust for charging on the way
+        power_left_for_digging = power_after_pickup - power_required_moving
+        n_digging = floor(power_left_for_digging / unit.unit_cfg.DIG_COST)
+        n_digging = min(n_digging, ceil(unit.cargo_space_left / unit.unit_cfg.DIG_RESOURCE_GAIN))
+        return DigAction(repeat=0, n=n_digging)
 
     def _evaluate_action_plan(self, unit: Unit, game_state: GameState, action_plan: ActionPlan) -> float:
         number_of_steps = len(action_plan)
@@ -80,24 +122,26 @@ class ClearRubbleGoal(Goal):
         graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
         pickup_action = [PickupAction(4, 1000, 0, 1)]
 
+        # TODO, something smarter, e.g. only give single rubble_position, but then iteratively find next rubble position
+        # based on number of rubble positions, grab power
+
         rubble_actions = []
+        starts = [unit.c] + self.rubble_positions[:-1]
 
-        for i in range(len(self.rubble_positions)):
-            if i == 0:
-                start = unit.c
-            else:
-                start = self.rubble_positions[i - 1]
-            rubble_c = self.rubble_positions[i]
-
-            new_actions = self._get_rubble_actions(start=start, rubble_c=rubble_c, graph=graph, board=game_state.board)
+        for start_c, rubble_c in zip(starts, self.rubble_positions):
+            new_actions = self._get_rubble_actions(
+                start_c=start_c, rubble_c=rubble_c, graph=graph, board=game_state.board
+            )
             rubble_actions += new_actions
 
         rubble_to_factory_actions = get_actions_a_to_b(graph, start=rubble_c, end=self.factory_pos)
         actions = pickup_action + rubble_actions + rubble_to_factory_actions
         return ActionPlan(actions)
 
-    def _get_rubble_actions(self, start: Coordinate, rubble_c: Coordinate, graph: Graph, board: Board) -> list[Action]:
-        pos_to_rubble_actions = get_actions_a_to_b(graph=graph, start=start, end=rubble_c)
+    def _get_rubble_actions(
+        self, start_c: Coordinate, rubble_c: Coordinate, graph: Graph, board: Board
+    ) -> list[Action]:
+        pos_to_rubble_actions = get_actions_a_to_b(graph=graph, start=start_c, end=rubble_c)
 
         rubble_at_pos = board.rubble[tuple(rubble_c)]
         required_digs = ceil(rubble_at_pos / 20)

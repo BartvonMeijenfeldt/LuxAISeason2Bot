@@ -69,6 +69,9 @@ class Board:
     def is_off_the_board(self, c: Coordinate) -> bool:
         return not self.is_off_the_board(c=c)
 
+    def get_closest_factory(self, c: Coordinate) -> Factory:
+        return min(self.player_factories, key=lambda x: x.min_dis_to(c))
+
     def get_closest_factory_tile(self, c: Coordinate) -> Coordinate:
         return self.player_factory_tiles.get_closest_tile(c)
 

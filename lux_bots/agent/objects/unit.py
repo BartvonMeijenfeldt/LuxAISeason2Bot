@@ -38,10 +38,10 @@ class Unit:
         if game_state.env_steps <= 800:
             target_ice_c = game_state.get_closest_ice_tile(c=self.c)
             target_factory_c = game_state.get_closest_factory_tile(c=target_ice_c)
-            goals = [CollectIceGoal(ice_pos=target_ice_c, factory_pos=target_factory_c)]
+            goals = [CollectIceGoal(ice_c=target_ice_c, factory_pos=target_factory_c)]
 
         else:
-            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.c, n=4)
+            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.c, n=3)
             target_factory_c = game_state.get_closest_factory_tile(c=closest_rubble_tiles[-1])
             goals = [
                 ClearRubbleGoal(rubble_positions=closest_rubble_tiles, factory_pos=target_factory_c)
@@ -51,6 +51,14 @@ class Unit:
         goals.generate_action_plans(unit=self, game_state=game_state)
 
         return goals
+
+    @property
+    def power_space_left(self) -> int:
+        return self.unit_cfg.BATTERY_CAPACITY - self.power
+
+    @property
+    def cargo_space_left(self) -> int:
+        return self.unit_cfg.CARGO_SPACE - self.cargo.total
 
     def __hash__(self) -> int:
         return hash(str(self))
