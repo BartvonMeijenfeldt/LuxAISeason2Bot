@@ -96,6 +96,9 @@ class Factory:
     def coordinates(self) -> CoordinateList:
         return CoordinateList([Coordinate(x, y) for x in self.pos_x_range for y in self.pos_y_range])
 
+    def is_on_factory(self, c: Coordinate) -> bool:
+        return c in self.coordinates
+
     def min_dis_to(self, c: Coordinate) -> int:
         return self.coordinates.min_dis_to(c)
 

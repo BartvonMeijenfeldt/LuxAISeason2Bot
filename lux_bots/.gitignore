@@ -3,3 +3,4 @@ matches
 
 .vscode
 .ipynb_checkpoints
+*.json

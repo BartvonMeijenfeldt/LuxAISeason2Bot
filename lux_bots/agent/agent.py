@@ -3,7 +3,7 @@ import numpy as np
 from lux.kit import obs_to_game_state
 from objects.game_state import GameState
 from objects.unit import Unit
-from objects.action import ActionPlan
+from objects.action_plan import ActionPlan
 from lux.config import EnvConfig
 from lux.utils import is_my_turn_to_place_factory
 from logic.early_setup import get_factory_spawn_loc
