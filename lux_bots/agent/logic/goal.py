@@ -75,7 +75,7 @@ class CollectIceGoal(Goal):
         power_in_factory = game_state.get_closest_factory(c=unit.c).power
         cargo_to_pickup = min(power_space_left, power_in_factory)
 
-        return PickupAction(cargo_to_pickup, Resource.Power, 0, 1)
+        return PickupAction(cargo_to_pickup, Resource.Power)
 
     def _get_pos_to_ice_actions(self, unit: Unit, game_state: GameState) -> list[MoveAction]:
         graph = self._get_power_cost_graph(game_state=game_state)
@@ -118,7 +118,7 @@ class ClearRubbleGoal(Goal):
 
     def _generate_plan(self, unit: Unit, game_state: GameState) -> ActionPlan:
         graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
-        pickup_action = [PickupAction(1000, Resource.Power, 0, 1)]
+        pickup_action = [PickupAction(1000, Resource.Power)]
 
         # TODO, something smarter, e.g. only give single rubble_position, but then iteratively find next rubble position
         # based on number of rubble positions, grab power
@@ -143,7 +143,7 @@ class ClearRubbleGoal(Goal):
 
         rubble_at_pos = board.rubble[tuple(rubble_c)]
         required_digs = ceil(rubble_at_pos / 20)
-        dig_action = [DigAction(repeat=0, n=required_digs)]
+        dig_action = [DigAction(n=required_digs)]
 
         actions = pos_to_rubble_actions + dig_action
         return actions

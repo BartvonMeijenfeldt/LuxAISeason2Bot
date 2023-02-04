@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from abc import ABCMeta, abstractmethod
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from math import floor
 from collections.abc import Iterator
 from objects.resource import Resource
@@ -15,8 +15,11 @@ if TYPE_CHECKING:
     from objects.board import Board
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Action(metaclass=ABCMeta):
+    repeat: int = 0
+    n: int = 1
+
     @abstractmethod
     def to_array(self) -> np.ndarray:
         ...
@@ -29,8 +32,6 @@ class Action(metaclass=ABCMeta):
 @dataclass
 class MoveAction(Action):
     direction: Direction
-    repeat: int
-    n: int
 
     def to_array(self) -> np.ndarray:
         action_identifier = 0
@@ -49,12 +50,12 @@ class TransferAction(Action):
     direction: Direction
     amount: int
     resource: Resource
-    repeat: int
-    n: int
 
     def to_array(self) -> np.ndarray:
         action_identifier = 1
-        return np.array([action_identifier, self.direction.number, self.resource.value, self.amount, self.repeat, self.n])
+        return np.array(
+            [action_identifier, self.direction.number, self.resource.value, self.amount, self.repeat, self.n]
+        )
 
     def get_power_required(self, unit: Unit, board: Board) -> float:
         return 0
@@ -64,8 +65,6 @@ class TransferAction(Action):
 class PickupAction(Action):
     amount: int
     resource: Resource
-    repeat: int
-    n: int
 
     def to_array(self) -> np.ndarray:
         action_identifier = 2
@@ -78,9 +77,6 @@ class PickupAction(Action):
 
 @dataclass
 class DigAction(Action):
-    repeat: int
-    n: int
-
     def to_array(self) -> np.ndarray:
         action_identifier = 3
         direction = 0
@@ -94,14 +90,6 @@ class DigAction(Action):
 
 @dataclass
 class SelfDestructAction(Action):
-    repeat: int
-    n: int
-
-    action_identifier: int = field(default=4, init=False)
-    direction: int = field(default=None, init=False)
-    amount: int = field(default=0, init=False)
-    resource: int = field(default=0, init=False)
-
     def to_array(self) -> np.ndarray:
         action_identifier = 4
         direction = 0
@@ -116,8 +104,6 @@ class SelfDestructAction(Action):
 @dataclass
 class RechargeAction(Action):
     amount: int
-    repeat: int
-    n: int
 
     def to_array(self) -> np.ndarray:
         action_identifier = 5

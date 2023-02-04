@@ -108,7 +108,7 @@ def get_actions_a_to_b(graph: Graph, start: Coordinate, end: Coordinate) -> list
         next_c = came_from[cur_c]
         delta = cur_c - next_c
         direction = Direction(delta)
-        action = MoveAction(direction=direction, repeat=0, n=1)
+        action = MoveAction(direction=direction)
         solution.insert(0, action)
         cur_c = next_c
 
