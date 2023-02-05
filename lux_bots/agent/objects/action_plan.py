@@ -1,8 +1,8 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 from collections.abc import Iterator
 from search import get_actions_a_to_b
 
@@ -12,56 +12,46 @@ if TYPE_CHECKING:
     from objects.action import Action
     from objects.board import Board
     from objects.game_state import GameState
+    from logic.goal import Goal
 
 
+@dataclass
 class ActionPlan:
-    def __init__(self, actions: list[Action], unit: Unit) -> None:
-        self.original_actions = actions
-        self.unit = unit
-        self.value: float = None
+    original_actions: list[Action]
+    unit: Unit
+    goal: Goal
+    game_state: GameState
 
-        self.actions = self._get_condensed_action_plan(self.original_actions)
-        self.primitive_actions = self._get_primitive_actions(self.original_actions)
+    _actions: Optional[list[Action]] = field(init=False, default=None)
+    _primitive_actions: Optional[list[Action]] = field(init=False, default=None)
+    _value: Optional[list[Action]] = field(init=False, default=None)
 
-    def _get_condensed_action_plan(self, actions: list[Action]) -> list[Action]:
-        condensed_actions = []
+    @property
+    def actions(self) -> list[Action]:
+        if self._actions is None:
+            self._actions = self._get_condensed_action_plan()
 
-        for i, action in enumerate(actions):
-            if i == 0:
-                self._init_current_action(action=action)
-                continue
+        return self._actions
 
-            if action == self.cur_action:
-                self.repeat_count += action.n
-            else:
-                condensed_action = self._get_condensed_action()
-                condensed_actions.append(condensed_action)
+    def _get_condensed_action_plan(self) -> list[Action]:
+        return ActionPlanCondenser(original_actions=self.original_actions).condense()
 
-                self._init_current_action(action=action)
+    @property
+    def primitive_actions(self) -> list[Action]:
+        if self._primitive_actions is None:
+            self._primitive_actions = self._get_primitive_actions()
 
-        condensed_action = self._get_condensed_action()
-        condensed_actions.append(condensed_action)
+        return self._primitive_actions
 
-        return condensed_actions
+    def _get_primitive_actions(self) -> list[Action]:
+        return ActionPlanPrimitiveMaker(original_actions=self.original_actions).make_primitive()
 
-    def _get_condensed_action(self) -> Action:
-        condensed_action = replace(self.cur_action)
-        condensed_action.n = self.repeat_count
-        return condensed_action
+    @property
+    def value(self) -> float:
+        if self._value is None:
+            self._value = self.goal.evaluate_action_plan(action_plan=self, game_state=self.game_state)
 
-    def _get_primitive_actions(self, actions: list[Action]) -> list[Action]:
-        primitive_actions = []
-
-        for action in actions:
-            primitive = action.n * [self._get_primitive_action(action)]
-            primitive_actions += primitive
-
-        return primitive_actions
-
-    def _get_primitive_action(self, action: Action) -> Action:
-        primitive_action = replace(action)
-        primitive_action.n = 1
-        return primitive_action
+        return self._value
 
     def get_power_used(self, board: Board) -> float:
         cur_c = self.unit.c
@@ -75,9 +65,77 @@ class ActionPlan:
 
         return total_power
 
-    def _init_current_action(self, action: Action) -> None:
-        self.cur_action: Action = action
-        self.repeat_count: int = action.n
+    def unit_can_carry_out_plan(self, game_state: GameState) -> bool:
+        return self.is_valid_size and self.unit_has_enough_power(game_state=game_state)
+
+    @property
+    def is_valid_size(self) -> bool:
+        return len(self) <= 20
+
+    def unit_has_enough_power(self, game_state: GameState) -> bool:
+        try:
+            self._simulate_action_plan(game_state=game_state)
+        except ValueError:
+            return False
+
+        return self._can_update_action_queue()
+
+    def _simulate_action_plan(self, game_state: GameState) -> None:
+        self._init_start()
+        self._update_action_queue()
+        self._simulate_actions(actions=self.primitive_actions, game_state=game_state)
+
+    def _init_start(self) -> None:
+        self.cur_power = self.unit.power
+        self.cur_c = self.unit.c
+        self.t = 0
+
+    def _update_action_queue(self) -> None:
+        self.cur_power -= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
+
+    def _simulate_actions(self, actions: list[Action], game_state: GameState) -> None:
+        for action in actions:
+            self._carry_out_action(action=action, board=game_state.board)
+
+            if self.cur_power < 0:
+                self._raise_negative_power_error()
+
+            self._simul_charge(game_state=game_state)
+            self.t += 1
+
+    def _raise_negative_power_error(self) -> ValueError:
+        raise ValueError("Power is below 0")
+
+    def _carry_out_action(self, action: Action, board: Board) -> None:
+        power_change = action.get_power_change(unit=self.unit, start_c=self.cur_c, board=board)
+        self.cur_power += power_change
+        self.cur_power = min(self.cur_power, self.unit.unit_cfg.BATTERY_CAPACITY)
+        self.cur_c = action.get_final_pos(start_c=self.cur_c)
+
+    def _simul_charge(self, game_state: GameState) -> None:
+        if game_state.is_day(self.t):
+            self.cur_power += self.unit.unit_cfg.CHARGE
+
+    def _can_update_action_queue(self) -> bool:
+        return self.cur_power >= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
+
+    def unit_can_still_reach_factory_with_new_plan(self, game_state: GameState, graph: Graph) -> bool:
+        try:
+            self._simulate_action_plan(game_state=game_state)
+            self._simulate_go_to_closest_factory(game_state=game_state, graph=graph)
+        except ValueError:
+            return False
+
+        return self._can_update_action_queue()
+
+    def _simulate_go_to_closest_factory(self, game_state: GameState, graph: Graph) -> None:
+        actions_to_factory = self._get_actions_to_closest_factory_c(game_state=game_state, graph=graph)
+        self._update_action_queue()
+        self._simulate_actions(actions=actions_to_factory, game_state=game_state)
+
+    def _get_actions_to_closest_factory_c(self, game_state: GameState, graph: Graph) -> list[Action]:
+        closest_factory_c = game_state.get_closest_factory_tile(c=self.cur_c)
+        return get_actions_a_to_b(graph, start=self.cur_c, end=closest_factory_c)
 
     def to_action_arrays(self) -> list[np.array]:
         return [action.to_array() for action in self.actions]
@@ -91,72 +149,53 @@ class ActionPlan:
     def __len__(self) -> int:
         return len(self.actions)
 
-    def unit_can_carry_out_plan(self, game_state: GameState) -> bool:
-        return self.is_valid_size and self.unit_has_enough_power(game_state=game_state)
 
-    @property
-    def is_valid_size(self) -> bool:
-        return len(self) <= 20
+@dataclass
+class ActionPlanCondenser:
+    original_actions: list[Action]
 
-    def unit_has_enough_power(self, game_state: GameState) -> bool:
-        self._init_start()
-        self._update_action_queue()
+    def condense(self) -> list[Action]:
+        self.condensed_actions = []
 
-        for t, action in enumerate(self.primitive_actions):
-            self._simul_action(action=action, board=game_state.board)
+        for i, action in enumerate(self.original_actions):
+            if i == 0:
+                self._set_current_action(action=action)
+                continue
 
-            if self.cur_power < 0:
-                return False
+            if action == self.cur_action:
+                self.repeat_count += action.n
+            else:
+                self._add_condensed_action()
+                self._set_current_action(action=action)
 
-            self._simul_charge(game_state=game_state, t=t)
+        self._add_condensed_action()
 
-        if not self._can_update_action_queue():
-            return False
+        return self.condensed_actions
 
-        return True
+    def _set_current_action(self, action: Action) -> None:
+        self.cur_action: Action = action
+        self.repeat_count: int = action.n
 
-    def _init_start(self) -> None:
-        self.cur_power = self.unit.power
-        self.cur_c = self.unit.c
+    def _add_condensed_action(self) -> None:
+        condensed_action = self._get_condensed_action()
+        self.condensed_actions.append(condensed_action)
 
-    def _update_action_queue(self) -> None:
-        self.cur_power -= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
+    def _get_condensed_action(self) -> Action:
+        return replace(self.cur_action, n=self.repeat_count)
 
-    def _simul_action(self, action: Action, board: Board) -> None:
-        power_change = action.get_power_change(unit=self.unit, start_c=self.cur_c, board=board)
-        self.cur_power += power_change
-        self.cur_power = min(self.cur_power, self.unit.unit_cfg.BATTERY_CAPACITY)
-        self.cur_c = action.get_final_pos(start_c=self.cur_c)
 
-    def _simul_charge(self, game_state: GameState, t: int) -> None:
-        if game_state.is_day(t):
-            self.cur_power += self.unit.unit_cfg.CHARGE
+@dataclass
+class ActionPlanPrimitiveMaker:
+    original_actions: list[Action]
 
-    def _can_update_action_queue(self) -> bool:
-        return self.cur_power >= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
+    def make_primitive(self) -> list[Action]:
+        primitive_actions = []
 
-    def unit_can_still_reach_factory_with_new_plan(self, game_state: GameState, graph: Graph) -> bool:
-        self._init_start()
-        self._update_action_queue()
+        for action in self.original_actions:
+            primitive = action.n * [self._get_primitive_action(action)]
+            primitive_actions += primitive
 
-        for t, action in enumerate(self.primitive_actions):
-            self._simul_action(action=action, board=game_state.board)
-            self._simul_charge(game_state=game_state, t=t)
+        return primitive_actions
 
-        closest_factory_c = game_state.get_closest_factory_tile(c=self.cur_c)
-        actions_back = get_actions_a_to_b(graph, start=self.cur_c, end=closest_factory_c)
-
-        self._update_action_queue()
-
-        for t, action in enumerate(actions_back, start=t + 1):
-            self._simul_action(action=action, board=game_state.board)
-
-            if self.cur_power < 0:
-                return False
-
-            self._simul_charge(game_state=game_state, t=t)
-
-        if not self._can_update_action_queue():
-            return False
-
-        return True
+    def _get_primitive_action(self, action: Action) -> Action:
+        return replace(action, n=1)

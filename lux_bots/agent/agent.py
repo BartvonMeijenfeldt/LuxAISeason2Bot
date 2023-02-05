@@ -48,7 +48,7 @@ def get_factory_actions(game_state: GameState) -> dict[str, list[np.array]]:
     actions = dict()
     for factory in game_state.player_factories:
         action = factory.act(game_state=game_state)
-        if action:
+        if isinstance(action, int):
             actions[factory.unit_id] = action
 
     return actions
