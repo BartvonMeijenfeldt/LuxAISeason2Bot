@@ -1,4 +1,7 @@
 import numpy as np
+import pandas as pd
+
+from scipy.optimize import linear_sum_assignment
 
 from lux.kit import obs_to_game_state
 from objects.game_state import GameState
@@ -7,7 +10,7 @@ from objects.action_plan import ActionPlan
 from lux.config import EnvConfig
 from lux.utils import is_my_turn_to_place_factory
 from logic.early_setup import get_factory_spawn_loc
-from logic.goal import GoalCollection
+from logic.goal import Goal, GoalCollection
 
 
 class Agent:
@@ -16,6 +19,7 @@ class Agent:
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         np.random.seed(0)
         self.env_cfg: EnvConfig = env_cfg
+        self.prev_steps_goals = None
 
     def early_setup(self, step: int, obs, remainingOverageTime: int = 60):
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player)
@@ -37,42 +41,91 @@ class Agent:
         forward_game_states = [obs_to_game_state(step + i, self.env_cfg, f_obs) for i, f_obs in enumerate(forward_obs)]
         """
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player)
-        factory_actions = get_factory_actions(game_state)
-        unit_actions = get_unit_actions(game_state)
+        factory_actions = self.get_factory_actions(game_state)
+        unit_actions = self.get_unit_actions(game_state)
 
         actions = factory_actions | unit_actions
         return actions
 
+    def get_factory_actions(self, game_state: GameState) -> dict[str, list[np.array]]:
+        actions = dict()
+        for factory in game_state.player_factories:
+            action = factory.act(game_state=game_state)
+            if isinstance(action, int):
+                actions[factory.unit_id] = action
 
-def get_factory_actions(game_state: GameState) -> dict[str, list[np.array]]:
-    actions = dict()
-    for factory in game_state.player_factories:
-        action = factory.act(game_state=game_state)
-        if isinstance(action, int):
-            actions[factory.unit_id] = action
+        return actions
 
-    return actions
+    def get_unit_actions(self, game_state: GameState) -> dict[str, list[np.array]]:
+        unit_goal_collections = []
+
+        for unit in game_state.player_units:
+            if unit.has_actions_in_queue:
+                continue
+                # if unit.unit_id not in self.prev_steps_goals:
+                #     continue
+
+                # last_step_goal = self.prev_steps_goals[unit.unit_id]
+                # last_step_goal.action_plan = ActionPlan(original_actions=last_step_goal.action_plan.primitive_actions[1:], unit=unit)
+                # last_step_goal.action_plan._value = 10000
+                # unit_goal_collection = (unit, GoalCollection([last_step_goal]))
+            else:
+                goal_collection = unit.generate_goals(game_state=game_state)
+                unit_goal_collection = (unit, goal_collection)
+
+            unit_goal_collections.append(unit_goal_collection)
+
+        unit_goal_collections = resolve_goal_conflicts(unit_goal_collections)
+        best_action_plans = pick_best_collective_action_plan(unit_goal_collections)
+        unit_actions = {unit_id: plan.to_action_arrays() for unit_id, plan in best_action_plans.items()}
+
+        self.prev_steps_goals = {
+            unit.unit_id: goal for unit, goal in unit_goal_collections if len(goal.action_plan.primitive_actions) > 1
+        }
+
+        return unit_actions
 
 
-def get_unit_actions(game_state: GameState) -> dict[str, list[np.array]]:
-    unit_goals = dict()
+def resolve_goal_conflicts(unit_goal_collections: list[tuple[Unit, GoalCollection]]) -> list[tuple[Unit, Goal]]:
+    if not unit_goal_collections:
+        return unit_goal_collections
 
-    for unit in game_state.player_units:
-        if not unit.has_actions_in_queue:
-            goals = unit.generate_goals(game_state=game_state)
-            unit_goals[unit] = goals
+    cost_matrix = _create_cost_matrix(unit_goal_collections)
+    goal_keys = _solve_sum_assigment_problem(cost_matrix)
+    unit_goals = _get_unit_goals(unit_goal_collections=unit_goal_collections, goal_keys=goal_keys)
 
-    best_action_plans = pick_best_collective_action_plan(unit_goals)
-    unit_actions = {unit_id: plan.to_action_arrays() for unit_id, plan in best_action_plans.items()}
-
-    return unit_actions
+    return unit_goals
 
 
-def pick_best_collective_action_plan(unit_goals: dict[Unit, GoalCollection]) -> dict[str, ActionPlan]:
+def _create_cost_matrix(unit_goal_collections: list[tuple[Unit, GoalCollection]]) -> pd.DataFrame:
+    entries = [goal_collection.get_key_values() for _, goal_collection in unit_goal_collections]
+    value_matrix = pd.DataFrame(entries)
+    cost_matrix = -1 * value_matrix
+    cost_matrix = cost_matrix.fillna(np.inf)
+
+    return cost_matrix
+
+
+def _solve_sum_assigment_problem(cost_matrix: pd.DataFrame) -> list[str]:
+    _, cols = linear_sum_assignment(cost_matrix)
+    goal_keys = [cost_matrix.columns[c] for c in cols]
+    return goal_keys
+
+
+def _get_unit_goals(
+    unit_goal_collections: list[tuple[Unit, GoalCollection]], goal_keys: list[str]
+) -> list[tuple[Unit, str]]:
+    return [
+        (unit, goal_collection.get_goal(goal))
+        for goal, (unit, goal_collection) in zip(goal_keys, unit_goal_collections)
+    ]
+
+
+def pick_best_collective_action_plan(unit_goals: list[tuple[Unit, Goal]]) -> dict[str, ActionPlan]:
     # TODO
     best_action_plan = dict()
-    for unit, goals in unit_goals.items():
-        if goals:
-            best_action_plan[unit.unit_id] = goals.best_action_plan
+    for unit, goal in unit_goals:
+        if goal:
+            best_action_plan[unit.unit_id] = goal.action_plan
 
     return best_action_plan

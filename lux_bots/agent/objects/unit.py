@@ -5,7 +5,7 @@ from lux.config import UnitConfig
 from objects.coordinate import Coordinate, CoordinateList
 from objects.game_state import GameState
 
-from logic.goal import Goal, GoalCollection, CollectIceGoal, ClearRubbleGoal
+from logic.goal import GoalCollection, CollectIceGoal, ClearRubbleGoal
 
 
 @dataclass
@@ -34,8 +34,8 @@ class Unit:
         cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
         return cost
 
-    def generate_goals(self, game_state: GameState) -> list[Goal]:
-        if game_state.env_steps <= 725:
+    def generate_goals(self, game_state: GameState) -> GoalCollection:
+        if game_state.env_steps <= 725 and self.unit_type == 'HEAVY':
             target_ice_c = game_state.get_closest_ice_tile(c=self.c)
             target_factory_c = game_state.get_closest_factory_c(c=target_ice_c)
             goals = [CollectIceGoal(unit=self, ice_c=target_ice_c, factory_pos=target_factory_c)]

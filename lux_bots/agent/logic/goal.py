@@ -41,6 +41,10 @@ class Goal(metaclass=ABCMeta):
     def get_value_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
         ...
 
+    @abstractmethod
+    def get_key(self) -> str:
+        ...
+
     @property
     def value(self) -> float:
         if self._value is None:
@@ -48,15 +52,11 @@ class Goal(metaclass=ABCMeta):
 
         return self._value
 
-    @property
-    def __eq__(self, other: "Goal") -> bool:
-        self.value < other.value
-
-    def _add_power_pickup_action(self, game_state: GameState) -> list[PickupAction]:
+    def _optionally_add_power_pickup_action(self, game_state: GameState) -> list[PickupAction]:
         power_space_left = self.unit.power_space_left
         closest_factory = game_state.get_closest_factory(c=self.unit.c)
 
-        if closest_factory.is_on_factory(c=self.unit.c):
+        if closest_factory.is_on_factory(c=self.unit.c) and power_space_left:
             power_in_factory = closest_factory.power
             cargo_to_pickup = min(power_space_left, power_in_factory)
             self.action_plan.append(PickupAction(cargo_to_pickup, Resource.Power))
@@ -74,10 +74,13 @@ class CollectIceGoal(Goal):
     factory_pos: Coordinate
     quantity: Optional[int] = None
 
+    def get_key(self) -> str:
+        return f'collect_ice_[{self.ice_c}]'
+
     def generate_action_plan(self, game_state: GameState) -> None:
         self.graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
         self._init_action_plan()
-        self._add_power_pickup_action(game_state=game_state)
+        self._optionally_add_power_pickup_action(game_state=game_state)
         self._add_pos_to_ice_actions()
         self._add_max_dig_action(game_state=game_state)
         self._add_ice_to_factory_actions()
@@ -126,8 +129,8 @@ class CollectIceGoal(Goal):
             n_digging += 1
 
         if best_n:
-            potential_dig_action = DigAction(n=best_n)
-            self.action_plan.append(DigAction(n=best_n))
+            dig_action = DigAction(n=best_n)
+            self.action_plan.append(dig_action)
 
     def get_value_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
         number_of_steps = len(action_plan)
@@ -139,10 +142,14 @@ class CollectIceGoal(Goal):
 class ClearRubbleGoal(Goal):
     rubble_positions: CoordinateList
 
+    def get_key(self) -> str:
+        first_rubble_c = self.rubble_positions[0]
+        return f'clear_rubble_[{first_rubble_c}]'
+
     def generate_action_plan(self, game_state: GameState) -> ActionPlan:
         self.graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
         self._init_action_plan()
-        self._add_power_pickup_action(game_state=game_state)
+        self._optionally_add_power_pickup_action(game_state=game_state)
         self._add_clear_initial_rubble_actions(game_state=game_state)
         self._add_additional_rubble_actions(game_state=game_state)
         self._optional_add_go_to_factory_actions(game_state=game_state)
@@ -151,16 +158,16 @@ class ClearRubbleGoal(Goal):
         self.cur_c = self.unit.c
 
         for rubble_c in self.rubble_positions:
-            potential_dig_rubble_actions = self._get_rubble_actions(
+            potential_dig_actions = self._get_rubble_actions(
                 start_c=self.cur_c, rubble_c=rubble_c, board=game_state.board
             )
-            potential_action_plan = self.action_plan + potential_dig_rubble_actions
+            potential_action_plan = self.action_plan + potential_dig_actions
 
             if not potential_action_plan.unit_can_carry_out_plan(game_state=game_state):
                 return
 
             if self._unit_can_still_reach_factory(action_plan=potential_action_plan, game_state=game_state):
-                self.action_plan.extend(potential_dig_rubble_actions)
+                self.action_plan.extend(potential_dig_actions)
                 self.cur_c = rubble_c
             else:
                 return
@@ -209,6 +216,9 @@ class ClearRubbleGoal(Goal):
 
     def get_value_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
         number_of_steps = len(action_plan)
+        if number_of_steps == 0:
+            return -1
+
         power_cost = action_plan.get_power_used(board=game_state.board)
         number_of_rubble_cleared = len(self.rubble_positions)
         rubble_cleared_per_step = number_of_rubble_cleared / number_of_steps
@@ -228,3 +238,19 @@ class GoalCollection:
     def best_action_plan(self) -> ActionPlan:
         best_goal = max(self.goals)
         return best_goal.action_plan
+
+    def __getitem__(self, key: int):
+        return self.goals[key]
+
+    def get_goal(self, key: str) -> Goal:
+        for goal in self.goals:
+            if goal.get_key() == key:
+                return goal
+
+        raise ValueError(f'{key} not key of goals')
+
+    def get_keys(self) -> set(str):
+        return {goal.get_key() for goal in self.goals}
+
+    def get_key_values(self) -> dict[str, float]:
+        return {goal.get_key(): goal.value for goal in self.goals}

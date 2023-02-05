@@ -65,4 +65,4 @@ def interact(env: LuxAI_S2, agents, nr_steps: int, seed=None):
         imgs += [env.render("rgb_array", width=640, height=640)]
         done = dones["player_0"] and dones["player_1"]
 
-    return animate(imgs)
+    return  # animate(imgs)

@@ -20,8 +20,10 @@ class Factory:
     radius = 1
 
     def act(self, game_state: GameState) -> np.array:
-        if self.can_build_heavy(game_state):
+        if game_state.real_env_steps == 0:
             return self.build_heavy()
+        elif game_state.real_env_steps in [5, 10, 15, 20]:
+            return self.build_light()
         elif game_state.env_steps > 775 and self.can_water(game_state):
             return self.water()
         else:

@@ -7,6 +7,9 @@ class Coordinate:
     x: int
     y: int
 
+    def __str__(self) -> str:
+        return f'{self.x}_{self.y}'
+
     def __add__(self, other) -> "Coordinate":
         if isinstance(other, Direction):
             other = other.value
