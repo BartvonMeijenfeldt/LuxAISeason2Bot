@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace, field
 from collections.abc import Iterator
 from search import get_actions_a_to_b
 
@@ -11,20 +11,38 @@ if TYPE_CHECKING:
     from objects.unit import Unit
     from objects.action import Action
     from objects.board import Board
+    from objects.coordinate import Coordinate
     from objects.game_state import GameState
-    from logic.goal import Goal
 
 
-@dataclass
+@dataclass(kw_only=True)
 class ActionPlan:
-    original_actions: list[Action]
+    original_actions: list[Action] = field(default_factory=list)
     unit: Unit
-    goal: Goal
-    game_state: GameState
 
-    _actions: Optional[list[Action]] = field(init=False, default=None)
-    _primitive_actions: Optional[list[Action]] = field(init=False, default=None)
-    _value: Optional[list[Action]] = field(init=False, default=None)
+    def __post_init__(self):
+        self._actions: Optional[list[Action]] = None
+        self._primitive_actions: Optional[list[Action]] = None
+        self._value: Optional[list[Action]] = None
+        self._final_pos: Optional[Coordinate] = None
+
+    def __iadd__(self, other: list[Action]) -> None:
+        other = list(other)
+        self.actions += other
+        self.__post_init__()
+
+    def __add__(self, other) -> ActionPlan:
+        other = list(other)
+        new_actions = self.actions + other
+        return replace(self, original_actions=new_actions)
+
+    def append(self, action: Action) -> None:
+        self.original_actions.append(action)
+        self.__post_init__()
+
+    def extend(self, actions: list[Action]) -> None:
+        self.original_actions.extend(actions)
+        self.__post_init__()
 
     @property
     def actions(self) -> list[Action]:
@@ -47,11 +65,11 @@ class ActionPlan:
         return ActionPlanPrimitiveMaker(original_actions=self.original_actions).make_primitive()
 
     @property
-    def value(self) -> float:
-        if self._value is None:
-            self._value = self.goal.evaluate_action_plan(action_plan=self, game_state=self.game_state)
+    def final_c(self) -> float:
+        if self._final_pos is None:
+            self._final_pos = ActionPlanSimulator(self, unit=self.unit).get_final_c()
 
-        return self._value
+        return self._final_pos
 
     def get_power_used(self, board: Board) -> float:
         cur_c = self.unit.c
@@ -82,6 +100,25 @@ class ActionPlan:
 
         return simulator.can_update_action_queue()
 
+    def unit_can_add_reach_factory_to_plan(self, game_state: GameState, graph: Graph) -> bool:
+        new_action_plan = self._get_action_plan_with_go_to_closest_factory(game_state=game_state, graph=graph)
+        simulator = ActionPlanSimulator(action_plan=new_action_plan, unit=self.unit)
+
+        try:
+            simulator.simulate_action_plan(game_state=game_state)
+        except ValueError:
+            return False
+
+        return simulator.can_update_action_queue()
+
+    def _get_action_plan_with_go_to_closest_factory(self, game_state: GameState, graph: Graph) -> ActionPlan:
+        actions_to_factory_c = self.get_actions_go_to_closest_factory_c_after_plan(game_state=game_state, graph=graph)
+        return self + actions_to_factory_c
+
+    def get_actions_go_to_closest_factory_c_after_plan(self, game_state: GameState, graph: Graph) -> list[Action]:
+        closest_factory_c = game_state.get_closest_factory_c(c=self.final_c)
+        return get_actions_a_to_b(graph=graph, start=self.final_c, end=closest_factory_c)
+
     def unit_can_reach_factory_after_action_plan(self, game_state: GameState, graph: Graph) -> bool:
         simulator = ActionPlanSimulator(action_plan=self, unit=self.unit)
 
@@ -96,9 +133,6 @@ class ActionPlan:
     def to_action_arrays(self) -> list[np.array]:
         return [action.to_array() for action in self.actions]
 
-    def __lt__(self, other: "ActionPlan") -> bool:
-        self.value < other.value
-
     def __iter__(self) -> Iterator[Action]:
         return iter(self.actions)
 
@@ -111,6 +145,9 @@ class ActionPlanCondenser:
     original_actions: list[Action]
 
     def condense(self) -> list[Action]:
+        if not self.original_actions:
+            return []
+
         self.condensed_actions = []
 
         for i, action in enumerate(self.original_actions):
@@ -189,14 +226,28 @@ class ActionPlanSimulator:
         raise ValueError("Power is below 0")
 
     def _carry_out_action(self, action: Action, board: Board) -> None:
+        self._update_power(action=action, board=board)
+        self._update_pos(action=action)
+
+    def _update_power(self, action: Action, board: Board) -> None:
         power_change = action.get_power_change(unit=self.unit, start_c=self.cur_c, board=board)
         self.cur_power += power_change
         self.cur_power = min(self.cur_power, self.unit.unit_cfg.BATTERY_CAPACITY)
+
+    def _update_pos(self, action: Action) -> None:
         self.cur_c = action.get_final_pos(start_c=self.cur_c)
 
     def _simul_charge(self, game_state: GameState) -> None:
         if game_state.is_day(self.t):
             self.cur_power += self.unit.unit_cfg.CHARGE
+
+    def get_final_c(self) -> Coordinate:
+        self._init_start()
+
+        for action in self.action_plan.primitive_actions:
+            self._update_pos(action=action)
+
+        return self.cur_c
 
     def can_update_action_queue(self) -> bool:
         return self.cur_power >= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
@@ -207,5 +258,5 @@ class ActionPlanSimulator:
         self._simulate_actions(actions=actions_to_factory, game_state=game_state)
 
     def _get_actions_to_closest_factory_c(self, game_state: GameState, graph: Graph) -> list[Action]:
-        closest_factory_c = game_state.get_closest_factory_tile(c=self.cur_c)
+        closest_factory_c = game_state.get_closest_factory_c(c=self.cur_c)
         return get_actions_a_to_b(graph, start=self.cur_c, end=closest_factory_c)

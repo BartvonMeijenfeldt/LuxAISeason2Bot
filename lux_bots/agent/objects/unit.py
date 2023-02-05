@@ -37,7 +37,7 @@ class Unit:
     def generate_goals(self, game_state: GameState) -> list[Goal]:
         if game_state.env_steps <= 725:
             target_ice_c = game_state.get_closest_ice_tile(c=self.c)
-            target_factory_c = game_state.get_closest_factory_tile(c=target_ice_c)
+            target_factory_c = game_state.get_closest_factory_c(c=target_ice_c)
             goals = [CollectIceGoal(unit=self, ice_c=target_ice_c, factory_pos=target_factory_c)]
 
         else:
@@ -48,7 +48,7 @@ class Unit:
             ]
 
         goals = GoalCollection(goals)
-        goals.generate_action_plans(game_state=game_state)
+        goals.generate_and_evaluate_action_plans(game_state=game_state)
 
         return goals
 

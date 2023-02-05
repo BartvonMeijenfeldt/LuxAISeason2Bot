@@ -65,7 +65,7 @@ class GameState:
     def get_all_closest_factory_tiles(self, c: Coordinate) -> CoordinateList:
         return self.player_factory_tiles.get_all_closest_tiles(c)
 
-    def get_closest_factory_tile(self, c: Coordinate) -> Coordinate:
+    def get_closest_factory_c(self, c: Coordinate) -> Coordinate:
         return self.board.get_closest_factory_tile(c)
 
     def get_closest_ice_tile(self, c: Coordinate) -> Coordinate:
