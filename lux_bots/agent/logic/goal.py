@@ -171,7 +171,7 @@ class ClearRubbleGoal(Goal):
 
             if self._can_add_factory(
                 new_actions=potential_dig_rubble_actions, new_c=rubble_c, game_state=game_state
-            ) or potential_action_plan.unit_can_still_reach_factory_with_new_plan(
+            ) or potential_action_plan.unit_can_reach_factory_after_action_plan(
                 game_state=game_state, graph=self.graph
             ):
                 self._extend_actions(potential_dig_rubble_actions)
@@ -204,7 +204,7 @@ class ClearRubbleGoal(Goal):
 
             if self._can_add_factory(
                 new_actions=potential_dig_rubble_actions, new_c=closest_rubble, game_state=game_state
-            ) or potential_plan.unit_can_still_reach_factory_with_new_plan(game_state=game_state, graph=self.graph):
+            ) or potential_plan.unit_can_reach_factory_after_action_plan(game_state=game_state, graph=self.graph):
 
                 self.cur_actions.extend(potential_dig_rubble_actions)
                 self.rubble_positions.append(c=closest_rubble)

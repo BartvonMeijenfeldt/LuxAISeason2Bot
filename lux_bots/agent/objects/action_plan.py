@@ -73,69 +73,25 @@ class ActionPlan:
         return len(self) <= 20
 
     def unit_has_enough_power(self, game_state: GameState) -> bool:
+        simulator = ActionPlanSimulator(action_plan=self, unit=self.unit)
+
         try:
-            self._simulate_action_plan(game_state=game_state)
+            simulator.simulate_action_plan(game_state=game_state)
         except ValueError:
             return False
 
-        return self._can_update_action_queue()
+        return simulator.can_update_action_queue()
 
-    def _simulate_action_plan(self, game_state: GameState) -> None:
-        self._init_start()
-        self._update_action_queue()
-        self._simulate_actions(actions=self.primitive_actions, game_state=game_state)
+    def unit_can_reach_factory_after_action_plan(self, game_state: GameState, graph: Graph) -> bool:
+        simulator = ActionPlanSimulator(action_plan=self, unit=self.unit)
 
-    def _init_start(self) -> None:
-        self.cur_power = self.unit.power
-        self.cur_c = self.unit.c
-        self.t = 0
-
-    def _update_action_queue(self) -> None:
-        self.cur_power -= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
-
-    def _simulate_actions(self, actions: list[Action], game_state: GameState) -> None:
-        for action in actions:
-            self._carry_out_action(action=action, board=game_state.board)
-
-            if self.cur_power < 0:
-                self._raise_negative_power_error()
-
-            self._simul_charge(game_state=game_state)
-            self.t += 1
-
-    def _raise_negative_power_error(self) -> ValueError:
-        raise ValueError("Power is below 0")
-
-    def _carry_out_action(self, action: Action, board: Board) -> None:
-        power_change = action.get_power_change(unit=self.unit, start_c=self.cur_c, board=board)
-        self.cur_power += power_change
-        self.cur_power = min(self.cur_power, self.unit.unit_cfg.BATTERY_CAPACITY)
-        self.cur_c = action.get_final_pos(start_c=self.cur_c)
-
-    def _simul_charge(self, game_state: GameState) -> None:
-        if game_state.is_day(self.t):
-            self.cur_power += self.unit.unit_cfg.CHARGE
-
-    def _can_update_action_queue(self) -> bool:
-        return self.cur_power >= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
-
-    def unit_can_still_reach_factory_with_new_plan(self, game_state: GameState, graph: Graph) -> bool:
         try:
-            self._simulate_action_plan(game_state=game_state)
-            self._simulate_go_to_closest_factory(game_state=game_state, graph=graph)
+            simulator.simulate_action_plan(game_state=game_state)
+            simulator.simulate_action_plan_go_to_closest_factory(game_state=game_state, graph=graph)
         except ValueError:
             return False
 
-        return self._can_update_action_queue()
-
-    def _simulate_go_to_closest_factory(self, game_state: GameState, graph: Graph) -> None:
-        actions_to_factory = self._get_actions_to_closest_factory_c(game_state=game_state, graph=graph)
-        self._update_action_queue()
-        self._simulate_actions(actions=actions_to_factory, game_state=game_state)
-
-    def _get_actions_to_closest_factory_c(self, game_state: GameState, graph: Graph) -> list[Action]:
-        closest_factory_c = game_state.get_closest_factory_tile(c=self.cur_c)
-        return get_actions_a_to_b(graph, start=self.cur_c, end=closest_factory_c)
+        return simulator.can_update_action_queue()
 
     def to_action_arrays(self) -> list[np.array]:
         return [action.to_array() for action in self.actions]
@@ -199,3 +155,57 @@ class ActionPlanPrimitiveMaker:
 
     def _get_primitive_action(self, action: Action) -> Action:
         return replace(action, n=1)
+
+
+@dataclass
+class ActionPlanSimulator:
+    action_plan: ActionPlan
+    unit: Unit
+
+    def simulate_action_plan(self, game_state: GameState) -> None:
+        self._init_start()
+        self._update_action_queue()
+        self._simulate_actions(actions=self.action_plan.primitive_actions, game_state=game_state)
+
+    def _init_start(self) -> None:
+        self.cur_power = self.unit.power
+        self.cur_c = self.unit.c
+        self.t = 0
+
+    def _update_action_queue(self) -> None:
+        self.cur_power -= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
+
+    def _simulate_actions(self, actions: list[Action], game_state: GameState) -> None:
+        for action in actions:
+            self._carry_out_action(action=action, board=game_state.board)
+
+            if self.cur_power < 0:
+                self._raise_negative_power_error()
+
+            self._simul_charge(game_state=game_state)
+            self.t += 1
+
+    def _raise_negative_power_error(self) -> ValueError:
+        raise ValueError("Power is below 0")
+
+    def _carry_out_action(self, action: Action, board: Board) -> None:
+        power_change = action.get_power_change(unit=self.unit, start_c=self.cur_c, board=board)
+        self.cur_power += power_change
+        self.cur_power = min(self.cur_power, self.unit.unit_cfg.BATTERY_CAPACITY)
+        self.cur_c = action.get_final_pos(start_c=self.cur_c)
+
+    def _simul_charge(self, game_state: GameState) -> None:
+        if game_state.is_day(self.t):
+            self.cur_power += self.unit.unit_cfg.CHARGE
+
+    def can_update_action_queue(self) -> bool:
+        return self.cur_power >= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
+
+    def simulate_action_plan_go_to_closest_factory(self, game_state: GameState, graph: Graph) -> None:
+        actions_to_factory = self._get_actions_to_closest_factory_c(game_state=game_state, graph=graph)
+        self._update_action_queue()
+        self._simulate_actions(actions=actions_to_factory, game_state=game_state)
+
+    def _get_actions_to_closest_factory_c(self, game_state: GameState, graph: Graph) -> list[Action]:
+        closest_factory_c = game_state.get_closest_factory_tile(c=self.cur_c)
+        return get_actions_a_to_b(graph, start=self.cur_c, end=closest_factory_c)
