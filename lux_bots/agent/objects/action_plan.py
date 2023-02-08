@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Sequence
 
 import numpy as np
 from dataclasses import dataclass, replace, field
@@ -9,7 +9,7 @@ from search import get_actions_a_to_b
 if TYPE_CHECKING:
     from search import Graph
     from objects.unit import Unit
-    from objects.action import Action
+    from objects.action import Action, MoveAction
     from objects.board import Board
     from objects.coordinate import Coordinate
     from objects.game_state import GameState
@@ -23,24 +23,24 @@ class ActionPlan:
     def __post_init__(self):
         self._actions: Optional[list[Action]] = None
         self._primitive_actions: Optional[list[Action]] = None
-        self._value: Optional[list[Action]] = None
+        self._value: Optional[int] = None
         self._final_pos: Optional[Coordinate] = None
 
     def __iadd__(self, other: list[Action]) -> None:
         other = list(other)
-        self.actions += other
+        self.original_actions += other
         self.__post_init__()
 
     def __add__(self, other) -> ActionPlan:
         other = list(other)
-        new_actions = self.actions + other
+        new_actions = self.original_actions + other
         return replace(self, original_actions=new_actions)
 
     def append(self, action: Action) -> None:
         self.original_actions.append(action)
         self.__post_init__()
 
-    def extend(self, actions: list[Action]) -> None:
+    def extend(self, actions: Sequence[Action]) -> None:
         self.original_actions.extend(actions)
         self.__post_init__()
 
@@ -65,7 +65,11 @@ class ActionPlan:
         return ActionPlanPrimitiveMaker(original_actions=self.original_actions).make_primitive()
 
     @property
-    def final_c(self) -> float:
+    def nr_primitive_actions(self) -> int:
+        return len(self.primitive_actions)
+
+    @property
+    def final_c(self) -> Coordinate:
         if self._final_pos is None:
             self._final_pos = ActionPlanSimulator(self, unit=self.unit).get_final_c()
 
@@ -115,7 +119,7 @@ class ActionPlan:
         actions_to_factory_c = self.get_actions_go_to_closest_factory_c_after_plan(game_state=game_state, graph=graph)
         return self + actions_to_factory_c
 
-    def get_actions_go_to_closest_factory_c_after_plan(self, game_state: GameState, graph: Graph) -> list[Action]:
+    def get_actions_go_to_closest_factory_c_after_plan(self, game_state: GameState, graph: Graph) -> list[MoveAction]:
         closest_factory_c = game_state.get_closest_factory_c(c=self.final_c)
         return get_actions_a_to_b(graph=graph, start=self.final_c, end=closest_factory_c)
 
@@ -130,7 +134,7 @@ class ActionPlan:
 
         return simulator.can_update_action_queue()
 
-    def to_action_arrays(self) -> list[np.array]:
+    def to_action_arrays(self) -> list[np.ndarray]:
         return [action.to_array() for action in self.actions]
 
     def __iter__(self) -> Iterator[Action]:
@@ -212,7 +216,7 @@ class ActionPlanSimulator:
     def _update_action_queue(self) -> None:
         self.cur_power -= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
 
-    def _simulate_actions(self, actions: list[Action], game_state: GameState) -> None:
+    def _simulate_actions(self, actions: Sequence[Action], game_state: GameState) -> None:
         for action in actions:
             self._carry_out_action(action=action, board=game_state.board)
 
@@ -240,6 +244,7 @@ class ActionPlanSimulator:
     def _simul_charge(self, game_state: GameState) -> None:
         if game_state.is_day(self.t):
             self.cur_power += self.unit.unit_cfg.CHARGE
+            self.cur_power = min(self.cur_power, self.unit.unit_cfg.BATTERY_CAPACITY)
 
     def get_final_c(self) -> Coordinate:
         self._init_start()
@@ -257,6 +262,6 @@ class ActionPlanSimulator:
         self._update_action_queue()
         self._simulate_actions(actions=actions_to_factory, game_state=game_state)
 
-    def _get_actions_to_closest_factory_c(self, game_state: GameState, graph: Graph) -> list[Action]:
+    def _get_actions_to_closest_factory_c(self, game_state: GameState, graph: Graph) -> list[MoveAction]:
         closest_factory_c = game_state.get_closest_factory_c(c=self.cur_c)
         return get_actions_a_to_b(graph, start=self.cur_c, end=closest_factory_c)

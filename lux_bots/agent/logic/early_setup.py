@@ -73,20 +73,19 @@ def _convert_min_distance_to_conv_filter(distance_array: np.ndarray, r: int) -> 
     return np.where(between_0_and_r, 1, 0)
 
 
-def get_scores(rubble_score: np.ndarray, ice_score: np.ndarray, valid_spawns: list) -> np.ndarray:
+def get_scores(rubble_score: np.ndarray, ice_score: np.ndarray, valid_spawns: np.ndarray) -> np.ndarray:
     score = rubble_score + ice_score
     score = zero_invalid_spawns(score, valid_spawns)
     return score
 
 
-def zero_invalid_spawns(x: np.ndarray, valid_spawns: list) -> np.ndarray:
+def zero_invalid_spawns(x: np.ndarray, valid_spawns: np.ndarray) -> np.ndarray:
     x = x.copy()
-    valid_spawns = np.array(valid_spawns)
     x[~valid_spawns] = 0
     return x
 
 
-def get_coordinate_biggest(x: np.ndarray):
-    biggest_loc_int = np.argmax(x)
-    x, y = np.unravel_index(biggest_loc_int, x.shape)
+def get_coordinate_biggest(x_: np.ndarray):
+    biggest_loc_int = np.argmax(x_)
+    x, y = np.unravel_index(biggest_loc_int, x_.shape)
     return (x, y)

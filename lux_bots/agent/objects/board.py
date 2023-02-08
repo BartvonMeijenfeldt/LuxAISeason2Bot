@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
@@ -78,10 +78,10 @@ class Board:
     def get_closest_ice_tile(self, c: Coordinate) -> Coordinate:
         return self.ice_coordinates.get_closest_tile(c=c)
 
-    def get_closest_rubble_tile(self, c: Coordinate, exclude_c: CoordinateList = None) -> Coordinate:
+    def get_closest_rubble_tile(self, c: Coordinate, exclude_c: Optional[CoordinateList] = None) -> Coordinate:
         return self.rubble_coordinates.get_closest_tile(c=c, exclude_c=exclude_c)
 
-    def get_all_closest_rubble_tiles(self, c: Coordinate, exclude_c: CoordinateList = None) -> CoordinateList:
+    def get_all_closest_rubble_tiles(self, c: Coordinate, exclude_c: Optional[CoordinateList] = None) -> CoordinateList:
         return self.rubble_coordinates.get_all_closest_tiles(c=c, exclude_c=exclude_c)
 
     def get_n_closest_rubble_tiles(self, c: Coordinate, n: int) -> CoordinateList:

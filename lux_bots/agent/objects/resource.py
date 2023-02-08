@@ -2,8 +2,8 @@ from enum import Enum
 
 
 class Resource(Enum):
-    Ice: str = 0
-    Ore: str = 1
-    Water: str = 2
-    Metal: str = 3
-    Power: str = 4
+    Ice = 0
+    Ore = 1
+    Water = 2
+    Metal = 3
+    Power = 4

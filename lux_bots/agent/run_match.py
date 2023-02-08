@@ -4,8 +4,8 @@ from agent import Agent
 from visualize.interactions import interact
 
 env = LuxAI_S2()
-env.reset(seed=42)
+env.reset()
 
 # recreate our agents and run
 agents = {player: Agent(player, env.state.env_cfg) for player in env.agents}
-interact(env, agents, 1000, seed=42)
+interact(env, agents, 1000, seed=35)

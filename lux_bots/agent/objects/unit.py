@@ -4,8 +4,9 @@ from objects.cargo import UnitCargo
 from lux.config import UnitConfig
 from objects.coordinate import Coordinate, CoordinateList
 from objects.game_state import GameState
+from objects.action import Action
 
-from logic.goal import GoalCollection, CollectIceGoal, ClearRubbleGoal
+from logic.goal import GoalCollection, CollectIceGoal, ClearRubbleGoal, NoGoalGoal
 
 
 @dataclass
@@ -17,7 +18,7 @@ class Unit:
     power: int
     cargo: UnitCargo
     unit_cfg: UnitConfig
-    action_queue: list
+    action_queue: list[Action]
 
     @property
     def agent_id(self):
@@ -41,11 +42,13 @@ class Unit:
             goals = [CollectIceGoal(unit=self, ice_c=target_ice_c, factory_pos=target_factory_c)]
 
         else:
-            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.c, n=4)
+            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.c, n=10)
             goals = [
                 ClearRubbleGoal(unit=self, rubble_positions=CoordinateList([rubble_tile]))
                 for rubble_tile in closest_rubble_tiles
             ]
+
+        goals += [NoGoalGoal(unit=self)]
 
         goals = GoalCollection(goals)
         goals.generate_and_evaluate_action_plans(game_state=game_state)
@@ -66,3 +69,6 @@ class Unit:
     def __str__(self) -> str:
         out = f"[{self.team_id}] {self.unit_id} {self.unit_type} at {self.c}"
         return out
+
+    def __repr__(self) -> str:
+        return self.unit_id

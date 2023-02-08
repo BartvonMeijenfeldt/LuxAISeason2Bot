@@ -10,6 +10,7 @@ from objects.game_state import GameState
 from objects.board import Board
 from objects.coordinate import Coordinate
 from objects.factory import Factory
+from objects.action import Action
 
 
 def process_action(action):
@@ -110,6 +111,7 @@ def create_units(obs, env_cfg: EnvConfig) -> dict[str, list[Unit]]:
             del unit_data["pos"]
             unit_data["cargo"] = UnitCargo(**unit_data["cargo"])
             unit_data["unit_cfg"] = env_cfg.ROBOTS[unit_data["unit_type"]]
+            unit_data["action_queue"] = [Action.from_array(action) for action in unit_data["action_queue"]]
             unit = Unit(**unit_data)
             units[agent].append(unit)
 

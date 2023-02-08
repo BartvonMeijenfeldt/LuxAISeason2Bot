@@ -1,6 +1,7 @@
 import numpy as np
 
 from dataclasses import dataclass
+from typing import Optional
 
 from lux.config import EnvConfig
 from objects.cargo import UnitCargo
@@ -19,10 +20,10 @@ class Factory:
     env_cfg: EnvConfig
     radius = 1
 
-    def act(self, game_state: GameState) -> np.array:
+    def act(self, game_state: GameState) -> Optional[int]:
         if game_state.real_env_steps == 0:
             return self.build_heavy()
-        elif game_state.real_env_steps in [5, 10, 15, 20]:
+        elif game_state.real_env_steps in [2, 4, 6, 8]:
             return self.build_light()
         elif game_state.env_steps > 775 and self.can_water(game_state):
             return self.water()
@@ -61,7 +62,7 @@ class Factory:
     def build_light(self):
         return 0
 
-    def water_cost(self, game_state):
+    def water_cost(self, game_state: GameState):
         """
         Water required to perform water action
         """
