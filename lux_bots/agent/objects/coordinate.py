@@ -4,13 +4,10 @@ from dataclasses import dataclass
 from enum import Enum
 
 
-@dataclass
+@dataclass(frozen=True)
 class Coordinate:
     x: int
     y: int
-
-    def __str__(self) -> str:
-        return f'{self.x}_{self.y}'
 
     def __add__(self, other) -> Coordinate:
         if isinstance(other, Direction):
@@ -25,9 +22,6 @@ class Coordinate:
         new_y = self.y - other.y
         return Coordinate(new_x, new_y)
 
-    def __hash__(self) -> int:
-        return hash(tuple(self))
-
     def __eq__(self, other: Coordinate) -> bool:
         return self.x == other.x and self.y == other.y
 
@@ -40,8 +34,13 @@ class Coordinate:
     def __iter__(self):
         return iter((self.x, self.y))
 
+    @property
+    def neighbors(self) -> CoordinateList:
+        neighbors = [self + direction.value for direction in Direction]
+        return CoordinateList(neighbors)
+
     def distance_to(self, c: Coordinate) -> int:
-        """Manhatten distance to point
+        """Manhattan distance to point
 
         Args:
             coordinate: Other coordinate to get the distance to
@@ -53,21 +52,13 @@ class Coordinate:
         dis_y = abs(self.y - c.y)
         return dis_x + dis_y
 
-    def direction_to(self, target: Coordinate) -> Direction:
-        dx, dy = target - self
 
-        if dx == 0 and dy == 0:
-            return Direction.CENTER
-        if abs(dx) > abs(dy):
-            if dx > 0:
-                return Direction.RIGHT
-            else:
-                return Direction.LEFT
-        else:
-            if dy > 0:
-                return Direction.DOWN
-            else:
-                return Direction.UP
+@dataclass(eq=True, frozen=True)
+class TimeCoordinate(Coordinate):
+    t: int
+
+    def __iter__(self):
+        return iter((self.x, self.y, self.t))
 
 
 @dataclass

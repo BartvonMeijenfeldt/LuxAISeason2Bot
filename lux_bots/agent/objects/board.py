@@ -5,7 +5,7 @@ import numpy as np
 
 from dataclasses import dataclass
 
-from objects.coordinate import Coordinate, CoordinateList, Direction
+from objects.coordinate import Coordinate, CoordinateList
 
 if TYPE_CHECKING:
     from objects.unit import Unit
@@ -87,6 +87,10 @@ class Board:
     def get_n_closest_rubble_tiles(self, c: Coordinate, n: int) -> CoordinateList:
         return self.rubble_coordinates.get_n_closest_tiles(c=c, n=n)
 
-    def get_neighbors_coordinate(self, c: Coordinate) -> CoordinateList:
-        coordinates = [c + direction.value for direction in Direction if self.is_on_the_board(c + direction.value)]
+    def get_valid_neighbor_coordinates(self, c: Coordinate) -> CoordinateList:
+        coordinates = [
+            neighbor_c
+            for neighbor_c in c.neighbors
+            if self.is_on_the_board(neighbor_c) and not self.is_opponent_factory_tile(c=neighbor_c)
+        ]
         return CoordinateList(coordinates)

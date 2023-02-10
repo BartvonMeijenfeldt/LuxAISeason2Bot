@@ -61,6 +61,17 @@ class Goal(metaclass=ABCMeta):
 
         return self._is_valid
 
+    def _init_cost_graph(self, board: Board) -> None:
+        self.graph = PowerCostGraph(
+            board,
+            time_to_power_cost=self.unit.time_to_power_cost,
+            move_cost=self.unit.unit_cfg.MOVE_COST,
+            rubble_movement_cost=self.unit.unit_cfg.RUBBLE_MOVEMENT_COST,
+        )
+
+    def _get_actions_a_to_b(self, start: Coordinate, end: Coordinate) -> list[MoveAction]:
+        return get_actions_a_to_b(graph=self.graph, start=start, end=end)
+
     def _optional_add_power_pickup_action(self, game_state: GameState) -> None:
         power_space_left = self.unit.power_space_left
         closest_factory = game_state.get_closest_factory(c=self.unit.c)
@@ -91,7 +102,7 @@ class CollectIceGoal(Goal):
         return str(self)
 
     def generate_action_plan(self, game_state: GameState) -> None:
-        self.graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
+        self._init_cost_graph(board=game_state.board)
         self._is_valid = True  # TODO
         self._init_action_plan()
         self._optional_add_power_pickup_action(game_state=game_state)
@@ -101,7 +112,7 @@ class CollectIceGoal(Goal):
         self._add_transfer_action()
 
     def _add_pos_to_ice_actions(self) -> None:
-        actions = get_actions_a_to_b(graph=self.graph, start=self.unit.c, end=self.ice_c)
+        actions = self._get_actions_a_to_b(start=self.unit.c, end=self.ice_c)
         self.action_plan.extend(actions=actions)
 
     def _add_ice_to_factory_actions(self) -> None:
@@ -109,7 +120,7 @@ class CollectIceGoal(Goal):
         self.action_plan.extend(actions=actions)
 
     def _get_ice_to_factory_actions(self) -> list[MoveAction]:
-        return get_actions_a_to_b(graph=self.graph, start=self.ice_c, end=self.factory_pos)
+        return self._get_actions_a_to_b(start=self.ice_c, end=self.factory_pos)
 
     def _add_transfer_action(self) -> None:
         max_cargo = self.unit.unit_cfg.CARGO_SPACE
@@ -165,7 +176,7 @@ class ClearRubbleGoal(Goal):
         return str(self)
 
     def generate_action_plan(self, game_state: GameState):
-        self.graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
+        self._init_cost_graph(board=game_state.board)
         self._init_action_plan()
         self._optional_add_power_pickup_action(game_state=game_state)
         self._add_clear_initial_rubble_actions(game_state=game_state)
@@ -202,7 +213,7 @@ class ClearRubbleGoal(Goal):
     def _get_rubble_actions(
         self, start_c: Coordinate, rubble_c: Coordinate, board: Board
     ) -> list[MoveAction | DigAction]:
-        pos_to_rubble_actions = get_actions_a_to_b(graph=self.graph, start=start_c, end=rubble_c)
+        pos_to_rubble_actions = self._get_actions_a_to_b(start=start_c, end=rubble_c)
 
         rubble_at_pos = board.rubble[tuple(rubble_c)]
         nr_required_digs = ceil(rubble_at_pos / self.unit.unit_cfg.DIG_RUBBLE_REMOVED)
@@ -235,7 +246,7 @@ class ClearRubbleGoal(Goal):
 
     def _optional_add_go_to_factory_actions(self, game_state: GameState) -> None:
         closest_factory_c = game_state.get_closest_factory_c(c=self.cur_c)
-        potential_rubble_to_factory_actions = get_actions_a_to_b(self.graph, start=self.cur_c, end=closest_factory_c)
+        potential_rubble_to_factory_actions = self._get_actions_a_to_b(start=self.cur_c, end=closest_factory_c)
         potential_action_plan = self.action_plan + potential_rubble_to_factory_actions
 
         if potential_action_plan.unit_can_carry_out_plan(game_state=game_state):

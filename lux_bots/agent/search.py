@@ -41,37 +41,21 @@ class Graph(metaclass=ABCMeta):
 
 
 @dataclass
-class TestGraph(Graph):
-    time_to_power_cost: float
-
-    def valid_neighbors(self, c: Coordinate) -> CoordinateList:
-        valid_neighbors = [c + d for d in [Coordinate(1, 0), Coordinate(-1, 0), Coordinate(0, 1), Coordinate(0, -1)]]
-        return CoordinateList(valid_neighbors)
-
-    def cost(self, from_c: Coordinate, to_c: Coordinate) -> float:
-        power_cost = 1
-        return power_cost + self.time_to_power_cost
-
-    def heuristic(self, a: Coordinate, b: Coordinate) -> float:
-        dis_ab = a.distance_to(b)
-        return dis_ab * self.time_to_power_cost
-
-
-@dataclass
 class PowerCostGraph(Graph):
     board: Board
     time_to_power_cost: float
+    move_cost: int
+    rubble_movement_cost: float
 
     def valid_neighbors(self, c: Coordinate) -> CoordinateList:
-        valid_neighbors = [
-            c for c in self.board.get_neighbors_coordinate(c=c) if not self.board.is_opponent_factory_tile(c=c)
-        ]
-        return CoordinateList(valid_neighbors)
+        return self.board.get_valid_neighbor_coordinates(c=c)
 
     def cost(self, from_c: Coordinate, to_c: Coordinate) -> float:
         """From_c and to_c must be neighboring points"""
         rubble_to = self.board.rubble[tuple(to_c)]
-        power_cost = 1 + 0.05 * rubble_to
+        power_cost = MoveAction.get_power_cost(
+            rubble_to=rubble_to, move_cost=self.move_cost, rubble_movement_cost=self.rubble_movement_cost
+        )
         return power_cost + self.time_to_power_cost
 
     def heuristic(self, a: Coordinate, b: Coordinate) -> float:

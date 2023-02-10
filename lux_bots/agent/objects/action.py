@@ -71,12 +71,16 @@ class MoveAction(Action):
         for _ in range(self.n):
             cur_pos = cur_pos + self.direction
             rubble_at_target = board.rubble[tuple(cur_pos)]
-            power_required_single_action = floor(
-                unit.unit_cfg.MOVE_COST + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target
+            power_required_single_action = self.get_power_cost(
+                rubble_at_target, unit.unit_cfg.MOVE_COST, unit.unit_cfg.RUBBLE_MOVEMENT_COST
             )
             power_change -= power_required_single_action
 
         return power_change
+
+    @staticmethod
+    def get_power_cost(rubble_to: int, move_cost: int, rubble_movement_cost: float) -> int:
+        return floor(move_cost + rubble_movement_cost * rubble_to)
 
     def get_final_pos(self, start_c: Coordinate) -> Coordinate:
         cur_pos = start_c
