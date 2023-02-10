@@ -43,6 +43,7 @@ class Unit:
 
         else:
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.c, n=10)
+            # TODO add something hear to do a feasibility check if they can ever clear the first rubble, even with a full capacity
             goals = [
                 ClearRubbleGoal(unit=self, rubble_positions=CoordinateList([rubble_tile]))
                 for rubble_tile in closest_rubble_tiles

@@ -42,8 +42,9 @@ class Goal(metaclass=ABCMeta):
     def get_value_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
         ...
 
+    @property
     @abstractmethod
-    def get_key(self) -> str:
+    def key(self) -> str:
         ...
 
     @property
@@ -82,8 +83,12 @@ class CollectIceGoal(Goal):
     factory_pos: Coordinate
     quantity: Optional[int] = None
 
-    def get_key(self) -> str:
+    def __str__(self) -> str:
         return f"collect_ice_[{self.ice_c}]"
+
+    @property
+    def key(self) -> str:
+        return str(self)
 
     def generate_action_plan(self, game_state: GameState) -> None:
         self.graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
@@ -151,9 +156,13 @@ class CollectIceGoal(Goal):
 class ClearRubbleGoal(Goal):
     rubble_positions: CoordinateList
 
-    def get_key(self) -> str:
+    def __str__(self) -> str:
         first_rubble_c = self.rubble_positions[0]
         return f"clear_rubble_[{first_rubble_c}]"
+
+    @property
+    def key(self) -> str:
+        return str(self)
 
     def generate_action_plan(self, game_state: GameState):
         self.graph = PowerCostGraph(game_state.board, time_to_power_cost=20)
@@ -256,8 +265,12 @@ class NoGoalGoal(Goal):
     def get_value_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
         return 0.0
 
-    def get_key(self) -> str:
-        return f'No_Goal_{self.unit.unit_id}'
+    def __str__(self) -> str:
+        return f"No_Goal_{self.unit.unit_id}"
+
+    @property
+    def key(self) -> str:
+        return str(self)
 
 
 @dataclass
@@ -280,20 +293,13 @@ class GoalCollection:
 
     def get_goal(self, key: str) -> Goal:
         for goal in self.goals:
-            if goal.get_key() == key:
+            if goal.key == key:
                 return goal
-
-        # TODO Add a No-OP goal or something 
-        return
 
         raise ValueError(f"{key} not key of goals")
 
     def get_keys(self) -> set[str]:
-        return {goal.get_key() for goal in self.goals}
+        return {goal.key for goal in self.goals}
 
     def get_key_values(self) -> dict[str, float]:
-        return {goal.get_key(): goal.value for goal in self.goals}
-
-
-    
-
+        return {goal.key: goal.value for goal in self.goals}
