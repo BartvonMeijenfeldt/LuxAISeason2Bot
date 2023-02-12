@@ -1,12 +1,14 @@
 import heapq
+import math
 
-from typing import TypeVar
+from typing import TypeVar, Optional
 from abc import ABCMeta, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from objects.coordinate import Coordinate, CoordinateList, Direction
+from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList, Direction
 from objects.board import Board
 from objects.action import MoveAction
+from logic.restrictions import Restrictions
 
 
 T = TypeVar("T")
@@ -61,6 +63,32 @@ class PowerCostGraph(Graph):
     def heuristic(self, a: Coordinate, b: Coordinate) -> float:
         dis_ab = a.distance_to(b)
         return dis_ab * self.time_to_power_cost
+
+
+@dataclass
+class TimePowerCostGraph(PowerCostGraph):
+    restrictions: Optional[Restrictions] = None
+
+    def cost(self, from_c: TimeCoordinate, to_c: TimeCoordinate) -> float:
+        if self._is_restriction_violated(to_c):
+            return math.inf
+
+        return super().cost(from_c, to_c)
+
+    def _is_restriction_violated(self, to_c: TimeCoordinate) -> bool:
+        return self._negative_restriction_violated(to_c=to_c) or self._positive_restriction_violated(to_c=to_c)
+
+    def _negative_restriction_violated(self, to_c: TimeCoordinate) -> bool:
+        if not self.restrictions:
+            return False
+
+        return to_c.t in self.restrictions.negative and to_c == self.restrictions.negative[to_c.t]
+
+    def _positive_restriction_violated(self, to_c: TimeCoordinate) -> bool:
+        if not self.restrictions:
+            return False
+
+        return to_c.t in self.restrictions.positive and to_c != self.restrictions.positive[to_c.t]
 
 
 def get_actions_a_to_b(graph: Graph, start: Coordinate, end: Coordinate) -> list[MoveAction]:

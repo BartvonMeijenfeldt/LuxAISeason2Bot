@@ -1,10 +1,12 @@
 from dataclasses import dataclass
+from typing import Literal
 
 from objects.cargo import UnitCargo
 from lux.config import UnitConfig
 from objects.coordinate import Coordinate, CoordinateList
 from objects.game_state import GameState
 from objects.action import Action
+from logic.restrictions import Restrictions
 
 from logic.goal import GoalCollection, CollectIceGoal, ClearRubbleGoal, NoGoalGoal
 
@@ -13,7 +15,7 @@ from logic.goal import GoalCollection, CollectIceGoal, ClearRubbleGoal, NoGoalGo
 class Unit:
     team_id: int
     unit_id: str
-    unit_type: str  # "LIGHT" or "HEAVY"
+    unit_type: Literal["LIGHT", "HEAVY"]
     c: Coordinate
     power: int
     cargo: UnitCargo
@@ -37,23 +39,22 @@ class Unit:
         return cost
 
     def generate_goals(self, game_state: GameState) -> GoalCollection:
-        if game_state.env_steps <= 725 and self.unit_type == 'HEAVY':
+        if game_state.env_steps <= 725 and self.unit_type == "HEAVY":
             target_ice_c = game_state.get_closest_ice_tile(c=self.c)
             target_factory_c = game_state.get_closest_factory_c(c=target_ice_c)
             goals = [CollectIceGoal(unit=self, ice_c=target_ice_c, factory_pos=target_factory_c)]
 
         else:
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.c, n=10)
-            # TODO add something hear to do a feasibility check if they can ever clear the first rubble, even with a full capacity
+            # TODO add something here to do a feasibility check if
+            # they can ever clear the first rubble, even with a full capacity
             goals = [
                 ClearRubbleGoal(unit=self, rubble_positions=CoordinateList([rubble_tile]))
                 for rubble_tile in closest_rubble_tiles
             ]
 
         goals += [NoGoalGoal(unit=self)]
-
         goals = GoalCollection(goals)
-        goals.generate_and_evaluate_action_plans(game_state=game_state)
 
         return goals
 

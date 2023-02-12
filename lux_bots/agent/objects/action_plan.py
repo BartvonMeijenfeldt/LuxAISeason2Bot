@@ -5,6 +5,8 @@ import numpy as np
 from dataclasses import dataclass, replace, field
 from collections.abc import Iterator
 from search import get_actions_a_to_b
+from objects.coordinate import TimeCoordinate
+
 
 if TYPE_CHECKING:
     from search import Graph
@@ -24,7 +26,7 @@ class ActionPlan:
         self._actions: Optional[list[Action]] = None
         self._primitive_actions: Optional[list[Action]] = None
         self._value: Optional[int] = None
-        self._final_pos: Optional[Coordinate] = None
+        self._final_c: Optional[Coordinate] = None
 
     def __iadd__(self, other: list[Action]) -> None:
         other = list(other)
@@ -70,10 +72,14 @@ class ActionPlan:
 
     @property
     def final_c(self) -> Coordinate:
-        if self._final_pos is None:
-            self._final_pos = ActionPlanSimulator(self, unit=self.unit).get_final_c()
+        if self._final_c is None:
+            self._final_c = ActionPlanSimulator(self, unit=self.unit).get_final_c()
 
-        return self._final_pos
+        return self._final_c
+
+    def get_time_coordinates(self, game_state: GameState) -> set[TimeCoordinate]:
+        simulator = ActionPlanSimulator(self, unit=self.unit)
+        return simulator.get_time_coordinates(game_state=game_state)
 
     def get_power_used(self, board: Board) -> float:
         cur_c = self.unit.c
@@ -204,55 +210,61 @@ class ActionPlanSimulator:
     unit: Unit
 
     def simulate_action_plan(self, game_state: GameState) -> None:
-        self._init_start()
+        self._init_start(start_t=game_state.real_env_steps)
         self._update_action_queue()
         self._simulate_actions(actions=self.action_plan.primitive_actions, game_state=game_state)
 
-    def _init_start(self) -> None:
+    def get_time_coordinates(self, game_state: GameState) -> set[TimeCoordinate]:
+        self.simulate_action_plan(game_state=game_state)
+        return self.time_coordinates
+
+    def _init_start(self, start_t: int) -> None:
         self.cur_power = self.unit.power
-        self.cur_c = self.unit.c
-        self.t = 0
+        self.t = start_t
+        self.cur_tc = TimeCoordinate(x=self.unit.c.x, y=self.unit.c.y, t=self.t)
+        self.time_coordinates = {self.cur_tc}
 
     def _update_action_queue(self) -> None:
         self.cur_power -= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
+        self._check_power()
+
+    def _check_power(self):
+        if self.cur_power < 0:
+            raise ValueError("Power is below 0")
 
     def _simulate_actions(self, actions: Sequence[Action], game_state: GameState) -> None:
         for action in actions:
-            self._carry_out_action(action=action, board=game_state.board)
-
-            if self.cur_power < 0:
-                self._raise_negative_power_error()
-
+            self._update_power_due_to_action(action=action, board=game_state.board)
+            self._check_power()
             self._simul_charge(game_state=game_state)
-            self.t += 1
+            self._increase_time_count()
+            self._update_tc(action=action)
 
-    def _raise_negative_power_error(self) -> ValueError:
-        raise ValueError("Power is below 0")
-
-    def _carry_out_action(self, action: Action, board: Board) -> None:
-        self._update_power(action=action, board=board)
-        self._update_pos(action=action)
-
-    def _update_power(self, action: Action, board: Board) -> None:
-        power_change = action.get_power_change(unit=self.unit, start_c=self.cur_c, board=board)
+    def _update_power_due_to_action(self, action: Action, board: Board) -> None:
+        power_change = action.get_power_change(unit=self.unit, start_c=self.cur_tc, board=board)
         self.cur_power += power_change
         self.cur_power = min(self.cur_power, self.unit.unit_cfg.BATTERY_CAPACITY)
 
-    def _update_pos(self, action: Action) -> None:
-        self.cur_c = action.get_final_pos(start_c=self.cur_c)
+    def _update_tc(self, action: Action) -> None:
+        cur_c = action.get_final_pos(start_c=self.cur_tc)
+        self.cur_tc = TimeCoordinate(x=cur_c.x, y=cur_c.y, t=self.t)
+        self.time_coordinates.add(self.cur_tc)
 
     def _simul_charge(self, game_state: GameState) -> None:
         if game_state.is_day(self.t):
             self.cur_power += self.unit.unit_cfg.CHARGE
             self.cur_power = min(self.cur_power, self.unit.unit_cfg.BATTERY_CAPACITY)
 
+    def _increase_time_count(self) -> None:
+        self.t += 1
+
     def get_final_c(self) -> Coordinate:
-        self._init_start()
+        cur_c = self.unit.c
 
         for action in self.action_plan.primitive_actions:
-            self._update_pos(action=action)
+            cur_c = action.get_final_pos(start_c=cur_c)
 
-        return self.cur_c
+        return cur_c
 
     def can_update_action_queue(self) -> bool:
         return self.cur_power >= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
@@ -263,5 +275,5 @@ class ActionPlanSimulator:
         self._simulate_actions(actions=actions_to_factory, game_state=game_state)
 
     def _get_actions_to_closest_factory_c(self, game_state: GameState, graph: Graph) -> list[MoveAction]:
-        closest_factory_c = game_state.get_closest_factory_c(c=self.cur_c)
-        return get_actions_a_to_b(graph, start=self.cur_c, end=closest_factory_c)
+        closest_factory_c = game_state.get_closest_factory_c(c=self.cur_tc)
+        return get_actions_a_to_b(graph, start=self.cur_tc, end=closest_factory_c)

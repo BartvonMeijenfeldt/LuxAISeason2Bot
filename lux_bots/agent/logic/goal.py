@@ -5,8 +5,9 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional
 from math import ceil
+from itertools import count
 
-from search import get_actions_a_to_b, PowerCostGraph
+from search import get_actions_a_to_b, TimePowerCostGraph
 from objects.action import DigAction, MoveAction, TransferAction, PickupAction
 from objects.action_plan import ActionPlan
 from objects.coordinate import Direction
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from objects.game_state import GameState
     from objects.board import Board
     from objects.coordinate import Coordinate, CoordinateList
+    from restrictions import Restrictions
 
 
 @dataclass(kw_only=True)
@@ -30,12 +32,14 @@ class Goal(metaclass=ABCMeta):
     def __post_init__(self) -> None:
         self._init_action_plan()
 
-    def generate_and_evaluate_action_plan(self, game_state: GameState) -> None:
-        self.generate_action_plan(game_state=game_state)
+    def generate_and_evaluate_action_plan(
+        self, game_state: GameState, restrictions: Optional[Restrictions] = None
+    ) -> None:
+        self.generate_action_plan(game_state=game_state, restrictions=restrictions)
         self._value = self.get_value_action_plan(action_plan=self.action_plan, game_state=game_state)
 
     @abstractmethod
-    def generate_action_plan(self, game_state: GameState) -> None:
+    def generate_action_plan(self, game_state: GameState, restrictions: Optional[Restrictions] = None) -> None:
         ...
 
     @abstractmethod
@@ -61,12 +65,13 @@ class Goal(metaclass=ABCMeta):
 
         return self._is_valid
 
-    def _init_cost_graph(self, board: Board) -> None:
-        self.graph = PowerCostGraph(
+    def _init_cost_graph(self, board: Board, restrictions: Optional[Restrictions]) -> None:
+        self.graph = TimePowerCostGraph(
             board,
             time_to_power_cost=self.unit.time_to_power_cost,
             move_cost=self.unit.unit_cfg.MOVE_COST,
             rubble_movement_cost=self.unit.unit_cfg.RUBBLE_MOVEMENT_COST,
+            restrictions=restrictions,
         )
 
     def _get_actions_a_to_b(self, start: Coordinate, end: Coordinate) -> list[MoveAction]:
@@ -101,8 +106,8 @@ class CollectIceGoal(Goal):
     def key(self) -> str:
         return str(self)
 
-    def generate_action_plan(self, game_state: GameState) -> None:
-        self._init_cost_graph(board=game_state.board)
+    def generate_action_plan(self, game_state: GameState, restrictions: Optional[Restrictions] = None) -> None:
+        self._init_cost_graph(board=game_state.board, restrictions=restrictions)
         self._is_valid = True  # TODO
         self._init_action_plan()
         self._optional_add_power_pickup_action(game_state=game_state)
@@ -138,12 +143,10 @@ class CollectIceGoal(Goal):
 
     def _add_max_dig_action(self, game_state: GameState) -> None:
         # TODO make this a binary search or something otherwise more efficient
-        best_n = None
-        n_digging = 0
-
         actions_after_digging = self._get_actions_after_digging()
+        best_n = None
 
-        while True:
+        for n_digging in count(start=1):
             potential_dig_action = DigAction(n=n_digging)
             new_actions = [potential_dig_action] + actions_after_digging
             potential_action_plan = self.action_plan + new_actions
@@ -151,7 +154,6 @@ class CollectIceGoal(Goal):
                 break
 
             best_n = n_digging
-            n_digging += 1
 
         if best_n:
             dig_action = DigAction(n=best_n)
@@ -175,8 +177,8 @@ class ClearRubbleGoal(Goal):
     def key(self) -> str:
         return str(self)
 
-    def generate_action_plan(self, game_state: GameState):
-        self._init_cost_graph(board=game_state.board)
+    def generate_action_plan(self, game_state: GameState, restrictions: Optional[Restrictions] = None):
+        self._init_cost_graph(board=game_state.board, restrictions=restrictions)
         self._init_action_plan()
         self._optional_add_power_pickup_action(game_state=game_state)
         self._add_clear_initial_rubble_actions(game_state=game_state)
@@ -270,7 +272,7 @@ class NoGoalGoal(Goal):
     _value = None
     _is_valid = True
 
-    def generate_action_plan(self, game_state: GameState) -> None:
+    def generate_action_plan(self, game_state: GameState, restrictions: Optional[Restrictions] = None) -> None:
         return None
 
     def get_value_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
@@ -288,9 +290,11 @@ class NoGoalGoal(Goal):
 class GoalCollection:
     goals: Sequence[Goal]
 
-    def generate_and_evaluate_action_plans(self, game_state: GameState) -> None:
+    def generate_and_evaluate_action_plans(
+        self, game_state: GameState, restrictions: Optional[Restrictions] = None
+    ) -> None:
         for goal in self.goals:
-            goal.generate_and_evaluate_action_plan(game_state=game_state)
+            goal.generate_and_evaluate_action_plan(game_state=game_state, restrictions=restrictions)
 
         self.goals = [goal for goal in self.goals if goal.is_valid]
 

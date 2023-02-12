@@ -4,11 +4,11 @@ import pandas as pd
 from scipy.optimize import linear_sum_assignment
 
 from lux.kit import obs_to_game_state
+from lux.config import EnvConfig
+from lux.utils import is_my_turn_to_place_factory
 from objects.game_state import GameState
 from objects.unit import Unit
 from objects.action_plan import ActionPlan
-from lux.config import EnvConfig
-from lux.utils import is_my_turn_to_place_factory
 from logic.early_setup import get_factory_spawn_loc
 from logic.goal import Goal, GoalCollection
 
@@ -67,6 +67,7 @@ class Agent:
                 unit_goal_collection = (unit, GoalCollection([last_step_goal]))
             else:
                 goal_collection = unit.generate_goals(game_state=game_state)
+                goal_collection.generate_and_evaluate_action_plans(game_state=game_state)
                 unit_goal_collection = (unit, goal_collection)
                 if unit.unit_id in self.prev_steps_goals:
                     del self.prev_steps_goals[unit.unit_id]
