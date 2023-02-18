@@ -20,7 +20,7 @@ class Unit:
     cargo: UnitCargo
     unit_cfg: UnitConfig
     action_queue: list[Action]
-    time_to_power_cost = 20
+    time_to_power_cost = 50
 
     @property
     def agent_id(self):

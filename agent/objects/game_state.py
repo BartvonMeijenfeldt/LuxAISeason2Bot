@@ -47,8 +47,10 @@ class GameState:
         else:
             return self.env_steps
 
-    def is_day(self, steps_in_future: int = 0):
-        t = self.real_env_steps + steps_in_future
+    def is_day(self, t: int = 0):
+        if not t:
+            t = self.real_env_steps
+
         return t % self.env_cfg.CYCLE_LENGTH < self.env_cfg.DAY_LENGTH
 
     @property

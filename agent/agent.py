@@ -63,12 +63,15 @@ class Agent:
 
     def get_unit_actions(self, game_state: GameState) -> dict[str, list[np.ndarray]]:
         unit_goal_collections = []
+        unit_previous_action_plan_collections = {}
 
         for unit in game_state.player_units:
             if unit.has_actions_in_queue:
                 last_step_goal = self.prev_steps_goals[unit.unit_id]
                 last_step_goal.unit = unit
-                last_step_goal.action_plan = ActionPlan(original_actions=unit.action_queue, unit=unit)
+                last_step_goal.action_plan = ActionPlan(original_actions=unit.action_queue, unit=unit, is_set=True)
+                unit_previous_action_plan_collections[unit.unit_id] = last_step_goal.action_plan
+                last_step_goal.has_set_action_plan = True
                 last_step_goal._value = 1_000_000
                 unit_goal_collection = (unit, GoalCollection([last_step_goal]))
             else:
@@ -85,7 +88,8 @@ class Agent:
         unit_actions = {
             unit_id: plan.to_action_arrays()
             for unit_id, plan in best_action_plans.items()
-            if unit_id not in self.prev_steps_goals and plan.actions
+            if plan.actions
+            and not (unit_id in self.prev_steps_goals and plan == unit_previous_action_plan_collections[unit_id])
         }
 
         self._update_prev_step_goals(unit_goals)
@@ -161,7 +165,6 @@ def pick_best_collective_action_plan(unit_goals: dict[Unit, Goal], game_state: G
 
     while not solutions.empty():
         best_potential_solution: PotentialSolution = solutions.get()
-        break # Temp for debugging
         collision = get_collision(best_potential_solution.solution, game_state=game_state)
 
         if not collision:
@@ -178,8 +181,6 @@ def pick_best_collective_action_plan(unit_goals: dict[Unit, Goal], game_state: G
         if node_negative:
             solutions.put(item=node_negative, priority=node_negative.value)
 
-        # append time
-
     best_action_plan = dict()
     for unit, action_plan in best_potential_solution.solution.items():
         if action_plan:
@@ -195,7 +196,11 @@ def _init_root(unit_goals: dict[Unit, Goal], game_state: GameState) -> Potential
     sum_value = 0
 
     for unit, goal in unit_goals.items():
-        action_plan = goal.generate_action_plan(game_state)
+        if goal.has_set_action_plan:
+            action_plan = goal.action_plan
+        else:
+            action_plan = goal.generate_action_plan(game_state)
+
         unit_action_plans[unit] = action_plan
 
         value = goal.get_value_action_plan(action_plan, game_state)
@@ -226,17 +231,18 @@ def get_new_node(
     unit_constraint = unit_constraints[collision.unit]
     time_coordinate = collision.time_coordinate
 
-
     if node_type == "positive":
         t = time_coordinate.t
-        if t in unit_constraint.positive or time_coordinate in unit_constraint.negative[t]:
+        if t in unit_constraint.positive:
             return None
 
         unit_constraint.positive[time_coordinate.t] = time_coordinate
 
     else:
         t = time_coordinate.t
-        if t in unit_constraint.positive and time_coordinate == unit_constraint.positive[t]:
+        if (t in unit_constraint.negative and time_coordinate in unit_constraint.negative[t]) or (
+            t in unit_constraint.positive and time_coordinate == unit_constraint.positive[t]
+        ):
             return None
 
         unit_constraint.negative[time_coordinate.t].append(time_coordinate)
@@ -245,6 +251,9 @@ def get_new_node(
     old_action_plan_value = unit_goal.get_value_action_plan(unit_action_plans[collision.unit], game_state)
 
     new_action_plan = unit_goal.generate_action_plan(game_state, unit_constraint)
+    if not new_action_plan.unit_can_carry_out_plan(game_state=game_state):
+        return None
+
     new_value = unit_goal.get_value_action_plan(new_action_plan, game_state)
     # assert new_value <= old_solution_value, "Constrained solution can not be better"
 

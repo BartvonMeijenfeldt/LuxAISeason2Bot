@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 class ActionPlan:
     original_actions: list[Action] = field(default_factory=list)
     unit: Unit
+    is_set: bool = field(default=False)
 
     def __post_init__(self):
         self._actions: Optional[list[Action]] = None
@@ -232,7 +233,8 @@ class ActionPlanSimulator:
 
     def simulate_action_plan(self, game_state: GameState) -> None:
         self._init_start(start_t=game_state.real_env_steps)
-        self._update_action_queue()
+        if not self.action_plan.is_set:
+            self._update_action_queue()
         self._simulate_actions(actions=self.action_plan.primitive_actions, game_state=game_state)
 
     def get_time_coordinates(self, game_state: GameState) -> set[TimeCoordinate]:

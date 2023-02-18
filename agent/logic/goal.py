@@ -35,6 +35,7 @@ class Goal(metaclass=ABCMeta):
     unit: Unit
 
     action_plan: ActionPlan = field(init=False)
+    has_set_action_plan: bool = field(default=False)
     _value: Optional[float] = field(init=False, default=None)
     _is_valid: Optional[bool] = field(init=False, default=None)
 
@@ -241,7 +242,7 @@ class ClearRubbleGoal(Goal):
         self._init_action_plan()
         self._optional_add_power_pickup_action(game_state=game_state, constraints=constraints)
         self._add_clear_initial_rubble_actions(game_state=game_state, constraints=constraints)
-        self._add_additional_rubble_actions(game_state=game_state, constraints=constraints)
+        # self._add_additional_rubble_actions(game_state=game_state, constraints=constraints)
         self._optional_add_go_to_factory_actions(game_state=game_state, constraints=constraints)
         return self.action_plan
 
@@ -270,8 +271,6 @@ class ClearRubbleGoal(Goal):
     def _unit_can_still_reach_factory(
         self, action_plan: ActionPlan, game_state: GameState, constraints: Constraints
     ) -> bool:
-        closest_factory_c = game_state.get_closest_factory_c(c=self.action_plan.final_tc)
-
         return action_plan.unit_can_add_reach_factory_to_plan(
             game_state=game_state, constraints=constraints
         ) or action_plan.unit_can_reach_factory_after_action_plan(game_state=game_state, constraints=constraints)

@@ -56,8 +56,8 @@ class Graph(metaclass=ABCMeta):
         if self._is_constraint_violated(to_c):
             return math.inf
 
-        power_cost_moving = self.get_power_cost(action=action, from_c=from_c)
-        return power_cost_moving + self.time_to_power_cost
+        action_power_cost = self.get_power_cost(action=action, from_c=from_c)
+        return action_power_cost + self.time_to_power_cost
 
     def get_power_cost(self, action: Action, from_c: Coordinate) -> float:
         power_change = action.get_power_change(unit_cfg=self.unit_cfg, start_c=from_c, board=self.board)
@@ -79,6 +79,7 @@ class Graph(metaclass=ABCMeta):
         return min_distance_cost
 
     def _is_constraint_violated(self, to_c: TimeCoordinate) -> bool:
+        to_c = TimeCoordinate(x=to_c.x, y=to_c.y, t=to_c.t)
         return self._is_negative_constraint_violated(to_c=to_c) or self._is_positive_constraint_violated(to_c=to_c)
 
     def _is_negative_constraint_violated(self, to_c: TimeCoordinate) -> bool:

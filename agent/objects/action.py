@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from math import floor
 
 from objects.resource import Resource
-from objects.direction import Direction
+from objects.direction import Direction, NUMBER_DIRECTION
 
 if TYPE_CHECKING:
     from objects.coordinate import Coordinate
@@ -41,6 +41,7 @@ class Action(metaclass=ABCMeta):
     @classmethod
     def from_array(cls, x: np.ndarray) -> Action:
         action_identifier, direction, resource, amount, repeat, n = x
+        direction = NUMBER_DIRECTION[direction]
         resource = Resource(resource)
 
         match action_identifier:
