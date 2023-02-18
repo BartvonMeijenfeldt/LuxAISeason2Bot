@@ -4,8 +4,9 @@ from typing import TYPE_CHECKING, Optional, Sequence
 import numpy as np
 from dataclasses import dataclass, replace, field
 from collections.abc import Iterator
-from search import get_actions_a_to_b
+from search import Search
 from objects.coordinate import TimeCoordinate
+from search import MoveToGraph
 
 
 if TYPE_CHECKING:
@@ -13,8 +14,8 @@ if TYPE_CHECKING:
     from objects.unit import Unit
     from objects.action import Action, MoveAction
     from objects.board import Board
-    from objects.coordinate import Coordinate
     from objects.game_state import GameState
+    from logic.constraints import Constraints
 
 
 @dataclass(kw_only=True)
@@ -26,7 +27,7 @@ class ActionPlan:
         self._actions: Optional[list[Action]] = None
         self._primitive_actions: Optional[list[Action]] = None
         self._value: Optional[int] = None
-        self._final_c: Optional[Coordinate] = None
+        self._final_tc: Optional[TimeCoordinate] = None
 
     def __iadd__(self, other: list[Action]) -> None:
         other = list(other)
@@ -71,25 +72,25 @@ class ActionPlan:
         return len(self.primitive_actions)
 
     @property
-    def final_c(self) -> Coordinate:
-        if self._final_c is None:
-            self._final_c = ActionPlanSimulator(self, unit=self.unit).get_final_c()
+    def final_tc(self) -> TimeCoordinate:
+        if self._final_tc is None:
+            self._final_tc = ActionPlanSimulator(self, unit=self.unit).get_final_tc()
 
-        return self._final_c
+        return self._final_tc
 
     def get_time_coordinates(self, game_state: GameState) -> set[TimeCoordinate]:
         simulator = ActionPlanSimulator(self, unit=self.unit)
         return simulator.get_time_coordinates(game_state=game_state)
 
     def get_power_used(self, board: Board) -> float:
-        cur_c = self.unit.c
+        cur_c = self.unit.tc
         total_power = self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
 
         for action in self:
-            power_action = action.get_power_change(unit=self.unit, start_c=cur_c, board=board)
+            power_action = action.get_power_change(unit_cfg=self.unit.unit_cfg, start_c=cur_c, board=board)
             power_used = max(power_action, 0)
             total_power += power_used
-            cur_c = action.get_final_pos(start_c=cur_c)
+            cur_c = action.get_final_c(start_c=cur_c)
 
         return total_power
 
@@ -110,8 +111,10 @@ class ActionPlan:
 
         return simulator.can_update_action_queue()
 
-    def unit_can_add_reach_factory_to_plan(self, game_state: GameState, graph: Graph) -> bool:
-        new_action_plan = self._get_action_plan_with_go_to_closest_factory(game_state=game_state, graph=graph)
+    def unit_can_add_reach_factory_to_plan(self, game_state: GameState, constraints: Constraints) -> bool:
+        new_action_plan = self._get_action_plan_with_go_to_closest_factory(
+            game_state=game_state, constraints=constraints
+        )
         simulator = ActionPlanSimulator(action_plan=new_action_plan, unit=self.unit)
 
         try:
@@ -121,20 +124,38 @@ class ActionPlan:
 
         return simulator.can_update_action_queue()
 
-    def _get_action_plan_with_go_to_closest_factory(self, game_state: GameState, graph: Graph) -> ActionPlan:
-        actions_to_factory_c = self.get_actions_go_to_closest_factory_c_after_plan(game_state=game_state, graph=graph)
+    def _get_action_plan_with_go_to_closest_factory(
+        self, game_state: GameState, constraints: Constraints
+    ) -> ActionPlan:
+        actions_to_factory_c = self.get_actions_go_to_closest_factory_c_after_plan(
+            game_state=game_state, constraints=constraints
+        )
         return self + actions_to_factory_c
 
-    def get_actions_go_to_closest_factory_c_after_plan(self, game_state: GameState, graph: Graph) -> list[MoveAction]:
-        closest_factory_c = game_state.get_closest_factory_c(c=self.final_c)
-        return get_actions_a_to_b(graph=graph, start=self.final_c, end=closest_factory_c)
+    def get_actions_go_to_closest_factory_c_after_plan(
+        self, game_state: GameState, constraints: Constraints
+    ) -> list[Action]:
+        closest_factory_c = game_state.get_closest_factory_c(self.final_tc)
+        graph = MoveToGraph(
+            board=game_state.board,
+            time_to_power_cost=self.unit.time_to_power_cost,
+            unit_cfg=self.unit.unit_cfg,
+            goal=closest_factory_c,
+            constraints=constraints,
+        )
+        search = Search(graph=graph)
+        actions = search.get_actions_to_complete_goal(start=self.final_tc)
 
-    def unit_can_reach_factory_after_action_plan(self, game_state: GameState, graph: Graph) -> bool:
+        return actions
+
+    def unit_can_reach_factory_after_action_plan(
+        self, game_state: GameState, constraints: Constraints
+    ) -> bool:
         simulator = ActionPlanSimulator(action_plan=self, unit=self.unit)
 
         try:
             simulator.simulate_action_plan(game_state=game_state)
-            simulator.simulate_action_plan_go_to_closest_factory(game_state=game_state, graph=graph)
+            simulator.simulate_action_plan_go_to_closest_factory(game_state=game_state, constraints=constraints)
         except ValueError:
             return False
 
@@ -221,7 +242,7 @@ class ActionPlanSimulator:
     def _init_start(self, start_t: int) -> None:
         self.cur_power = self.unit.power
         self.t = start_t
-        self.cur_tc = TimeCoordinate(x=self.unit.c.x, y=self.unit.c.y, t=self.t)
+        self.cur_tc = TimeCoordinate(x=self.unit.tc.x, y=self.unit.tc.y, t=self.t)
         self.time_coordinates = {self.cur_tc}
 
     def _update_action_queue(self) -> None:
@@ -241,12 +262,12 @@ class ActionPlanSimulator:
             self._update_tc(action=action)
 
     def _update_power_due_to_action(self, action: Action, board: Board) -> None:
-        power_change = action.get_power_change(unit=self.unit, start_c=self.cur_tc, board=board)
+        power_change = action.get_power_change(unit_cfg=self.unit.unit_cfg, start_c=self.cur_tc, board=board)
         self.cur_power += power_change
         self.cur_power = min(self.cur_power, self.unit.unit_cfg.BATTERY_CAPACITY)
 
     def _update_tc(self, action: Action) -> None:
-        cur_c = action.get_final_pos(start_c=self.cur_tc)
+        cur_c = action.get_final_c(start_c=self.cur_tc)
         self.cur_tc = TimeCoordinate(x=cur_c.x, y=cur_c.y, t=self.t)
         self.time_coordinates.add(self.cur_tc)
 
@@ -258,22 +279,31 @@ class ActionPlanSimulator:
     def _increase_time_count(self) -> None:
         self.t += 1
 
-    def get_final_c(self) -> Coordinate:
-        cur_c = self.unit.c
+    def get_final_tc(self) -> TimeCoordinate:
+        cur_tc = self.unit.tc
 
         for action in self.action_plan.primitive_actions:
-            cur_c = action.get_final_pos(start_c=cur_c)
+            cur_tc = action.get_final_c(start_c=cur_tc)
 
-        return cur_c
+        return cur_tc
 
     def can_update_action_queue(self) -> bool:
         return self.cur_power >= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
 
-    def simulate_action_plan_go_to_closest_factory(self, game_state: GameState, graph: Graph) -> None:
-        actions_to_factory = self._get_actions_to_closest_factory_c(game_state=game_state, graph=graph)
+    def simulate_action_plan_go_to_closest_factory(self, game_state: GameState, constraints: Constraints) -> None:
+        actions_to_factory = self._get_actions_to_closest_factory_c(game_state=game_state, constraints=constraints)
         self._update_action_queue()
         self._simulate_actions(actions=actions_to_factory, game_state=game_state)
 
-    def _get_actions_to_closest_factory_c(self, game_state: GameState, graph: Graph) -> list[MoveAction]:
-        closest_factory_c = game_state.get_closest_factory_c(c=self.cur_tc)
-        return get_actions_a_to_b(graph, start=self.cur_tc, end=closest_factory_c)
+    def _get_actions_to_closest_factory_c(self, game_state: GameState, constraints: Constraints) -> list[Action]:
+        closest_factory_c = game_state.get_closest_factory_c(self.action_plan.final_tc)
+        graph = MoveToGraph(
+            board=game_state.board,
+            time_to_power_cost=self.unit.time_to_power_cost,
+            unit_cfg=self.unit.unit_cfg,
+            goal=closest_factory_c,
+            constraints=constraints,
+        )
+        search = Search(graph=graph)
+        actions = search.get_actions_to_complete_goal(start=self.cur_tc)
+        return actions

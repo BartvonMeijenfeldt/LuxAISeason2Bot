@@ -1,7 +1,9 @@
 from __future__ import annotations
 from typing import Optional
 from dataclasses import dataclass
-from enum import Enum
+from objects.action import Action, DigAction, PickupAction
+from objects.resource import Resource
+from objects.direction import Direction
 
 
 @dataclass(frozen=True)
@@ -9,21 +11,42 @@ class Coordinate:
     x: int
     y: int
 
-    def __add__(self, other) -> Coordinate:
-        if isinstance(other, Direction):
-            other = other.value
+    def __eq__(self, other: Coordinate) -> bool:
+        return self.x == other.x and self.y == other.y
 
-        new_x = self.x + other.x
-        new_y = self.y + other.y
+    def __add__(self, other) -> Coordinate:
+        if isinstance(other, Action):
+            return self._add_action(other)
+
+        if isinstance(other, Direction):
+            return self._add_direction(other)
+
+        if isinstance(other, Coordinate):
+            return self._add_coordinate(other)
+
+        raise TypeError(f"Unexpected type of other: {type(other)}")
+
+    def _add_action(self, action: Action) -> Coordinate:
+        c = self
+        for _ in range(action.n):
+            direction = action.unit_direction
+            c = self._add_direction(direction)
+
+        return c
+
+    def _add_direction(self, direction: Direction) -> Coordinate:
+        c = Coordinate(*direction.value)
+        return self._add_coordinate(c=c)
+
+    def _add_coordinate(self, c: Coordinate) -> Coordinate:
+        new_x = self.x + c.x
+        new_y = self.y + c.y
         return Coordinate(new_x, new_y)
 
     def __sub__(self, other: Coordinate) -> Coordinate:
         new_x = self.x - other.x
         new_y = self.y - other.y
         return Coordinate(new_x, new_y)
-
-    def __eq__(self, other: Coordinate) -> bool:
-        return self.x == other.x and self.y == other.y
 
     def __lt__(self, other: Coordinate) -> bool:
         if self.x != other.x:
@@ -33,6 +56,10 @@ class Coordinate:
 
     def __iter__(self):
         return iter((self.x, self.y))
+
+    @property
+    def xy(self) -> tuple[int, int]:
+        return self.x, self.y
 
     @property
     def neighbors(self) -> CoordinateList:
@@ -59,6 +86,70 @@ class TimeCoordinate(Coordinate):
 
     def __iter__(self):
         return iter((self.x, self.y, self.t))
+
+    def __lt__(self, other: TimeCoordinate) -> bool:
+        return self.t < other.t
+
+    def __add__(self, other) -> TimeCoordinate:
+        c = super().__add__(other)
+
+        nr_time_steps = other.n if isinstance(other, Action) else 1
+        new_t = self.t + nr_time_steps
+        return TimeCoordinate(c.x, c.y, new_t)
+
+
+@dataclass(eq=True, frozen=True)
+class DigCoordinate(Coordinate):
+    nr_digs: int
+
+    def __eq__(self, other: DigCoordinate) -> bool:
+        return self.x == other.x and self.y == other.y and self.nr_digs == other.nr_digs
+
+    def __iter__(self):
+        return iter((self.x, self.y, self.nr_digs))
+
+    def __add__(self, other) -> DigCoordinate:
+        tc = super().__add__(other)
+
+        nr_digs = other.n if isinstance(other, DigAction) else 0
+        new_d = self.nr_digs + nr_digs
+
+        return DigCoordinate(tc.x, tc.y, new_d)
+
+
+@dataclass(eq=True, frozen=True)
+class DigTimeCoordinate(TimeCoordinate):
+    nr_digs: int
+
+    def __iter__(self):
+        return iter((self.x, self.y, self.t, self.nr_digs))
+
+    def __add__(self, other) -> DigTimeCoordinate:
+        tc = super().__add__(other)
+
+        nr_digs = other.n if isinstance(other, DigAction) else 0
+        new_d = self.nr_digs + nr_digs
+
+        return DigTimeCoordinate(tc.x, tc.y, tc.t, new_d)
+
+
+@dataclass(eq=True, frozen=True)
+class PowerTimeCoordinate(TimeCoordinate):
+    power_recharged: int
+
+    def __iter__(self):
+        return iter((self.x, self.y, self.t, self.power_recharged))
+
+    def __add__(self, other) -> PowerTimeCoordinate:
+        tc = super().__add__(other)
+
+        if isinstance(other, PickupAction) and other.resource == Resource.Power:
+            recharged_amount = other.n * other.amount
+        else:
+            recharged_amount = 0
+        new_recharged_amount = self.power_recharged + recharged_amount
+
+        return PowerTimeCoordinate(tc.x, tc.y, tc.t, new_recharged_amount)
 
 
 @dataclass
@@ -109,24 +200,3 @@ class CoordinateList:
 
     def __len__(self):
         return len(self.coordinates)
-
-
-class Direction(Enum):
-    CENTER = Coordinate(0, 0)
-    UP = Coordinate(0, -1)
-    RIGHT = Coordinate(1, 0)
-    DOWN = Coordinate(0, 1)
-    LEFT = Coordinate(-1, 0)
-
-    @property
-    def number(self) -> int:
-        return DIRECTION_NUMBER[self]
-
-
-DIRECTION_NUMBER: dict = {
-    Direction.CENTER: 0,
-    Direction.UP: 1,
-    Direction.RIGHT: 2,
-    Direction.DOWN: 3,
-    Direction.LEFT: 4,
-}

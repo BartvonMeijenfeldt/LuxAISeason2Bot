@@ -8,7 +8,7 @@ from lux.team import Team
 from objects.unit import Unit
 from objects.game_state import GameState
 from objects.board import Board
-from objects.coordinate import Coordinate
+from objects.coordinate import TimeCoordinate, Coordinate
 from objects.factory import Factory
 from objects.action import Action
 
@@ -70,7 +70,7 @@ def process_obs(player, game_state, step, obs):
 
 
 def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str):
-    units = create_units(obs=obs, env_cfg=env_cfg)
+    units = create_units(obs=obs, env_cfg=env_cfg, t=obs['real_env_steps'])
     factories = create_factories(obs=obs, env_cfg=env_cfg)
     factory_occupancy_map = create_factory_occupancy_map(factories, obs["board"]["rubble"].shape)
 
@@ -101,13 +101,13 @@ def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str):
     )
 
 
-def create_units(obs, env_cfg: EnvConfig) -> dict[str, list[Unit]]:
+def create_units(obs, env_cfg: EnvConfig, t: int) -> dict[str, list[Unit]]:
     units = defaultdict(list)
 
     for agent in obs["units"]:
         for unit_data in obs["units"][agent].values():
             unit_data = unit_data.copy()
-            unit_data["c"] = Coordinate(*unit_data["pos"])
+            unit_data["tc"] = TimeCoordinate(*unit_data["pos"], t=t)
             del unit_data["pos"]
             unit_data["cargo"] = UnitCargo(**unit_data["cargo"])
             unit_data["unit_cfg"] = env_cfg.ROBOTS[unit_data["unit_type"]]

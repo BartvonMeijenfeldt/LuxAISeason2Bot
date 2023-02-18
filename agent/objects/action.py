@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
 
@@ -8,12 +8,13 @@ from dataclasses import dataclass
 from math import floor
 
 from objects.resource import Resource
-from objects.coordinate import Coordinate
+from objects.direction import Direction
 
 if TYPE_CHECKING:
-    from objects.unit import Unit
-    from objects.coordinate import Direction
+    from objects.coordinate import Coordinate
+    from objects.unit import UnitConfig
     from objects.board import Board
+    TCoordinate = TypeVar('TCoordinate', bound=Coordinate)
 
 
 @dataclass(kw_only=True)
@@ -21,16 +22,21 @@ class Action(metaclass=ABCMeta):
     repeat: int = 0
     n: int = 1
 
+    @property
+    @abstractmethod
+    def unit_direction(self) -> Direction:
+        ...
+
     @abstractmethod
     def to_array(self) -> np.ndarray:
         ...
 
     @abstractmethod
-    def get_power_change(self, unit: Unit, start_c: Coordinate, board: Board) -> int:
+    def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
         ...
 
-    def get_final_pos(self, start_c: Coordinate) -> Coordinate:
-        return start_c
+    def get_final_c(self, start_c: TCoordinate) -> TCoordinate:
+        return start_c + Direction.CENTER
 
     @classmethod
     def from_array(cls, x: np.ndarray) -> Action:
@@ -58,31 +64,36 @@ class Action(metaclass=ABCMeta):
 class MoveAction(Action):
     direction: Direction
 
+    @property
+    def unit_direction(self) -> Direction:
+        return self.direction
+
     def to_array(self) -> np.ndarray:
         action_identifier = 0
         resource = 0
         amount = 0
         return np.array([action_identifier, self.direction.number, resource, amount, self.repeat, self.n])
 
-    def get_power_change(self, unit: Unit, start_c: Coordinate, board: Board) -> int:
+    def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
+        if self.direction == Direction.CENTER:
+            return 0
+
         power_change = 0
         cur_pos = start_c
 
         for _ in range(self.n):
             cur_pos = cur_pos + self.direction
-            rubble_at_target = board.rubble[tuple(cur_pos)]
-            power_required_single_action = self.get_power_cost(
-                rubble_at_target, unit.unit_cfg.MOVE_COST, unit.unit_cfg.RUBBLE_MOVEMENT_COST
-            )
+            rubble_at_target = board.rubble[cur_pos.xy]
+            power_required_single_action = self.get_power_cost(rubble_at_target, unit_cfg)
             power_change -= power_required_single_action
 
         return power_change
 
     @staticmethod
-    def get_power_cost(rubble_to: int, move_cost: int, rubble_movement_cost: float) -> int:
-        return floor(move_cost + rubble_movement_cost * rubble_to)
+    def get_power_cost(rubble_to: int, unit_cfg: UnitConfig) -> int:
+        return floor(unit_cfg.MOVE_COST + unit_cfg.RUBBLE_MOVEMENT_COST * rubble_to)
 
-    def get_final_pos(self, start_c: Coordinate) -> Coordinate:
+    def get_final_c(self, start_c: Coordinate) -> Coordinate:
         cur_pos = start_c
 
         for _ in range(self.n):
@@ -97,13 +108,17 @@ class TransferAction(Action):
     amount: int
     resource: Resource
 
+    @property
+    def unit_direction(self) -> Direction:
+        return Direction.CENTER
+
     def to_array(self) -> np.ndarray:
         action_identifier = 1
         return np.array(
             [action_identifier, self.direction.number, self.resource.value, self.amount, self.repeat, self.n]
         )
 
-    def get_power_change(self, unit: Unit, start_c: Coordinate, board: Board) -> int:
+    def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
         if self.resource == Resource.Power:
             return -self.amount
         else:
@@ -115,12 +130,16 @@ class PickupAction(Action):
     amount: int
     resource: Resource
 
+    @property
+    def unit_direction(self) -> Direction:
+        return Direction.CENTER
+
     def to_array(self) -> np.ndarray:
         action_identifier = 2
         direction = 0
         return np.array([action_identifier, direction, self.resource.value, self.amount, self.repeat, self.n])
 
-    def get_power_change(self, unit: Unit, start_c: Coordinate, board: Board) -> int:
+    def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
         if self.resource == Resource.Power:
             return self.amount
         else:
@@ -129,6 +148,10 @@ class PickupAction(Action):
 
 @dataclass
 class DigAction(Action):
+    @property
+    def unit_direction(self) -> Direction:
+        return Direction.CENTER
+
     def to_array(self) -> np.ndarray:
         action_identifier = 3
         direction = 0
@@ -136,12 +159,16 @@ class DigAction(Action):
         amount = 0
         return np.array([action_identifier, direction, resource, amount, self.repeat, self.n])
 
-    def get_power_change(self, unit: Unit, start_c: Coordinate, board: Board) -> int:
-        return -unit.unit_cfg.DIG_COST * self.n
+    def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
+        return -unit_cfg.DIG_COST * self.n
 
 
 @dataclass
 class SelfDestructAction(Action):
+    @property
+    def unit_direction(self) -> Direction:
+        return Direction.CENTER
+
     def to_array(self) -> np.ndarray:
         action_identifier = 4
         direction = 0
@@ -149,13 +176,17 @@ class SelfDestructAction(Action):
         amount = 0
         return np.array([action_identifier, direction, resource, amount, self.repeat, self.n])
 
-    def get_power_change(self, unit: Unit, start_c: Coordinate, board: Board) -> int:
-        return -unit.unit_cfg.SELF_DESTRUCT_COST * self.n
+    def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
+        return -unit_cfg.SELF_DESTRUCT_COST * self.n
 
 
 @dataclass
 class RechargeAction(Action):
     amount: int
+
+    @property
+    def unit_direction(self) -> Direction:
+        return Direction.CENTER
 
     def to_array(self) -> np.ndarray:
         action_identifier = 5
@@ -163,5 +194,5 @@ class RechargeAction(Action):
         resource = 0
         return np.array([action_identifier, direction, resource, self.amount, self.repeat, self.n])
 
-    def get_power_change(self, unit: Unit, start_c: Coordinate, board: Board) -> int:
+    def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
         return 0

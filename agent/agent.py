@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 
+from typing import Optional, Literal
+from dataclasses import dataclass
 from scipy.optimize import linear_sum_assignment
 
 from lux.kit import obs_to_game_state
@@ -9,8 +11,11 @@ from lux.utils import is_my_turn_to_place_factory
 from objects.game_state import GameState
 from objects.unit import Unit
 from objects.action_plan import ActionPlan
+from objects.coordinate import TimeCoordinate
 from logic.early_setup import get_factory_spawn_loc
 from logic.goal import Goal, GoalCollection
+from logic.constraints import Constraints
+from search import PriorityQueue
 
 
 class Agent:
@@ -62,6 +67,7 @@ class Agent:
         for unit in game_state.player_units:
             if unit.has_actions_in_queue:
                 last_step_goal = self.prev_steps_goals[unit.unit_id]
+                last_step_goal.unit = unit
                 last_step_goal.action_plan = ActionPlan(original_actions=unit.action_queue, unit=unit)
                 last_step_goal._value = 1_000_000
                 unit_goal_collection = (unit, GoalCollection([last_step_goal]))
@@ -75,7 +81,7 @@ class Agent:
             unit_goal_collections.append(unit_goal_collection)
 
         unit_goals = resolve_goal_conflicts(unit_goal_collections)
-        best_action_plans = pick_best_collective_action_plan(unit_goals)
+        best_action_plans = pick_best_collective_action_plan(unit_goals, game_state=game_state)
         unit_actions = {
             unit_id: plan.to_action_arrays()
             for unit_id, plan in best_action_plans.items()
@@ -86,18 +92,18 @@ class Agent:
 
         return unit_actions
 
-    def _update_prev_step_goals(self, unit_goal_collections: list[tuple[Unit, Goal]]) -> None:
-        self.prev_steps_goals = {unit.unit_id: goal for unit, goal in unit_goal_collections}
+    def _update_prev_step_goals(self, unit_goal_collections: dict[Unit, Goal]) -> None:
+        self.prev_steps_goals = {unit.unit_id: goal for unit, goal in unit_goal_collections.items()}
 
 
-def resolve_goal_conflicts(unit_goal_collections: list[tuple[Unit, GoalCollection]]) -> list[tuple[Unit, Goal]]:
+def resolve_goal_conflicts(unit_goal_collections: list[tuple[Unit, GoalCollection]]) -> dict[Unit, Goal]:
     if not unit_goal_collections:
-        return []
+        return {}
 
     cost_matrix = _create_cost_matrix(unit_goal_collections)
     goal_keys = _solve_sum_assigment_problem(cost_matrix)
     unit_goals = _get_unit_goals(unit_goal_collections=unit_goal_collections, goal_keys=goal_keys)
-    unit_goals = [(u, g) for u, g in unit_goals if g]
+    unit_goals = {unit: goal for unit, goal in unit_goals if goal}
 
     return unit_goals
 
@@ -135,11 +141,128 @@ def _get_unit_goals(
     ]
 
 
-def pick_best_collective_action_plan(unit_goals: list[tuple[Unit, Goal]]) -> dict[str, ActionPlan]:
-    # TODO
+@dataclass
+class PotentialSolution:
+    unit_constraints: dict[Unit, Constraints]
+    solution: dict[Unit, ActionPlan]
+    value: float
+
+    def __lt__(self, other) -> bool:
+        return True
+
+
+def pick_best_collective_action_plan(unit_goals: dict[Unit, Goal], game_state: GameState) -> dict[str, ActionPlan]:
+    if not unit_goals:
+        return {}
+
+    root = _init_root(unit_goals, game_state)
+    solutions = PriorityQueue()
+    solutions.put(item=root, priority=root.value)
+
+    while not solutions.empty():
+        best_potential_solution: PotentialSolution = solutions.get()
+        break # Temp for debugging
+        collision = get_collision(best_potential_solution.solution, game_state=game_state)
+
+        if not collision:
+            break
+
+        unit_goal = unit_goals[collision.unit]
+
+        node_positive = get_new_node(collision, best_potential_solution, game_state, unit_goal, "positive")
+        node_negative = get_new_node(collision, best_potential_solution, game_state, unit_goal, "negative")
+
+        if node_positive:
+            solutions.put(item=node_positive, priority=node_positive.value)
+
+        if node_negative:
+            solutions.put(item=node_negative, priority=node_negative.value)
+
+        # append time
+
     best_action_plan = dict()
-    for unit, goal in unit_goals:
-        if goal:
-            best_action_plan[unit.unit_id] = goal.action_plan
+    for unit, action_plan in best_potential_solution.solution.items():
+        if action_plan:
+            best_action_plan[unit.unit_id] = action_plan
 
     return best_action_plan
+
+
+def _init_root(unit_goals: dict[Unit, Goal], game_state: GameState) -> PotentialSolution:
+    unit_constraints = {unit: Constraints() for unit in unit_goals.keys()}
+    unit_action_plans = {}
+
+    sum_value = 0
+
+    for unit, goal in unit_goals.items():
+        action_plan = goal.generate_action_plan(game_state)
+        unit_action_plans[unit] = action_plan
+
+        value = goal.get_value_action_plan(action_plan, game_state)
+        sum_value += value
+
+    return PotentialSolution(unit_constraints, unit_action_plans, sum_value)
+
+
+@dataclass
+class Collision:
+    time_coordinate: TimeCoordinate
+    unit: Unit
+
+
+from copy import deepcopy
+
+
+def get_new_node(
+    collision: Collision,
+    parent_solution: PotentialSolution,
+    game_state: GameState,
+    unit_goal: Goal,
+    node_type: Literal["positive", "negative"],
+) -> Optional[PotentialSolution]:
+    unit_constraints = deepcopy(parent_solution.unit_constraints)
+    unit_action_plans = deepcopy(parent_solution.solution)
+
+    unit_constraint = unit_constraints[collision.unit]
+    time_coordinate = collision.time_coordinate
+
+
+    if node_type == "positive":
+        t = time_coordinate.t
+        if t in unit_constraint.positive or time_coordinate in unit_constraint.negative[t]:
+            return None
+
+        unit_constraint.positive[time_coordinate.t] = time_coordinate
+
+    else:
+        t = time_coordinate.t
+        if t in unit_constraint.positive and time_coordinate == unit_constraint.positive[t]:
+            return None
+
+        unit_constraint.negative[time_coordinate.t].append(time_coordinate)
+
+    old_solution_value = parent_solution.value
+    old_action_plan_value = unit_goal.get_value_action_plan(unit_action_plans[collision.unit], game_state)
+
+    new_action_plan = unit_goal.generate_action_plan(game_state, unit_constraint)
+    new_value = unit_goal.get_value_action_plan(new_action_plan, game_state)
+    # assert new_value <= old_solution_value, "Constrained solution can not be better"
+
+    new_solution_value = old_action_plan_value - old_solution_value + new_value
+
+    unit_action_plans[collision.unit] = new_action_plan
+    return PotentialSolution(unit_constraints, unit_action_plans, new_solution_value)
+
+
+def get_collision(unit_action_plans: dict[Unit, ActionPlan], game_state: GameState) -> Optional[Collision]:
+    all_time_coordinates = set()
+
+    for unit, action_plan in unit_action_plans.items():
+        time_coordinates = action_plan.get_time_coordinates(game_state=game_state)
+        if collisions := all_time_coordinates & time_coordinates:
+            collision_time_coordinate = next(iter(collisions))
+            return Collision(time_coordinate=collision_time_coordinate, unit=unit)
+
+        all_time_coordinates.update(time_coordinates)
+
+    return None
