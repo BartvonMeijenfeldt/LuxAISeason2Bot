@@ -4,13 +4,16 @@ import pandas as pd
 from typing import Optional, Literal
 from dataclasses import dataclass
 from scipy.optimize import linear_sum_assignment
+from copy import deepcopy
 
 from lux.kit import obs_to_game_state
 from lux.config import EnvConfig
 from lux.utils import is_my_turn_to_place_factory
 from objects.game_state import GameState
 from objects.unit import Unit
+from objects.action import PickupAction
 from objects.action_plan import ActionPlan
+from objects.resource import Resource
 from objects.coordinate import TimeCoordinate
 from logic.early_setup import get_factory_spawn_loc
 from logic.goal import Goal, GoalCollection
@@ -165,21 +168,33 @@ def pick_best_collective_action_plan(unit_goals: dict[Unit, Goal], game_state: G
 
     while not solutions.empty():
         best_potential_solution: PotentialSolution = solutions.get()
-        collision = get_collision(best_potential_solution.solution, game_state=game_state)
+        power_collision = get_power_collision(best_potential_solution.solution, game_state=game_state)
 
-        if not collision:
-            break
+        if power_collision:
+            unit_goal = unit_goals[power_collision.unit]
+            node_restricted_power = get_new_node(power_collision, best_potential_solution, game_state, unit_goal, "power")
+            if node_restricted_power:
+                solutions.put(item=node_restricted_power, priority=node_restricted_power.value)
 
-        unit_goal = unit_goals[collision.unit]
+            continue
 
-        node_positive = get_new_node(collision, best_potential_solution, game_state, unit_goal, "positive")
-        node_negative = get_new_node(collision, best_potential_solution, game_state, unit_goal, "negative")
+        unit_collision = get_unit_collision(best_potential_solution.solution, game_state=game_state)
 
-        if node_positive:
-            solutions.put(item=node_positive, priority=node_positive.value)
+        if unit_collision:
+            unit_goal = unit_goals[unit_collision.unit]
 
-        if node_negative:
-            solutions.put(item=node_negative, priority=node_negative.value)
+            node_positive = get_new_node(unit_collision, best_potential_solution, game_state, unit_goal, "positive")
+            node_negative = get_new_node(unit_collision, best_potential_solution, game_state, unit_goal, "negative")
+
+            if node_positive:
+                solutions.put(item=node_positive, priority=node_positive.value)
+
+            if node_negative:
+                solutions.put(item=node_negative, priority=node_negative.value)
+
+            continue
+
+        break
 
     best_action_plan = dict()
     for unit, action_plan in best_potential_solution.solution.items():
@@ -210,35 +225,60 @@ def _init_root(unit_goals: dict[Unit, Goal], game_state: GameState) -> Potential
 
 
 @dataclass
-class Collision:
+class PowerCollision:
+    unit: Unit
+    max_power: int
+
+
+def get_power_collision(unit_action_plans: dict[Unit, ActionPlan], game_state: GameState):
+    factories_power_requested = {factory: 0 for factory in game_state.board.player_factories}
+    factories_power_available = {factory: factory.power for factory in game_state.board.player_factories}
+
+    for unit, action_plan in unit_action_plans.items():
+        if action_plan.primitive_actions:
+            first_action = action_plan.primitive_actions[0]
+            if isinstance(first_action, PickupAction) and first_action.resource == Resource.Power:
+                unit_power_requested = first_action.amount
+                factory = game_state.get_closest_factory(unit.tc)
+
+                power_available = factories_power_available[factory] - factories_power_requested[factory]
+
+                if unit_power_requested > power_available:
+                    return PowerCollision(unit=unit, max_power=power_available)
+
+                factories_power_requested[factory] += unit_power_requested
+
+    return None
+
+
+@dataclass
+class UnitCollision:
     time_coordinate: TimeCoordinate
     unit: Unit
 
 
-from copy import deepcopy
-
-
 def get_new_node(
-    collision: Collision,
+    collision: PowerCollision | UnitCollision,
     parent_solution: PotentialSolution,
     game_state: GameState,
     unit_goal: Goal,
-    node_type: Literal["positive", "negative"],
+    node_type: Literal["positive", "negative", "power"],
 ) -> Optional[PotentialSolution]:
     unit_constraints = deepcopy(parent_solution.unit_constraints)
     unit_action_plans = deepcopy(parent_solution.solution)
 
     unit_constraint = unit_constraints[collision.unit]
-    time_coordinate = collision.time_coordinate
 
     if node_type == "positive":
+        time_coordinate = collision.time_coordinate
         t = time_coordinate.t
         if t in unit_constraint.positive:
             return None
 
         unit_constraint.positive[time_coordinate.t] = time_coordinate
 
-    else:
+    elif node_type == "negative":
+        time_coordinate = collision.time_coordinate
         t = time_coordinate.t
         if (t in unit_constraint.negative and time_coordinate in unit_constraint.negative[t]) or (
             t in unit_constraint.positive and time_coordinate == unit_constraint.positive[t]
@@ -246,6 +286,9 @@ def get_new_node(
             return None
 
         unit_constraint.negative[time_coordinate.t].append(time_coordinate)
+
+    else:
+        unit_constraint.max_power_request = collision.max_power
 
     old_solution_value = parent_solution.value
     old_action_plan_value = unit_goal.get_value_action_plan(unit_action_plans[collision.unit], game_state)
@@ -263,14 +306,14 @@ def get_new_node(
     return PotentialSolution(unit_constraints, unit_action_plans, new_solution_value)
 
 
-def get_collision(unit_action_plans: dict[Unit, ActionPlan], game_state: GameState) -> Optional[Collision]:
+def get_unit_collision(unit_action_plans: dict[Unit, ActionPlan], game_state: GameState) -> Optional[UnitCollision]:
     all_time_coordinates = set()
 
     for unit, action_plan in unit_action_plans.items():
         time_coordinates = action_plan.get_time_coordinates(game_state=game_state)
         if collisions := all_time_coordinates & time_coordinates:
             collision_time_coordinate = next(iter(collisions))
-            return Collision(time_coordinate=collision_time_coordinate, unit=unit)
+            return UnitCollision(time_coordinate=collision_time_coordinate, unit=unit)
 
         all_time_coordinates.update(time_coordinates)
 

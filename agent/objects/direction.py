@@ -21,5 +21,4 @@ DIRECTION_NUMBER: dict = {
     Direction.LEFT: 4,
 }
 
-
 NUMBER_DIRECTION = {number: direction for direction, number in DIRECTION_NUMBER.items()}

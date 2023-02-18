@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 
 from dataclasses import dataclass
@@ -19,6 +21,12 @@ class Factory:
     center: Coordinate
     env_cfg: EnvConfig
     radius = 1
+
+    def __hash__(self) -> int:
+        return hash(self.unit_id)
+
+    def __eq__(self, __o: Factory) -> bool:
+        return self.unit_id == __o.unit_id
 
     def act(self, game_state: GameState) -> Optional[int]:
         if game_state.real_env_steps == 0:

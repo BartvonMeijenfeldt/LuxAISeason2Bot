@@ -79,8 +79,12 @@ class Graph(metaclass=ABCMeta):
         return min_distance_cost
 
     def _is_constraint_violated(self, to_c: TimeCoordinate) -> bool:
-        to_c = TimeCoordinate(x=to_c.x, y=to_c.y, t=to_c.t)
-        return self._is_negative_constraint_violated(to_c=to_c) or self._is_positive_constraint_violated(to_c=to_c)
+        to_tc2 = TimeCoordinate(x=to_c.x, y=to_c.y, t=to_c.t)
+        return (
+            self._is_negative_constraint_violated(to_c=to_tc2)
+            or self._is_positive_constraint_violated(to_c=to_tc2)
+            or self._is_power_constraint_violated(to_c)
+        )
 
     def _is_negative_constraint_violated(self, to_c: TimeCoordinate) -> bool:
         if not self.constraints.negative:
@@ -93,6 +97,12 @@ class Graph(metaclass=ABCMeta):
             return False
 
         return to_c.t in self.constraints.positive and to_c != self.constraints.positive[to_c.t]
+
+    def _is_power_constraint_violated(self, to_c: TimeCoordinate) -> bool:
+        if not self.constraints.max_power_request or not isinstance(to_c, PowerTimeCoordinate):
+            return False
+
+        return to_c.power_recharged > self.constraints.max_power_request
 
 
 @dataclass(kw_only=True)
@@ -116,6 +126,9 @@ class PickupPowerGraph(Graph):
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
 
     def __post_init__(self):
+        if self.constraints.max_power_request and self.constraints.max_power_request < self.power_pickup_goal:
+            self.power_pickup_goal = self.constraints.max_power_request
+
         self._potential_recharge_actions = [PickupAction(amount=self.power_pickup_goal, resource=Resource.Power)]
 
     def potential_actions(self, c: Coordinate) -> list[Action]:

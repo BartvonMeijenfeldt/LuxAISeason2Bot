@@ -115,6 +115,9 @@ class Goal(metaclass=ABCMeta):
         return optimal_actions
 
     def _optional_add_power_pickup_action(self, game_state: GameState, constraints: Constraints) -> None:
+        if constraints.max_power_request is not None and constraints.max_power_request < 10:
+            return
+
         power_space_left = self.unit.power_space_left
         closest_factory = game_state.get_closest_factory(c=self.unit.tc)
 
