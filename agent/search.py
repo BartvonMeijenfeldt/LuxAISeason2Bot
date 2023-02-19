@@ -47,7 +47,7 @@ class Graph(metaclass=ABCMeta):
 
         for action in self.potential_actions(c=c):
             new_c = c + action
-            if self.board.is_on_the_board(c=new_c):
+            if self.board.is_valid_c_for_player(c=new_c):
                 action_nodes.append((action, new_c))
 
         return action_nodes

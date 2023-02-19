@@ -57,6 +57,9 @@ class Board:
     def opponent_factory_tiles(self) -> CoordinateList:
         return CoordinateList([c for factory in self.opp_factories for c in factory.coordinates])
 
+    def is_valid_c_for_player(self, c: Coordinate) -> bool:
+        return not self.is_opponent_factory_tile(c=c) and self.is_on_the_board(c=c)
+
     def is_player_factory_tile(self, c: Coordinate) -> bool:
         return c in self.player_factory_tiles
 
