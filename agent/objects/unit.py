@@ -44,7 +44,7 @@ class Unit:
             goals = [CollectIceGoal(unit=self, ice_c=target_ice_c, factory_c=target_factory_c)]
 
         else:
-            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=10)
+            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=50)
             # TODO add something here to do a feasibility check if
             # they can ever clear the first rubble, even with a full capacity
             goals = [

@@ -31,7 +31,7 @@ class Factory:
     def act(self, game_state: GameState) -> Optional[int]:
         if game_state.real_env_steps == 0:
             return self.build_heavy()
-        elif game_state.real_env_steps in [2, 4, 6, 8]:
+        elif game_state.real_env_steps in [2, 4, 6, 8, 10]:
             return self.build_light()
         elif game_state.env_steps > 775 and self.can_water(game_state):
             return self.water()
