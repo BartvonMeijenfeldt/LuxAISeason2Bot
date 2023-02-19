@@ -27,6 +27,13 @@ class Board:
     player_factories: list[Factory]
     opp_factories: list[Factory]
 
+    def __post_init__(self) -> None:
+        self.player_factories_tiles_set = {(c.xy) for factory in self.player_factories for c in factory.coordinates}
+        self.opponent_factories_tiles_set = {(c.xy) for factory in self.opp_factories for c in factory.coordinates}
+
+        self.player_factory_tiles = CoordinateList([c for factory in self.player_factories for c in factory.coordinates])
+        self.opponent_factory_tiles = CoordinateList([c for factory in self.opp_factories for c in factory.coordinates])
+
     @property
     def length(self):
         return self.rubble.shape[0]
@@ -49,22 +56,14 @@ class Board:
         rubble_locations = np.argwhere(is_rubble & is_no_ice & is_no_ore)
         return CoordinateList([Coordinate(*xy) for xy in rubble_locations])
 
-    @property
-    def player_factory_tiles(self) -> CoordinateList:
-        return CoordinateList([c for factory in self.player_factories for c in factory.coordinates])
-
-    @property
-    def opponent_factory_tiles(self) -> CoordinateList:
-        return CoordinateList([c for factory in self.opp_factories for c in factory.coordinates])
-
     def is_valid_c_for_player(self, c: Coordinate) -> bool:
         return not self.is_opponent_factory_tile(c=c) and self.is_on_the_board(c=c)
 
     def is_player_factory_tile(self, c: Coordinate) -> bool:
-        return c in self.player_factory_tiles
+        return c.xy in self.player_factories_tiles_set
 
     def is_opponent_factory_tile(self, c: Coordinate) -> bool:
-        return c in self.opponent_factory_tiles
+        return c.xy in self.opponent_factories_tiles_set
 
     def is_on_the_board(self, c: Coordinate) -> bool:
         return 0 <= c.x < self.width and 0 <= c.y < self.length
