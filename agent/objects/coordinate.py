@@ -15,33 +15,37 @@ class Coordinate:
         return self.x == other.x and self.y == other.y
 
     def __add__(self, other) -> Coordinate:
+        x, y = self._add_get_new_xy(other)
+        return Coordinate(x, y)
+
+    def _add_get_new_xy(self, other) -> tuple[int, int]:
         if isinstance(other, Action):
-            return self._add_action(other)
+            return self._add_get_new_xy_action(other)
 
         if isinstance(other, Direction):
-            return self._add_direction(other)
+            return self._add_get_new_xy_direction(other)
 
         if isinstance(other, Coordinate):
-            return self._add_coordinate(other)
+            return self._add_get_new_xy_coordinate(other)
 
         raise TypeError(f"Unexpected type of other: {type(other)}")
 
-    def _add_action(self, action: Action) -> Coordinate:
-        c = self
-        for _ in range(action.n):
-            direction = action.unit_direction
-            c = self._add_direction(direction)
+    def _add_get_new_xy_action(self, action: Action) -> tuple[int, int]:
+        direction_tuple = action.unit_direction.value
+        x = self.x + direction_tuple[0] * action.n
+        y = self.y + direction_tuple[1] * action.n
+        return x, y
 
-        return c
+    def _add_get_new_xy_direction(self, direction: Direction) -> tuple[int, int]:
+        direction_tuple = direction.value
+        x = self.x + direction_tuple[0]
+        y = self.y + direction_tuple[1]
+        return x, y
 
-    def _add_direction(self, direction: Direction) -> Coordinate:
-        c = Coordinate(*direction.value)
-        return self._add_coordinate(c=c)
-
-    def _add_coordinate(self, c: Coordinate) -> Coordinate:
-        new_x = self.x + c.x
-        new_y = self.y + c.y
-        return Coordinate(new_x, new_y)
+    def _add_get_new_xy_coordinate(self, c: Coordinate) -> tuple[int, int]:
+        x = self.x + c.x
+        y = self.y + c.y
+        return x, y
 
     def __sub__(self, other: Coordinate) -> Coordinate:
         new_x = self.x - other.x
@@ -91,11 +95,14 @@ class TimeCoordinate(Coordinate):
         return self.t < other.t
 
     def __add__(self, other) -> TimeCoordinate:
-        c = super().__add__(other)
+        x, y = super()._add_get_new_xy(other)
+        t = self._add_get_new_t(other)
+        return TimeCoordinate(x, y, t)
 
+    def _add_get_new_t(self, other) -> int:
         nr_time_steps = other.n if isinstance(other, Action) else 1
         new_t = self.t + nr_time_steps
-        return TimeCoordinate(c.x, c.y, new_t)
+        return new_t
 
 
 @dataclass(eq=True, frozen=True)
@@ -109,28 +116,26 @@ class DigCoordinate(Coordinate):
         return iter((self.x, self.y, self.nr_digs))
 
     def __add__(self, other) -> DigCoordinate:
-        tc = super().__add__(other)
+        x, y = super()._add_get_new_xy(other)
+        nr_digs = self._add_get_new_nr_digs(other)
+        return DigCoordinate(x, y, nr_digs)
 
-        nr_digs = other.n if isinstance(other, DigAction) else 0
-        new_d = self.nr_digs + nr_digs
-
-        return DigCoordinate(tc.x, tc.y, new_d)
+    def _add_get_new_nr_digs(self, other) -> int:
+        added_digs = other.n if isinstance(other, DigAction) else 0
+        return self.nr_digs + added_digs
 
 
 @dataclass(eq=True, frozen=True)
-class DigTimeCoordinate(TimeCoordinate):
-    nr_digs: int
-
+class DigTimeCoordinate(DigCoordinate, TimeCoordinate):
     def __iter__(self):
         return iter((self.x, self.y, self.t, self.nr_digs))
 
     def __add__(self, other) -> DigTimeCoordinate:
-        tc = super().__add__(other)
+        x, y = super()._add_get_new_xy(other)
+        t = super()._add_get_new_t(other)
+        nr_digs = super()._add_get_new_nr_digs(other)
 
-        nr_digs = other.n if isinstance(other, DigAction) else 0
-        new_d = self.nr_digs + nr_digs
-
-        return DigTimeCoordinate(tc.x, tc.y, tc.t, new_d)
+        return DigTimeCoordinate(x, y, t, nr_digs)
 
 
 @dataclass(eq=True, frozen=True)
@@ -141,7 +146,8 @@ class PowerTimeCoordinate(TimeCoordinate):
         return iter((self.x, self.y, self.t, self.power_recharged))
 
     def __add__(self, other) -> PowerTimeCoordinate:
-        tc = super().__add__(other)
+        x, y = super()._add_get_new_xy(other)
+        t = super()._add_get_new_t(other)
 
         if isinstance(other, PickupAction) and other.resource == Resource.Power:
             recharged_amount = other.n * other.amount
@@ -149,7 +155,14 @@ class PowerTimeCoordinate(TimeCoordinate):
             recharged_amount = 0
         new_recharged_amount = self.power_recharged + recharged_amount
 
-        return PowerTimeCoordinate(tc.x, tc.y, tc.t, new_recharged_amount)
+        return PowerTimeCoordinate(x, y, t, new_recharged_amount)
+
+    def _add_get_power_recharged(self, other) -> int:
+        if isinstance(other, PickupAction) and other.resource == Resource.Power:
+            added_power_recharged = other.n * other.amount
+        else:
+            added_power_recharged = 0
+        return self.power_recharged + added_power_recharged
 
 
 @dataclass
