@@ -10,9 +10,8 @@ from search import MoveToGraph
 
 
 if TYPE_CHECKING:
-    from search import Graph
     from objects.unit import Unit
-    from objects.action import Action, MoveAction
+    from objects.action import Action
     from objects.board import Board
     from objects.game_state import GameState
     from logic.constraints import Constraints

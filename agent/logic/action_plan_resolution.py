@@ -15,12 +15,16 @@ from logic.goal import Goal
 
 
 @dataclass
-class PotentialSolution:
+class Solution:
     unit_constraints: dict[Unit, Constraints]
     solution: dict[Unit, ActionPlan]
     value: float
 
-    def __lt__(self, other: PotentialSolution) -> bool:
+    @property
+    def joint_action_plan(self) -> dict[str, ActionPlan]:
+        return {unit.unit_id: action_plan for unit, action_plan in self.solution.items()}
+
+    def __lt__(self, other: Solution) -> bool:
         return self.value < other.value
 
 
@@ -44,8 +48,12 @@ class ActionPlanResolver:
         self._add_root_to_queue()
 
     def resolve(self) -> dict[str, ActionPlan]:
+        best_solution = self._get_best_solution()
+        return best_solution.joint_action_plan
+
+    def _get_best_solution(self) -> Solution:
         while not self.solutions.empty():
-            best_potential_solution: PotentialSolution = self.solutions.get()
+            best_potential_solution: Solution = self.solutions.get()
             power_collision = get_power_collision(best_potential_solution.solution, self.game_state)
 
             if power_collision:
@@ -60,23 +68,18 @@ class ActionPlanResolver:
 
                 continue
 
-            break
+            return best_potential_solution
 
-        best_action_plan = dict()
-        for unit, action_plan in best_potential_solution.solution.items():
-            if action_plan:
-                best_action_plan[unit.unit_id] = action_plan
-
-        return best_action_plan
+        raise RuntimeError("No best solution found")
 
     def _add_root_to_queue(self) -> None:
         root = self._init_root()
         self._add_node_to_queue(node=root)
 
-    def _add_node_to_queue(self, node: PotentialSolution) -> None:
+    def _add_node_to_queue(self, node: Solution) -> None:
         self.solutions.put(item=node, priority=node.value)
 
-    def _init_root(self) -> PotentialSolution:
+    def _init_root(self) -> Solution:
         unit_constraints = {unit: Constraints() for unit in self.unit_goals.keys()}
         unit_action_plans = {}
 
@@ -93,9 +96,9 @@ class ActionPlanResolver:
             value = goal.get_value_action_plan(action_plan, self.game_state)
             sum_value += value
 
-        return PotentialSolution(unit_constraints, unit_action_plans, sum_value)
+        return Solution(unit_constraints, unit_action_plans, sum_value)
 
-    def _optional_add_power_node(self, parent_solution: PotentialSolution, power_collision: PowerCollision) -> None:
+    def _optional_add_power_node(self, parent_solution: Solution, power_collision: PowerCollision) -> None:
 
         unit_constraints = self._get_new_power_constraints(parent_solution.unit_constraints, power_collision)
 
@@ -114,7 +117,7 @@ class ActionPlanResolver:
         unit_constraint.max_power_request = power_collision.max_power
         return unit_constraints
 
-    def _optional_add_positive_tc_node(self, parent_solution: PotentialSolution, unit_collision: UnitCollision) -> None:
+    def _optional_add_positive_tc_node(self, parent_solution: Solution, unit_collision: UnitCollision) -> None:
 
         unit_constraints = self._get_new_positive_tc_constraints(parent_solution.unit_constraints, unit_collision)
         if not unit_constraints:
@@ -143,7 +146,7 @@ class ActionPlanResolver:
 
     def _optional_add_negative_tc_node(
         self,
-        parent_solution: PotentialSolution,
+        parent_solution: Solution,
         unit_collision: UnitCollision,
     ) -> None:
 
@@ -176,7 +179,7 @@ class ActionPlanResolver:
 
     def _optional_add_node(
         self,
-        parent_solution: PotentialSolution,
+        parent_solution: Solution,
         unit_constraints: dict[Unit, Constraints],
         unit_with_new_constraint: Unit,
     ) -> None:
@@ -190,7 +193,7 @@ class ActionPlanResolver:
         )
         new_solution_value = self._get_new_solution_value(parent_solution, new_action_plan, unit_with_new_constraint)
 
-        new_solution = PotentialSolution(unit_constraints, new_joint_action_plans, new_solution_value)
+        new_solution = Solution(unit_constraints, new_joint_action_plans, new_solution_value)
         self._add_node_to_queue(node=new_solution)
 
     def _get_new_action_plan(self, unit: Unit, unit_constraints: dict[Unit, Constraints]) -> ActionPlan:
@@ -200,7 +203,7 @@ class ActionPlanResolver:
         return new_action_plan
 
     def _get_new_joint_action_plans(
-        self, parent_solution: PotentialSolution, new_action_plan: ActionPlan, unit: Unit
+        self, parent_solution: Solution, new_action_plan: ActionPlan, unit: Unit
     ) -> dict[Unit, ActionPlan]:
 
         unit_action_plans = deepcopy(parent_solution.solution)
@@ -209,7 +212,7 @@ class ActionPlanResolver:
 
     def _get_new_solution_value(
         self,
-        parent_solution: PotentialSolution,
+        parent_solution: Solution,
         new_action_plan: ActionPlan,
         unit: Unit,
     ) -> float:

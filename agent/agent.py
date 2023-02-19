@@ -82,13 +82,30 @@ class Agent:
         unit_actions = {
             unit_id: plan.to_action_arrays()
             for unit_id, plan in best_action_plans.items()
-            if plan.actions
-            and not (unit_id in self.prev_steps_goals and plan == unit_previous_action_plan_collections[unit_id])
+            if self._is_new_action_plan(unit_id, plan, unit_previous_action_plan_collections)
+            or self._is_new_clear_out_action_plan(unit_id, plan, unit_previous_action_plan_collections)
         }
 
         self._update_prev_step_goals(unit_goals)
 
         return unit_actions
+
+    def _is_new_action_plan(
+        self, unit_id: str, plan: ActionPlan, unit_previous_action_plan_collections: dict[str, ActionPlan]
+    ) -> bool:
+
+        if not plan.actions:
+            return False
+
+        return not (unit_id in self.prev_steps_goals and plan == unit_previous_action_plan_collections[unit_id])
+
+    def _is_new_clear_out_action_plan(
+        self, unit_id, plan: ActionPlan, unit_previous_action_plan_collections: dict[str, ActionPlan]
+    ) -> bool:
+        if plan.actions:
+            return False
+
+        return unit_id in self.prev_steps_goals and plan != unit_previous_action_plan_collections[unit_id]
 
     def _update_prev_step_goals(self, unit_goal_collections: dict[Unit, Goal]) -> None:
         self.prev_steps_goals = {unit.unit_id: goal for unit, goal in unit_goal_collections.items()}
