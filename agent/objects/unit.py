@@ -38,13 +38,13 @@ class Unit:
         return cost
 
     def generate_goals(self, game_state: GameState) -> GoalCollection:
-        if game_state.env_steps <= 725 and self.unit_type == "HEAVY":
+        if game_state.env_steps <= 900 and self.unit_type == "HEAVY":
             target_ice_c = game_state.get_closest_ice_tile(c=self.tc)
             target_factory_c = game_state.get_closest_factory_c(c=target_ice_c)
             goals = [CollectIceGoal(unit=self, ice_c=target_ice_c, factory_c=target_factory_c)]
 
         else:
-            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=50)
+            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=10)
             # TODO add something here to do a feasibility check if
             # they can ever clear the first rubble, even with a full capacity
             goals = [

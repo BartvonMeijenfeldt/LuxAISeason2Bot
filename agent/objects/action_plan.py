@@ -102,6 +102,11 @@ class ActionPlan:
         return len(self) <= 20
 
     def unit_has_enough_power(self, game_state: GameState) -> bool:
+        # TODO should be taking into account whether this will be overwriting current action plan and therefore costing
+        # power or not
+        if len(self.actions) == 0:
+            return True
+
         simulator = ActionPlanSimulator(action_plan=self, unit=self.unit)
 
         try:

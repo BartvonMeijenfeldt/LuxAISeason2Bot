@@ -33,7 +33,11 @@ class Factory:
             return self.build_heavy()
         elif game_state.real_env_steps in [2, 4, 6, 8, 10]:
             return self.build_light()
-        elif game_state.env_steps > 775 and self.can_water(game_state):
+        elif (
+            game_state.env_steps > 775
+            and self.can_water(game_state)
+            and self.cargo.water - self.water_cost(game_state) > game_state.steps_left
+        ):
             return self.water()
         else:
             return None

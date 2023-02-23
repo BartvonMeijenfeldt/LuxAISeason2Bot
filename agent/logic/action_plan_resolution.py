@@ -36,8 +36,16 @@ class PowerCollision:
 
 @dataclass
 class UnitCollision:
-    unit: Unit
-    time_coordinate: TimeCoordinate
+    units: list[Unit]
+    tc: TimeCoordinate
+
+    @property
+    def constraint_unit(self) -> Unit:
+        return self.units[0]
+
+    @property
+    def non_constraint_units(self) -> list[Unit]:
+        return self.units[1:]
 
 
 class ActionPlanResolver:
@@ -57,15 +65,14 @@ class ActionPlanResolver:
             power_collision = get_power_collision(best_potential_solution.solution, self.game_state)
 
             if power_collision:
-                self._optional_add_power_node(best_potential_solution, power_collision)
+                self._if_valid_add_power_node(best_potential_solution, power_collision)
                 continue
 
             unit_collision = get_unit_collision(best_potential_solution.solution, self.game_state)
 
             if unit_collision:
-                self._optional_add_positive_tc_node(best_potential_solution, unit_collision)
-                self._optional_add_negative_tc_node(best_potential_solution, unit_collision)
-
+                self._if_valid_add_positive_tc_node(best_potential_solution, unit_collision)
+                self._if_valid_add_negative_tc_node(best_potential_solution, unit_collision)
                 continue
 
             return best_potential_solution
@@ -98,14 +105,14 @@ class ActionPlanResolver:
 
         return Solution(unit_constraints, unit_action_plans, sum_value)
 
-    def _optional_add_power_node(self, parent_solution: Solution, power_collision: PowerCollision) -> None:
+    def _if_valid_add_power_node(self, parent_solution: Solution, power_collision: PowerCollision) -> None:
 
         unit_constraints = self._get_new_power_constraints(parent_solution.unit_constraints, power_collision)
 
         self._optional_add_node(
             parent_solution=parent_solution,
             unit_constraints=unit_constraints,
-            unit_with_new_constraint=power_collision.unit,
+            units_to_adjust_action_plan=[power_collision.unit],
         )
 
     def _get_new_power_constraints(
@@ -117,7 +124,7 @@ class ActionPlanResolver:
         unit_constraint.max_power_request = power_collision.max_power
         return unit_constraints
 
-    def _optional_add_positive_tc_node(self, parent_solution: Solution, unit_collision: UnitCollision) -> None:
+    def _if_valid_add_positive_tc_node(self, parent_solution: Solution, unit_collision: UnitCollision) -> None:
 
         unit_constraints = self._get_new_positive_tc_constraints(parent_solution.unit_constraints, unit_collision)
         if not unit_constraints:
@@ -126,25 +133,30 @@ class ActionPlanResolver:
         self._optional_add_node(
             parent_solution=parent_solution,
             unit_constraints=unit_constraints,
-            unit_with_new_constraint=unit_collision.unit,
+            units_to_adjust_action_plan=unit_collision.non_constraint_units,
         )
 
     def _get_new_positive_tc_constraints(
         self, unit_constraints: dict[Unit, Constraints], collision: UnitCollision
     ) -> Optional[dict[Unit, Constraints]]:
         unit_constraints = deepcopy(unit_constraints)
-        unit = collision.unit
-        unit_constraint = unit_constraints[unit]
+        collsion_unit = collision.constraint_unit
 
-        time_coordinate = collision.time_coordinate
-        t = time_coordinate.t
-        if t in unit_constraint.positive:
-            return None
+        time_coordinate = collision.tc
 
-        unit_constraint.positive[time_coordinate.t] = time_coordinate
+        for unit, constraints in unit_constraints.items():
+            if collsion_unit == unit:
+                t = time_coordinate.t
+                if t in constraints.positive:
+                    return None
+
+                constraints.positive[time_coordinate.t] = time_coordinate
+            else:
+                constraints.negative[time_coordinate.t].append(time_coordinate)
+
         return unit_constraints
 
-    def _optional_add_negative_tc_node(
+    def _if_valid_add_negative_tc_node(
         self,
         parent_solution: Solution,
         unit_collision: UnitCollision,
@@ -157,17 +169,17 @@ class ActionPlanResolver:
         self._optional_add_node(
             parent_solution=parent_solution,
             unit_constraints=unit_constraints,
-            unit_with_new_constraint=unit_collision.unit,
+            units_to_adjust_action_plan=[unit_collision.constraint_unit],
         )
 
     def _get_new_negative_tc_constraints(
         self, unit_constraints: dict[Unit, Constraints], collision: UnitCollision
     ) -> Optional[dict[Unit, Constraints]]:
         unit_constraints = deepcopy(unit_constraints)
-        unit = collision.unit
+        unit = collision.constraint_unit
         unit_constraint = unit_constraints[unit]
 
-        time_coordinate = collision.time_coordinate
+        time_coordinate = collision.tc
         t = time_coordinate.t
         if (t in unit_constraint.negative and time_coordinate in unit_constraint.negative[t]) or (
             t in unit_constraint.positive and time_coordinate == unit_constraint.positive[t]
@@ -181,20 +193,23 @@ class ActionPlanResolver:
         self,
         parent_solution: Solution,
         unit_constraints: dict[Unit, Constraints],
-        unit_with_new_constraint: Unit,
+        units_to_adjust_action_plan: list[Unit],
     ) -> None:
-        new_action_plan = self._get_new_action_plan(unit=unit_with_new_constraint, unit_constraints=unit_constraints)
 
-        if not new_action_plan.unit_can_carry_out_plan(game_state=self.game_state):
-            return
+        solution = parent_solution
 
-        new_joint_action_plans = self._get_new_joint_action_plans(
-            parent_solution, new_action_plan, unit=unit_with_new_constraint
-        )
-        new_solution_value = self._get_new_solution_value(parent_solution, new_action_plan, unit_with_new_constraint)
+        for unit in units_to_adjust_action_plan:
+            new_action_plan = self._get_new_action_plan(unit=unit, unit_constraints=unit_constraints)
 
-        new_solution = Solution(unit_constraints, new_joint_action_plans, new_solution_value)
-        self._add_node_to_queue(node=new_solution)
+            if not new_action_plan.unit_can_carry_out_plan(game_state=self.game_state):
+                return
+
+            new_joint_action_plans = self._get_new_joint_action_plans(solution, new_action_plan, unit=unit)
+
+            new_solution_value = self._get_new_solution_value(solution, new_action_plan, unit)
+
+            solution = Solution(unit_constraints, new_joint_action_plans, new_solution_value)
+        self._add_node_to_queue(node=solution)
 
     def _get_new_action_plan(self, unit: Unit, unit_constraints: dict[Unit, Constraints]) -> ActionPlan:
         unit_goal = self.unit_goals[unit]
@@ -252,12 +267,28 @@ def get_power_collision(unit_action_plans: dict[Unit, ActionPlan], game_state: G
 def get_unit_collision(unit_action_plans: dict[Unit, ActionPlan], game_state: GameState) -> Optional[UnitCollision]:
     all_time_coordinates = set()
 
-    for unit, action_plan in unit_action_plans.items():
+    for action_plan in unit_action_plans.values():
         time_coordinates = action_plan.get_time_coordinates(game_state=game_state)
         if collisions := all_time_coordinates & time_coordinates:
-            collision_time_coordinate = next(iter(collisions))
-            return UnitCollision(time_coordinate=collision_time_coordinate, unit=unit)
+            collision_tc = next(iter(collisions))
+            return _get_unit_collision(
+                unit_action_plans=unit_action_plans, game_state=game_state, collision_tc=collision_tc
+            )
 
         all_time_coordinates.update(time_coordinates)
 
     return None
+
+
+def _get_unit_collision(
+    unit_action_plans: dict[Unit, ActionPlan], game_state: GameState, collision_tc: TimeCoordinate
+) -> UnitCollision:
+    collision_units = []
+    for unit, action_plan in unit_action_plans.items():
+        time_coordinates = action_plan.get_time_coordinates(game_state=game_state)
+        if collision_tc in time_coordinates:
+            collision_units.append(unit)
+
+    assert len(collision_units) >= 2
+
+    return UnitCollision(units=collision_units, tc=collision_tc)

@@ -47,6 +47,10 @@ class GameState:
         else:
             return self.env_steps
 
+    @property
+    def steps_left(self) -> int:
+        return 1000 - self.real_env_steps
+
     def is_day(self, t: int = 0):
         if not t:
             t = self.real_env_steps

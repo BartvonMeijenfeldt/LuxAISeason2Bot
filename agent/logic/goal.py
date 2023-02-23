@@ -252,19 +252,22 @@ class ClearRubbleGoal(Goal):
     def _add_clear_initial_rubble_actions(self, game_state: GameState, constraints: Constraints) -> None:
         for rubble_c in self.rubble_positions:
             start = DigTimeCoordinate(*self.action_plan.final_tc, nr_digs=0)
-            potential_dig_actions = self._get_rubble_actions(
-                start=start, rubble_c=rubble_c, board=game_state.board, constraints=constraints
-            )
+            nr_required_digs = self._get_nr_required_digs(rubble_c=rubble_c, board=game_state.board)
+            for nr_digs in range(nr_required_digs, 0, -1):
+                potential_dig_actions = self._get_rubble_actions(
+                    rubble_c=rubble_c, nr_digs=nr_digs, constraints=constraints, board=game_state.board, start=start
+                )
 
-            potential_action_plan = self.action_plan + potential_dig_actions
+                potential_action_plan = self.action_plan + potential_dig_actions
 
-            if potential_action_plan.unit_can_carry_out_plan(
-                game_state=game_state
-            ) and self._unit_can_still_reach_factory(
-                action_plan=potential_action_plan, game_state=game_state, constraints=constraints
-            ):
-                self.action_plan.extend(potential_dig_actions)
-                self.cur_tc = self.action_plan.final_tc
+                if potential_action_plan.unit_can_carry_out_plan(
+                    game_state=game_state
+                ) and self._unit_can_still_reach_factory(
+                    action_plan=potential_action_plan, game_state=game_state, constraints=constraints
+                ):
+                    self.action_plan.extend(potential_dig_actions)
+                    self.cur_tc = self.action_plan.final_tc
+                    break
             else:
                 self._is_valid = False
                 return
@@ -278,13 +281,21 @@ class ClearRubbleGoal(Goal):
             game_state=game_state, constraints=constraints
         ) or action_plan.unit_can_reach_factory_after_action_plan(game_state=game_state, constraints=constraints)
 
-    def _get_rubble_actions(
-        self, start: DigTimeCoordinate, rubble_c: Coordinate, board: Board, constraints: Constraints
-    ) -> list[Action]:
+    def _get_nr_required_digs(self, rubble_c: Coordinate, board: Board) -> int:
 
         rubble_at_pos = board.rubble[rubble_c.xy]
         nr_required_digs = ceil(rubble_at_pos / self.unit.unit_cfg.DIG_RUBBLE_REMOVED)
-        dig_coordinate = DigCoordinate(x=rubble_c.x, y=rubble_c.y, nr_digs=nr_required_digs)
+        return nr_required_digs
+
+    def _get_rubble_actions(
+        self,
+        rubble_c: Coordinate,
+        nr_digs: int,
+        constraints: Constraints,
+        board: Board,
+        start: DigTimeCoordinate,
+    ) -> list[Action]:
+        dig_coordinate = DigCoordinate(x=rubble_c.x, y=rubble_c.y, nr_digs=nr_digs)
 
         graph = self._get_dig_graph(board=board, goal=dig_coordinate, constraints=constraints)
         actions = self._search_graph(graph=graph, start=start)
