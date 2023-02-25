@@ -21,8 +21,8 @@ class Solution:
     value: float
 
     @property
-    def joint_action_plan(self) -> dict[str, ActionPlan]:
-        return {unit.unit_id: action_plan for unit, action_plan in self.solution.items()}
+    def joint_action_plan(self) -> dict[Unit, ActionPlan]:
+        return {unit: action_plan for unit, action_plan in self.solution.items()}
 
     def __lt__(self, other: Solution) -> bool:
         return self.value < other.value
@@ -55,7 +55,7 @@ class ActionPlanResolver:
         self.unit_goals = unit_goals
         self._add_root_to_queue()
 
-    def resolve(self) -> dict[str, ActionPlan]:
+    def resolve(self) -> dict[Unit, ActionPlan]:
         best_solution = self._get_best_solution()
         return best_solution.joint_action_plan
 
@@ -77,7 +77,9 @@ class ActionPlanResolver:
 
             return best_potential_solution
 
-        raise RuntimeError("No best solution found")
+        # TODO make this penalize solutions with collisions instead of just taking the last one
+        return best_potential_solution
+        # raise RuntimeError("No best solution found")
 
     def _add_root_to_queue(self) -> None:
         root = self._init_root()
@@ -93,13 +95,8 @@ class ActionPlanResolver:
         sum_value = 0
 
         for unit, goal in self.unit_goals.items():
-            if goal.has_set_action_plan:
-                action_plan = goal.action_plan
-            else:
-                action_plan = goal.generate_action_plan(self.game_state)
-
+            action_plan = goal.generate_action_plan(self.game_state)
             unit_action_plans[unit] = action_plan
-
             value = goal.get_value_action_plan(action_plan, self.game_state)
             sum_value += value
 
@@ -200,12 +197,10 @@ class ActionPlanResolver:
 
         for unit in units_to_adjust_action_plan:
             new_action_plan = self._get_new_action_plan(unit=unit, unit_constraints=unit_constraints)
-
             if not new_action_plan.unit_can_carry_out_plan(game_state=self.game_state):
                 return
 
             new_joint_action_plans = self._get_new_joint_action_plans(solution, new_action_plan, unit=unit)
-
             new_solution_value = self._get_new_solution_value(solution, new_action_plan, unit)
 
             solution = Solution(unit_constraints, new_joint_action_plans, new_solution_value)

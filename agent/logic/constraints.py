@@ -14,7 +14,7 @@ class Constraints:
     max_power_request: Optional[int] = field(default=None)
 
     def __bool__(self):
-        if self.positive or self.negative:
+        if self.positive or self.negative or self.max_power_request:
             return True
 
         return False

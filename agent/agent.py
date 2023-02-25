@@ -7,7 +7,7 @@ from objects.game_state import GameState
 from objects.unit import Unit
 from objects.action_plan import ActionPlan
 from logic.early_setup import get_factory_spawn_loc
-from logic.goal import Goal, GoalCollection
+from logic.goal import ActionQueueGoal, Goal, GoalCollection
 from logic.goal_resolution import resolve_goal_conflicts
 from logic.action_plan_resolution import ActionPlanResolver
 
@@ -57,55 +57,37 @@ class Agent:
 
     def get_unit_actions(self, game_state: GameState) -> dict[str, list[np.ndarray]]:
         unit_goal_collections = []
-        unit_previous_action_plan_collections = {}
 
         for unit in game_state.player_units:
             if unit.has_actions_in_queue:
-                last_step_goal = self.prev_steps_goals[unit.unit_id]
-                last_step_goal.unit = unit
-                last_step_goal.action_plan = ActionPlan(original_actions=unit.action_queue, unit=unit, is_set=True)
-                unit_previous_action_plan_collections[unit.unit_id] = last_step_goal.action_plan
-                last_step_goal.has_set_action_plan = True
-                last_step_goal._value = 1_000_000
-                unit_goal_collection = (unit, GoalCollection([last_step_goal]))
+                action_queue_goal = self._get_action_queue_goal(unit=unit)
+                goal_collection = GoalCollection([action_queue_goal])
             else:
                 goal_collection = unit.generate_goals(game_state=game_state)
-                goal_collection.generate_and_evaluate_action_plans(game_state=game_state)
-                unit_goal_collection = (unit, goal_collection)
-                if unit.unit_id in self.prev_steps_goals:
-                    del self.prev_steps_goals[unit.unit_id]
 
+            unit_goal_collection = (unit, goal_collection)
             unit_goal_collections.append(unit_goal_collection)
 
-        unit_goals = resolve_goal_conflicts(unit_goal_collections)
+        unit_goals = resolve_goal_conflicts(unit_goal_collections, game_state)
         best_action_plans = ActionPlanResolver(unit_goals=unit_goals, game_state=game_state).resolve()
         unit_actions = {
-            unit_id: plan.to_action_arrays()
-            for unit_id, plan in best_action_plans.items()
-            if self._is_new_action_plan(unit_id, plan, unit_previous_action_plan_collections)
-            or self._is_new_clear_out_action_plan(unit_id, plan, unit_previous_action_plan_collections)
+            unit.unit_id: plan.to_action_arrays()
+            for unit, plan in best_action_plans.items()
+            if self._is_new_action_plan(unit, plan)
         }
 
         self._update_prev_step_goals(unit_goals)
 
         return unit_actions
 
-    def _is_new_action_plan(
-        self, unit_id: str, plan: ActionPlan, unit_previous_action_plan_collections: dict[str, ActionPlan]
-    ) -> bool:
+    def _get_action_queue_goal(self, unit: Unit) -> ActionQueueGoal:
+        last_step_goal = self.prev_steps_goals[unit.unit_id]
+        action_plan = ActionPlan(original_actions=unit.action_queue, unit=unit, is_set=True)
+        action_queue_goal = ActionQueueGoal(unit=unit, action_plan=action_plan, goal=last_step_goal)
+        return action_queue_goal
 
-        if not plan.actions:
-            return False
-
-        return not (unit_id in self.prev_steps_goals and plan == unit_previous_action_plan_collections[unit_id])
-
-    def _is_new_clear_out_action_plan(
-        self, unit_id, plan: ActionPlan, unit_previous_action_plan_collections: dict[str, ActionPlan]
-    ) -> bool:
-        if plan.actions:
-            return False
-
-        return unit_id in self.prev_steps_goals and plan != unit_previous_action_plan_collections[unit_id]
+    def _is_new_action_plan(self, unit: Unit, plan: ActionPlan) -> bool:
+        return plan.actions != unit.action_queue
 
     def _update_prev_step_goals(self, unit_goal_collections: dict[Unit, Goal]) -> None:
         self.prev_steps_goals = {unit.unit_id: goal for unit, goal in unit_goal_collections.items()}

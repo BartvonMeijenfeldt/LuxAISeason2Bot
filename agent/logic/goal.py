@@ -34,13 +34,8 @@ if TYPE_CHECKING:
 class Goal(metaclass=ABCMeta):
     unit: Unit
 
-    action_plan: ActionPlan = field(init=False)
-    has_set_action_plan: bool = field(default=False)
     _value: Optional[float] = field(init=False, default=None)
     _is_valid: Optional[bool] = field(init=False, default=None)
-
-    def __post_init__(self) -> None:
-        self._init_action_plan()
 
     def generate_and_evaluate_action_plan(
         self, game_state: GameState, constraints: Optional[Constraints] = None
@@ -119,18 +114,26 @@ class Goal(metaclass=ABCMeta):
             return
 
         power_space_left = self.unit.power_space_left
+        if not power_space_left:
+            return
+
         closest_factory = game_state.get_closest_factory(c=self.unit.tc)
+        if not closest_factory.is_on_factory(c=self.unit.tc):
+            return
 
-        if closest_factory.is_on_factory(c=self.unit.tc) and power_space_left:
-            power_in_factory = closest_factory.power
-            power_to_pickup = min(power_space_left, power_in_factory)
-            graph = self._get_recharge_graph(
-                board=game_state.board, recharge_amount=power_to_pickup, constraints=constraints
-            )
+        power_in_factory = closest_factory.power
+        power_to_pickup = min(power_space_left, power_in_factory)
 
-            recharge_tc = PowerTimeCoordinate(*self.action_plan.final_tc, power_recharged=0)
-            new_actions = self._search_graph(graph=graph, start=recharge_tc)
-            self.action_plan.extend(new_actions)
+        if power_to_pickup / self.unit.power < 0.1:
+            return
+
+        graph = self._get_recharge_graph(
+            board=game_state.board, recharge_amount=power_to_pickup, constraints=constraints
+        )
+
+        recharge_tc = PowerTimeCoordinate(*self.action_plan.final_tc, power_recharged=0)
+        new_actions = self._search_graph(graph=graph, start=recharge_tc)
+        self.action_plan.extend(new_actions)
 
     def _init_action_plan(self) -> None:
         self.action_plan = ActionPlan(unit=self.unit)
@@ -349,12 +352,37 @@ class ClearRubbleGoal(Goal):
         return rubble_cleared_per_step + rubble_cleared_per_power + first_rubble_bonus + 100_000
 
 
+@dataclass
+class ActionQueueGoal(Goal):
+    """Goal currently in action queue"""
+
+    goal: Goal
+    action_plan: ActionPlan
+    _is_valid = True
+
+    def generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> ActionPlan:
+        # TODO add something to generation infeasible if it violates constraints
+        return self.action_plan
+
+    def get_value_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
+        value_including_update_cost = self.goal.get_value_action_plan(self.action_plan, game_state)
+        return value_including_update_cost + 100_000
+        # return value_including_update_cost + self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
+
+    @property
+    def key(self) -> str:
+        # This will cause trouble when we allow goal switching, those goals will have the same ID
+        # Can probably be solved by just picking the highest one / returning highest one by the goal collection
+        return self.goal.key
+
+
 class NoGoalGoal(Goal):
     _value = None
     _is_valid = True
 
     def generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> ActionPlan:
-        return ActionPlan(unit=self.unit, original_actions=[])
+        self._init_action_plan()
+        return self.action_plan
 
     def get_value_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
         return 0.0
@@ -367,35 +395,23 @@ class NoGoalGoal(Goal):
         return str(self)
 
 
-@dataclass
 class GoalCollection:
-    goals: Sequence[Goal]
+    def __init__(self, goals: Sequence[Goal]) -> None:
+        self.goals_dict = {goal.key: goal for goal in goals}
 
     def generate_and_evaluate_action_plans(
         self, game_state: GameState, constraints: Optional[Constraints] = None
     ) -> None:
-        for goal in self.goals:
+        for goal in self.goals_dict.values():
             goal.generate_and_evaluate_action_plan(game_state=game_state, constraints=constraints)
 
-        self.goals = [goal for goal in self.goals if goal.is_valid]
-
-    @property
-    def best_action_plan(self) -> ActionPlan:
-        best_goal = max(self.goals)
-        return best_goal.action_plan
-
-    def __getitem__(self, key: int):
-        return self.goals[key]
-
     def get_goal(self, key: str) -> Goal:
-        for goal in self.goals:
-            if goal.key == key:
-                return goal
-
-        raise ValueError(f"{key} not key of goals")
+        return self.goals_dict[key]
 
     def get_keys(self) -> set[str]:
-        return {goal.key for goal in self.goals}
+        return {key for key, goal in self.goals_dict.items() if goal.is_valid}
 
-    def get_key_values(self) -> dict[str, float]:
-        return {goal.key: goal.value for goal in self.goals}
+    def get_key_values(self, game_state: GameState, constraints: Optional[Constraints] = None) -> dict[str, float]:
+        self.generate_and_evaluate_action_plans(game_state=game_state, constraints=constraints)
+
+        return {key: goal.value for key, goal in self.goals_dict.items() if goal.is_valid}

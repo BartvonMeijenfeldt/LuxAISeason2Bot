@@ -3,14 +3,17 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from objects.unit import Unit
+from objects.game_state import GameState
 from logic.goal import Goal, GoalCollection
 
 
-def resolve_goal_conflicts(unit_goal_collections: list[tuple[Unit, GoalCollection]]) -> dict[Unit, Goal]:
+def resolve_goal_conflicts(
+    unit_goal_collections: list[tuple[Unit, GoalCollection]], game_state: GameState
+) -> dict[Unit, Goal]:
     if not unit_goal_collections:
         return {}
 
-    cost_matrix = _create_cost_matrix(unit_goal_collections)
+    cost_matrix = _create_cost_matrix(unit_goal_collections, game_state)
     goal_keys = _solve_sum_assigment_problem(cost_matrix)
     unit_goals = _get_unit_goals(unit_goal_collections=unit_goal_collections, goal_keys=goal_keys)
     unit_goals = {unit: goal for unit, goal in unit_goals if goal}
@@ -18,8 +21,10 @@ def resolve_goal_conflicts(unit_goal_collections: list[tuple[Unit, GoalCollectio
     return unit_goals
 
 
-def _create_cost_matrix(unit_goal_collections: list[tuple[Unit, GoalCollection]]) -> pd.DataFrame:
-    entries = [goal_collection.get_key_values() for _, goal_collection in unit_goal_collections]
+def _create_cost_matrix(
+    unit_goal_collections: list[tuple[Unit, GoalCollection]], game_state: GameState
+) -> pd.DataFrame:
+    entries = [goal_collection.get_key_values(game_state=game_state) for _, goal_collection in unit_goal_collections]
     value_matrix = pd.DataFrame(entries)
     cost_matrix = -1 * value_matrix
     cost_matrix = cost_matrix.fillna(np.inf)
@@ -39,6 +44,7 @@ def _solve_sum_assigment_problem(cost_matrix: pd.DataFrame) -> list[str]:
             goal_keys.append(cost_matrix.columns[c])
 
     goal_keys = [cost_matrix.columns[c] for c in cols]
+    assert len(goal_keys) == len(set(goal_keys))
     return goal_keys
 
 
