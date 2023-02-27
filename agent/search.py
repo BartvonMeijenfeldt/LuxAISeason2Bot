@@ -1,9 +1,9 @@
 import heapq
 import math
 
-from typing import TypeVar
+from typing import TypeVar, List, Tuple
 from abc import ABCMeta, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from objects.coordinate import PowerTimeCoordinate, DigTimeCoordinate, TimeCoordinate, DigCoordinate, Coordinate
 from objects.direction import Direction
@@ -31,18 +31,18 @@ class PriorityQueue:
         return heapq.heappop(self.elements)[1]
 
 
-@dataclass(kw_only=True)
+@dataclass
 class Graph(metaclass=ABCMeta):
     board: Board
     time_to_power_cost: float
     unit_cfg: UnitConfig
-    constraints: Constraints = field(default_factory=Constraints)
+    constraints: Constraints
 
     @abstractmethod
-    def potential_actions(self, c: Coordinate) -> list[Action]:
+    def potential_actions(self, c: Coordinate) -> List[Action]:
         ...
 
-    def get_valid_action_nodes(self, c: TimeCoordinate) -> list[tuple[Action, TimeCoordinate]]:
+    def get_valid_action_nodes(self, c: TimeCoordinate) -> List[Tuple[Action, TimeCoordinate]]:
         action_nodes = []
 
         for action in self.potential_actions(c=c):
@@ -53,7 +53,7 @@ class Graph(metaclass=ABCMeta):
         return action_nodes
 
     def cost(self, action: Action, from_c: TimeCoordinate, to_c: TimeCoordinate) -> float:
-        if self._is_constraint_violated(to_c):
+        if self.constraints.tc_violates_constraint(to_c):
             return math.inf
 
         action_power_cost = self.get_power_cost(action=action, from_c=from_c)
@@ -78,39 +78,13 @@ class Graph(metaclass=ABCMeta):
         min_distance_cost = min_nr_steps * min_cost_per_step
         return min_distance_cost
 
-    def _is_constraint_violated(self, to_c: TimeCoordinate) -> bool:
-        to_tc2 = TimeCoordinate(x=to_c.x, y=to_c.y, t=to_c.t)
-        return (
-            self._is_negative_constraint_violated(to_c=to_tc2)
-            or self._is_positive_constraint_violated(to_c=to_tc2)
-            or self._is_power_constraint_violated(to_c)
-        )
 
-    def _is_negative_constraint_violated(self, to_c: TimeCoordinate) -> bool:
-        if not self.constraints.negative:
-            return False
-
-        return to_c.t in self.constraints.negative and to_c in self.constraints.negative[to_c.t]
-
-    def _is_positive_constraint_violated(self, to_c: TimeCoordinate) -> bool:
-        if not self.constraints.positive:
-            return False
-
-        return to_c.t in self.constraints.positive and to_c != self.constraints.positive[to_c.t]
-
-    def _is_power_constraint_violated(self, to_c: TimeCoordinate) -> bool:
-        if not self.constraints.max_power_request or not isinstance(to_c, PowerTimeCoordinate):
-            return False
-
-        return to_c.power_recharged > self.constraints.max_power_request
-
-
-@dataclass(kw_only=True)
+@dataclass
 class MoveToGraph(Graph):
     goal: Coordinate
     _potential_actions = [MoveAction(direction) for direction in Direction]
 
-    def potential_actions(self, c: Coordinate) -> list[Action]:
+    def potential_actions(self, c: Coordinate) -> List[Action]:
         return self._potential_actions
 
     def heuristic(self, node: Coordinate) -> float:
@@ -120,7 +94,7 @@ class MoveToGraph(Graph):
         return self.goal == node
 
 
-@dataclass(kw_only=True)
+@dataclass
 class PickupPowerGraph(Graph):
     power_pickup_goal: int
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
@@ -131,7 +105,7 @@ class PickupPowerGraph(Graph):
 
         self._potential_recharge_actions = [PickupAction(amount=self.power_pickup_goal, resource=Resource.Power)]
 
-    def potential_actions(self, c: Coordinate) -> list[Action]:
+    def potential_actions(self, c: Coordinate) -> List[Action]:
         if self.board.is_player_factory_tile(c=c):
             return self._potential_move_actions + self._potential_recharge_actions
         else:
@@ -157,13 +131,13 @@ class PickupPowerGraph(Graph):
         return self.power_pickup_goal <= node.power_recharged
 
 
-@dataclass(kw_only=True)
+@dataclass
 class DigAtGraph(Graph):
     goal: DigCoordinate
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
     _potential_dig_actions = [DigAction()]
 
-    def potential_actions(self, c: Coordinate) -> list[Action]:
+    def potential_actions(self, c: Coordinate) -> List[Action]:
         if self.goal.x == c.x and self.goal.y == c.y:
             return self._potential_move_actions + self._potential_dig_actions
         else:
@@ -192,7 +166,7 @@ class Search:
         self.cost_so_far: dict[TimeCoordinate, float] = {}
         self.graph = graph
 
-    def get_actions_to_complete_goal(self, start: TimeCoordinate) -> list[Action]:
+    def get_actions_to_complete_goal(self, start: TimeCoordinate) -> List[Action]:
         self._init_search(start)
         self._find_optimal_solution()
         return self._get_solution_actions()
@@ -224,7 +198,7 @@ class Search:
         self.frontier.put(node, priority)
         self.came_from[node] = (action, current_node)
 
-    def _get_solution_actions(self) -> list[Action]:
+    def _get_solution_actions(self) -> List[Action]:
         solution = []
         cur_c = self.final_node
 

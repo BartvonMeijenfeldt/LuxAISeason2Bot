@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import List
 
 from objects.cargo import UnitCargo
 from lux.config import UnitConfig
@@ -14,12 +14,12 @@ from logic.goal import GoalCollection, CollectIceGoal, ClearRubbleGoal, NoGoalGo
 class Unit:
     team_id: int
     unit_id: str
-    unit_type: Literal["LIGHT", "HEAVY"]
+    unit_type: str  # "LIGHT" or "HEAVY"
     tc: TimeCoordinate
     power: int
     cargo: UnitCargo
     unit_cfg: UnitConfig
-    action_queue: list[Action]
+    action_queue: List[Action]
     time_to_power_cost = 50
 
     @property
@@ -73,4 +73,4 @@ class Unit:
         return out
 
     def __repr__(self) -> str:
-        return self.unit_id
+        return f'Unit[id={self.unit_id}]'

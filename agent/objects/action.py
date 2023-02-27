@@ -17,14 +17,17 @@ if TYPE_CHECKING:
     TCoordinate = TypeVar('TCoordinate', bound=Coordinate)
 
 
-@dataclass(kw_only=True)
+@dataclass
 class Action(metaclass=ABCMeta):
-    repeat: int = 0
-    n: int = 1
 
     @property
     @abstractmethod
     def unit_direction(self) -> Direction:
+        ...
+
+    @property
+    @abstractmethod
+    def power_requested(self) -> int:
         ...
 
     @abstractmethod
@@ -44,30 +47,35 @@ class Action(metaclass=ABCMeta):
         direction = NUMBER_DIRECTION[direction]
         resource = Resource(resource)
 
-        match action_identifier:
-            case 0:
-                return MoveAction(direction=direction, repeat=repeat, n=n)
-            case 1:
-                return TransferAction(direction=direction, amount=amount, resource=resource, repeat=repeat, n=n)
-            case 2:
-                return PickupAction(amount=amount, resource=resource, repeat=repeat, n=n)
-            case 3:
-                return DigAction(repeat=repeat, n=n)
-            case 4:
-                return SelfDestructAction(repeat=repeat, n=n)
-            case 5:
-                return RechargeAction(amount=amount, repeat=repeat, n=n)
-            case _:
-                raise ValueError(f"Action identifier {action_identifier} is not an int between 0 and 5 (inc.)")
+        if action_identifier == 0:
+            return MoveAction(direction=direction, repeat=repeat, n=n)
+        elif action_identifier == 1:
+            return TransferAction(direction=direction, amount=amount, resource=resource, repeat=repeat, n=n)
+        elif action_identifier == 2:
+            return PickupAction(amount=amount, resource=resource, repeat=repeat, n=n)
+        elif action_identifier == 3:
+            return DigAction(repeat=repeat, n=n)
+        elif action_identifier == 4:
+            return SelfDestructAction(repeat=repeat, n=n)
+        elif action_identifier == 5:
+            return RechargeAction(amount=amount, repeat=repeat, n=n)
+        else:
+            raise ValueError(f"Action identifier {action_identifier} is not an int between 0 and 5 (inc.)")
 
 
 @dataclass
 class MoveAction(Action):
     direction: Direction
+    repeat: int = 0
+    n: int = 1
 
     @property
     def unit_direction(self) -> Direction:
         return self.direction
+
+    @property
+    def power_requested(self) -> int:
+        return 0
 
     def to_array(self) -> np.ndarray:
         action_identifier = 0
@@ -108,10 +116,16 @@ class TransferAction(Action):
     direction: Direction
     amount: int
     resource: Resource
+    repeat: int = 0
+    n: int = 1
 
     @property
     def unit_direction(self) -> Direction:
         return Direction.CENTER
+
+    @property
+    def power_requested(self) -> int:
+        return 0
 
     def to_array(self) -> np.ndarray:
         action_identifier = 1
@@ -130,10 +144,19 @@ class TransferAction(Action):
 class PickupAction(Action):
     amount: int
     resource: Resource
+    repeat: int = 0
+    n: int = 1
 
     @property
     def unit_direction(self) -> Direction:
         return Direction.CENTER
+
+    @property
+    def power_requested(self) -> int:
+        if self.resource == Resource.Power:
+            return self.amount
+
+        return 0
 
     def to_array(self) -> np.ndarray:
         action_identifier = 2
@@ -149,9 +172,16 @@ class PickupAction(Action):
 
 @dataclass
 class DigAction(Action):
+    repeat: int = 0
+    n: int = 1
+
     @property
     def unit_direction(self) -> Direction:
         return Direction.CENTER
+
+    @property
+    def power_requested(self) -> int:
+        return 0
 
     def to_array(self) -> np.ndarray:
         action_identifier = 3
@@ -166,9 +196,16 @@ class DigAction(Action):
 
 @dataclass
 class SelfDestructAction(Action):
+    repeat: int = 0
+    n: int = 1
+
     @property
     def unit_direction(self) -> Direction:
         return Direction.CENTER
+
+    @property
+    def power_requested(self) -> int:
+        return 0
 
     def to_array(self) -> np.ndarray:
         action_identifier = 4
@@ -184,6 +221,12 @@ class SelfDestructAction(Action):
 @dataclass
 class RechargeAction(Action):
     amount: int
+    repeat: int = 0
+    n: int = 1
+
+    @property
+    def power_requested(self) -> int:
+        return 0
 
     @property
     def unit_direction(self) -> Direction:

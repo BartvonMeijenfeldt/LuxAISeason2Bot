@@ -1,30 +1,43 @@
 import pandas as pd
 import numpy as np
+
 from scipy.optimize import linear_sum_assignment
+from typing import Optional, Dict, List, Tuple
+from collections import defaultdict
 
 from objects.unit import Unit
 from objects.game_state import GameState
 from logic.goal import Goal, GoalCollection
+from logic.constraints import Constraints
 
 
 def resolve_goal_conflicts(
-    unit_goal_collections: list[tuple[Unit, GoalCollection]], game_state: GameState
-) -> dict[Unit, Goal]:
-    if not unit_goal_collections:
+    goal_collections: Dict[Unit, GoalCollection],
+    game_state: GameState,
+    unit_constraints: Optional[Dict[Unit, Constraints]] = None,
+) -> Dict[Unit, Goal]:
+    if not goal_collections:
         return {}
 
-    cost_matrix = _create_cost_matrix(unit_goal_collections, game_state)
+    if not unit_constraints:
+        unit_constraints = defaultdict(lambda: Constraints())
+
+    cost_matrix = _create_cost_matrix(goal_collections, unit_constraints, game_state)
     goal_keys = _solve_sum_assigment_problem(cost_matrix)
-    unit_goals = _get_unit_goals(unit_goal_collections=unit_goal_collections, goal_keys=goal_keys)
+    unit_goals = _get_unit_goals(unit_goal_collections=goal_collections, goal_keys=goal_keys)
     unit_goals = {unit: goal for unit, goal in unit_goals if goal}
 
     return unit_goals
 
 
 def _create_cost_matrix(
-    unit_goal_collections: list[tuple[Unit, GoalCollection]], game_state: GameState
+    goal_collections: Dict[Unit, GoalCollection], unit_constraints: Dict[Unit, Constraints], game_state: GameState
 ) -> pd.DataFrame:
-    entries = [goal_collection.get_key_values(game_state=game_state) for _, goal_collection in unit_goal_collections]
+    entries = [
+        goal_collection.get_key_values(game_state=game_state, constraints=unit_constraints[unit])
+        for unit, goal_collection in goal_collections.items()
+    ]
+
     value_matrix = pd.DataFrame(entries)
     cost_matrix = -1 * value_matrix
     cost_matrix = cost_matrix.fillna(np.inf)
@@ -32,7 +45,7 @@ def _create_cost_matrix(
     return cost_matrix
 
 
-def _solve_sum_assigment_problem(cost_matrix: pd.DataFrame) -> list[str]:
+def _solve_sum_assigment_problem(cost_matrix: pd.DataFrame) -> List[str]:
     rows, cols = linear_sum_assignment(cost_matrix)
     goal_keys = []
     for i in range(len(cost_matrix)):
@@ -48,10 +61,8 @@ def _solve_sum_assigment_problem(cost_matrix: pd.DataFrame) -> list[str]:
     return goal_keys
 
 
-def _get_unit_goals(
-    unit_goal_collections: list[tuple[Unit, GoalCollection]], goal_keys: list[str]
-) -> list[tuple[Unit, Goal]]:
+def _get_unit_goals(unit_goal_collections: Dict[Unit, GoalCollection], goal_keys: List[str]) -> List[Tuple[Unit, Goal]]:
     return [
         (unit, goal_collection.get_goal(goal))
-        for goal, (unit, goal_collection) in zip(goal_keys, unit_goal_collections)
+        for goal, (unit, goal_collection) in zip(goal_keys, unit_goal_collections.items())
     ]

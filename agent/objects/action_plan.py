@@ -17,10 +17,10 @@ if TYPE_CHECKING:
     from logic.constraints import Constraints
 
 
-@dataclass(kw_only=True)
+@dataclass
 class ActionPlan:
-    original_actions: list[Action] = field(default_factory=list)
     unit: Unit
+    original_actions: list[Action] = field(default_factory=list)
     is_set: bool = field(default=False)
 
     def __post_init__(self):
@@ -77,6 +77,10 @@ class ActionPlan:
             self._final_tc = ActionPlanSimulator(self, unit=self.unit).get_final_tc()
 
         return self._final_tc
+
+    @property
+    def power_requested(self) -> int:
+        return sum(action.power_requested for action in self.actions)
 
     def get_time_coordinates(self, game_state: GameState) -> set[TimeCoordinate]:
         simulator = ActionPlanSimulator(self, unit=self.unit)

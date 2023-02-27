@@ -30,12 +30,13 @@ if TYPE_CHECKING:
     from objects.action import Action
 
 
-@dataclass(kw_only=True)
+@dataclass
 class Goal(metaclass=ABCMeta):
     unit: Unit
 
     _value: Optional[float] = field(init=False, default=None)
     _is_valid: Optional[bool] = field(init=False, default=None)
+    solution_hash: dict[str, ActionPlan] = field(init=False, default_factory=dict)
 
     def generate_and_evaluate_action_plan(
         self, game_state: GameState, constraints: Optional[Constraints] = None
@@ -44,8 +45,38 @@ class Goal(metaclass=ABCMeta):
         self._value = self.get_value_action_plan(action_plan=self.action_plan, game_state=game_state)
         return self.action_plan
 
-    @abstractmethod
     def generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> ActionPlan:
+        if not constraints:
+            constraints = Constraints()
+
+        if constraints.key in self.solution_hash:
+            return self.solution_hash[constraints.key]
+
+        if constraints.parent in self.solution_hash:
+            parent_solution = self.solution_hash[constraints.parent]
+            if self._parent_solution_is_valid(parent_solution, constraints, game_state):
+                self.solution_hash[constraints.key] = parent_solution
+                return parent_solution
+
+        action_plan = self._generate_action_plan(game_state, constraints=constraints)
+        self.solution_hash[constraints.key] = action_plan
+        return action_plan
+
+    def _parent_solution_is_valid(
+        self, parent_solution: ActionPlan, constraints: Constraints, game_state: GameState
+    ) -> bool:
+        for tc in parent_solution.get_time_coordinates(game_state):
+            if constraints.tc_violates_constraint(tc):
+                return False
+
+        if constraints.max_power_request is not None:
+            if parent_solution.power_requested > constraints.max_power_request:
+                return False
+
+        return True
+
+    @abstractmethod
+    def _generate_action_plan(self, game_state: GameState, constraints: Constraints = None) -> ActionPlan:
         ...
 
     @abstractmethod
@@ -148,14 +179,14 @@ class CollectIceGoal(Goal):
     factory_c: Coordinate
     quantity: Optional[int] = None
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return f"collect_ice_[{self.ice_c}]"
 
     @property
     def key(self) -> str:
         return str(self)
 
-    def generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> ActionPlan:
+    def _generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> ActionPlan:
         if constraints is None:
             constraints = Constraints()
 
@@ -233,7 +264,7 @@ class CollectIceGoal(Goal):
 class ClearRubbleGoal(Goal):
     rubble_positions: CoordinateList
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         first_rubble_c = self.rubble_positions[0]
         return f"clear_rubble_[{first_rubble_c}]"
 
@@ -241,7 +272,7 @@ class ClearRubbleGoal(Goal):
     def key(self) -> str:
         return str(self)
 
-    def generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> ActionPlan:
+    def _generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> ActionPlan:
         if constraints is None:
             constraints = Constraints()
 
@@ -256,11 +287,16 @@ class ClearRubbleGoal(Goal):
         for rubble_c in self.rubble_positions:
             start = DigTimeCoordinate(*self.action_plan.final_tc, nr_digs=0)
             nr_required_digs = self._get_nr_required_digs(rubble_c=rubble_c, board=game_state.board)
-            for nr_digs in range(nr_required_digs, 0, -1):
-                potential_dig_actions = self._get_rubble_actions(
-                    rubble_c=rubble_c, nr_digs=nr_digs, constraints=constraints, board=game_state.board, start=start
-                )
 
+            potential_dig_actions = self._get_rubble_actions(
+                rubble_c=rubble_c,
+                nr_digs=nr_required_digs,
+                constraints=constraints,
+                board=game_state.board,
+                start=start,
+            )
+
+            while potential_dig_actions:
                 potential_action_plan = self.action_plan + potential_dig_actions
 
                 if potential_action_plan.unit_can_carry_out_plan(
@@ -271,6 +307,8 @@ class ClearRubbleGoal(Goal):
                     self.action_plan.extend(potential_dig_actions)
                     self.cur_tc = self.action_plan.final_tc
                     break
+
+                potential_dig_actions = potential_dig_actions[:-1]
             else:
                 self._is_valid = False
                 return
@@ -360,7 +398,7 @@ class ActionQueueGoal(Goal):
     action_plan: ActionPlan
     _is_valid = True
 
-    def generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> ActionPlan:
+    def _generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> ActionPlan:
         # TODO add something to generation infeasible if it violates constraints
         return self.action_plan
 
@@ -380,14 +418,14 @@ class NoGoalGoal(Goal):
     _value = None
     _is_valid = True
 
-    def generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> ActionPlan:
+    def _generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> ActionPlan:
         self._init_action_plan()
         return self.action_plan
 
     def get_value_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
         return 0.0
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return f"No_Goal_{self.unit.unit_id}"
 
     @property
@@ -413,5 +451,4 @@ class GoalCollection:
 
     def get_key_values(self, game_state: GameState, constraints: Optional[Constraints] = None) -> dict[str, float]:
         self.generate_and_evaluate_action_plans(game_state=game_state, constraints=constraints)
-
         return {key: goal.value for key, goal in self.goals_dict.items() if goal.is_valid}

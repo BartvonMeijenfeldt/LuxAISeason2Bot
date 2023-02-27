@@ -2,6 +2,7 @@ import numpy as np
 
 from collections import defaultdict
 from objects.cargo import UnitCargo
+from typing import Dict, List
 
 from lux.config import EnvConfig
 from lux.team import Team
@@ -101,7 +102,7 @@ def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str):
     )
 
 
-def create_units(obs, env_cfg: EnvConfig, t: int) -> dict[str, list[Unit]]:
+def create_units(obs, env_cfg: EnvConfig, t: int) -> Dict[str, List[Unit]]:
     units = defaultdict(list)
 
     for agent in obs["units"]:
@@ -118,7 +119,7 @@ def create_units(obs, env_cfg: EnvConfig, t: int) -> dict[str, list[Unit]]:
     return units
 
 
-def create_factories(obs, env_cfg) -> dict[str, list[Factory]]:
+def create_factories(obs, env_cfg) -> Dict[str, List[Factory]]:
     factories = defaultdict(list)
 
     for agent in obs["factories"]:
@@ -133,7 +134,7 @@ def create_factories(obs, env_cfg) -> dict[str, list[Factory]]:
     return factories
 
 
-def create_factory_occupancy_map(factories: dict[str, list[Factory]], board_shape):
+def create_factory_occupancy_map(factories: Dict[str, List[Factory]], board_shape):
     factory_occupancy_map = np.ones(board_shape, dtype=int) * -1
 
     for agent_factories in factories.values():

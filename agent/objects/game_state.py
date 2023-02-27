@@ -20,6 +20,9 @@ class GameState:
     player_team: Team
     opp_team: Team
 
+    def __repr__(self) -> str:
+        return f'Gamestate [t={self.real_env_steps}]'
+
     @property
     def player_units(self) -> list[Unit]:
         return self.board.player_units

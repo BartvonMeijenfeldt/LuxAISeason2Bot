@@ -88,6 +88,9 @@ class Coordinate:
 class TimeCoordinate(Coordinate):
     t: int
 
+    def __repr__(self) -> str:
+        return f"TC[x={self.x} y={self.y} t={self.t}]"
+
     def __iter__(self):
         return iter((self.x, self.y, self.t))
 

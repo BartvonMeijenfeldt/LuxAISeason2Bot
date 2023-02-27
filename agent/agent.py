@@ -1,5 +1,7 @@
 import numpy as np
 
+from typing import List, Dict
+
 from lux.kit import obs_to_game_state
 from lux.config import EnvConfig
 from lux.utils import is_my_turn_to_place_factory
@@ -7,8 +9,7 @@ from objects.game_state import GameState
 from objects.unit import Unit
 from objects.action_plan import ActionPlan
 from logic.early_setup import get_factory_spawn_loc
-from logic.goal import ActionQueueGoal, Goal, GoalCollection
-from logic.goal_resolution import resolve_goal_conflicts
+from logic.goal import ActionQueueGoal, NoGoalGoal, Goal, GoalCollection
 from logic.action_plan_resolution import ActionPlanResolver
 
 
@@ -43,10 +44,10 @@ class Agent:
         factory_actions = self.get_factory_actions(game_state)
         unit_actions = self.get_unit_actions(game_state)
 
-        actions = factory_actions | unit_actions
+        actions = {**factory_actions, **unit_actions}
         return actions
 
-    def get_factory_actions(self, game_state: GameState) -> dict[str, list[np.ndarray]]:
+    def get_factory_actions(self, game_state: GameState) -> Dict[str, List[np.ndarray]]:
         actions = dict()
         for factory in game_state.player_factories:
             action = factory.act(game_state=game_state)
@@ -55,24 +56,27 @@ class Agent:
 
         return actions
 
-    def get_unit_actions(self, game_state: GameState) -> dict[str, list[np.ndarray]]:
-        unit_goal_collections = []
+    def get_unit_actions(self, game_state: GameState) -> Dict[str, List[np.ndarray]]:
+        unit_goal_collections = {}
 
         for unit in game_state.player_units:
             if unit.has_actions_in_queue:
                 action_queue_goal = self._get_action_queue_goal(unit=unit)
-                goal_collection = GoalCollection([action_queue_goal])
+                no_goal_goal = NoGoalGoal(unit=unit)
+                goal_collection = GoalCollection([action_queue_goal, no_goal_goal])
             else:
                 goal_collection = unit.generate_goals(game_state=game_state)
 
-            unit_goal_collection = (unit, goal_collection)
-            unit_goal_collections.append(unit_goal_collection)
+            unit_goal_collections[unit] = goal_collection
 
-        unit_goals = resolve_goal_conflicts(unit_goal_collections, game_state)
-        best_action_plans = ActionPlanResolver(unit_goals=unit_goals, game_state=game_state).resolve()
+        # unit_goals = resolve_goal_conflicts(unit_goal_collections, game_state)
+        unit_goals, unit_action_plans = ActionPlanResolver(
+            unit_goal_collections=unit_goal_collections, game_state=game_state
+        ).resolve()
+
         unit_actions = {
             unit.unit_id: plan.to_action_arrays()
-            for unit, plan in best_action_plans.items()
+            for unit, plan in unit_action_plans.items()
             if self._is_new_action_plan(unit, plan)
         }
 
@@ -89,5 +93,5 @@ class Agent:
     def _is_new_action_plan(self, unit: Unit, plan: ActionPlan) -> bool:
         return plan.actions != unit.action_queue
 
-    def _update_prev_step_goals(self, unit_goal_collections: dict[Unit, Goal]) -> None:
+    def _update_prev_step_goals(self, unit_goal_collections: Dict[Unit, Goal]) -> None:
         self.prev_steps_goals = {unit.unit_id: goal for unit, goal in unit_goal_collections.items()}
