@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Optional, Sequence
 from collections import defaultdict
 from copy import deepcopy
+from itertools import count
 
 from search import PriorityQueue
 from objects.unit import Unit
@@ -61,7 +62,10 @@ class ActionPlanResolver:
         return best_solution.unit_goals, best_solution.joint_action_plan
 
     def _get_best_solution(self) -> Solution:
-        while not self.solutions.empty():
+        for i in count():
+            if i > 100 or self.solutions.empty():
+                break
+
             best_potential_solution: Solution = self.solutions.get()
             power_collision = get_power_collision(best_potential_solution.unit_action_plans, self.game_state)
 
