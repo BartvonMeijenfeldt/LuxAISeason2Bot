@@ -70,7 +70,7 @@ class ActionPlanResolver:
                     self._if_valid_add_power_node(best_potential_solution, power_collision.power_deficit, unit)
                 continue
 
-            unit_collision = get_unit_collision(best_potential_solution.unit_action_plans, self.game_state)
+            unit_collision = get_unit_collision(best_potential_solution.unit_action_plans)
 
             if unit_collision:
                 self._if_valid_add_positive_tc_node(best_potential_solution, unit_collision)
@@ -175,11 +175,7 @@ class ActionPlanResolver:
 
         return unit_constraints
 
-    def _if_valid_add_negative_tc_node(
-        self,
-        parent_solution: Solution,
-        unit_collision: UnitCollision,
-    ) -> None:
+    def _if_valid_add_negative_tc_node(self, parent_solution: Solution, unit_collision: UnitCollision,) -> None:
 
         unit_constraints = self._get_new_negative_tc_constraints(parent_solution.unit_constraints, unit_collision)
         if not unit_constraints:
@@ -252,11 +248,7 @@ class ActionPlanResolver:
         return unit_action_plans
 
     def _get_new_solution_value(
-        self,
-        parent_solution: Solution,
-        unit_goals: dict[Unit, Goal],
-        new_action_plan: ActionPlan,
-        unit: Unit,
+        self, parent_solution: Solution, unit_goals: dict[Unit, Goal], new_action_plan: ActionPlan, unit: Unit,
     ) -> float:
 
         unit_action_plans = parent_solution.unit_action_plans
@@ -296,30 +288,26 @@ def get_power_collision(unit_action_plans: dict[Unit, ActionPlan], game_state: G
     return None
 
 
-def get_unit_collision(unit_action_plans: dict[Unit, ActionPlan], game_state: GameState) -> Optional[UnitCollision]:
+def get_unit_collision(unit_action_plans: dict[Unit, ActionPlan]) -> Optional[UnitCollision]:
     all_time_coordinates = set()
 
     for action_plan in unit_action_plans.values():
-        time_coordinates = action_plan.get_time_coordinates(game_state=game_state)
+        time_coordinates = action_plan.get_time_coordinates()
 
         collisions = all_time_coordinates & time_coordinates
         if collisions:
             collision_tc = next(iter(collisions))
-            return _get_unit_collision(
-                unit_action_plans=unit_action_plans, game_state=game_state, collision_tc=collision_tc
-            )
+            return _get_unit_collision(unit_action_plans=unit_action_plans, collision_tc=collision_tc)
 
         all_time_coordinates.update(time_coordinates)
 
     return None
 
 
-def _get_unit_collision(
-    unit_action_plans: dict[Unit, ActionPlan], game_state: GameState, collision_tc: TimeCoordinate
-) -> UnitCollision:
+def _get_unit_collision(unit_action_plans: dict[Unit, ActionPlan], collision_tc: TimeCoordinate) -> UnitCollision:
     collision_units = []
     for unit, action_plan in unit_action_plans.items():
-        time_coordinates = action_plan.get_time_coordinates(game_state=game_state)
+        time_coordinates = action_plan.get_time_coordinates()
         if collision_tc in time_coordinates:
             collision_units.append(unit)
 

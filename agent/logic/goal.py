@@ -54,7 +54,7 @@ class Goal(metaclass=ABCMeta):
 
         if constraints.parent in self.solution_hash:
             parent_solution = self.solution_hash[constraints.parent]
-            if self._parent_solution_is_valid(parent_solution, constraints, game_state):
+            if self._parent_solution_is_valid(parent_solution, constraints):
                 self.solution_hash[constraints.key] = parent_solution
                 return parent_solution
 
@@ -63,9 +63,9 @@ class Goal(metaclass=ABCMeta):
         return action_plan
 
     def _parent_solution_is_valid(
-        self, parent_solution: ActionPlan, constraints: Constraints, game_state: GameState
+        self, parent_solution: ActionPlan, constraints: Constraints
     ) -> bool:
-        for tc in parent_solution.get_time_coordinates(game_state):
+        for tc in parent_solution.get_time_coordinates():
             if constraints.tc_violates_constraint(tc):
                 return False
 

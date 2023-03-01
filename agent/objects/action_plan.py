@@ -82,9 +82,9 @@ class ActionPlan:
     def power_requested(self) -> int:
         return sum(action.power_requested for action in self.actions)
 
-    def get_time_coordinates(self, game_state: GameState) -> set[TimeCoordinate]:
+    def get_time_coordinates(self) -> set[TimeCoordinate]:
         simulator = ActionPlanSimulator(self, unit=self.unit)
-        return simulator.get_time_coordinates(game_state=game_state)
+        return simulator.get_time_coordinates()
 
     def get_power_used(self, board: Board) -> float:
         cur_c = self.unit.tc
@@ -106,8 +106,6 @@ class ActionPlan:
         return len(self) <= 20
 
     def unit_has_enough_power(self, game_state: GameState) -> bool:
-        # TODO should be taking into account whether this will be overwriting current action plan and therefore costing
-        # power or not
         if len(self.actions) == 0:
             return True
 
@@ -240,18 +238,19 @@ class ActionPlanSimulator:
     unit: Unit
 
     def simulate_action_plan(self, game_state: GameState) -> None:
-        self._init_start(start_t=game_state.real_env_steps)
+        self._init_start()
         if not self.action_plan.is_set:
             self._update_action_queue()
         self._simulate_actions(actions=self.action_plan.primitive_actions, game_state=game_state)
 
-    def get_time_coordinates(self, game_state: GameState) -> set[TimeCoordinate]:
-        self.simulate_action_plan(game_state=game_state)
+    def get_time_coordinates(self) -> set[TimeCoordinate]:
+        self._init_start()
+        self._simulate_actions_for_tc(actions=self.action_plan.primitive_actions)
         return self.time_coordinates
 
-    def _init_start(self, start_t: int) -> None:
+    def _init_start(self) -> None:
         self.cur_power = self.unit.power
-        self.t = start_t
+        self.t = self.unit.tc.t
         self.cur_tc = TimeCoordinate(x=self.unit.tc.x, y=self.unit.tc.y, t=self.t)
         self.time_coordinates = {self.cur_tc}
 
@@ -271,14 +270,18 @@ class ActionPlanSimulator:
             self._increase_time_count()
             self._update_tc(action=action)
 
+    def _simulate_actions_for_tc(self, actions: Sequence[Action]) -> None:
+        for action in actions:
+            self._increase_time_count()
+            self._update_tc(action=action)
+
     def _update_power_due_to_action(self, action: Action, board: Board) -> None:
         power_change = action.get_power_change(unit_cfg=self.unit.unit_cfg, start_c=self.cur_tc, board=board)
         self.cur_power += power_change
         self.cur_power = min(self.cur_power, self.unit.unit_cfg.BATTERY_CAPACITY)
 
     def _update_tc(self, action: Action) -> None:
-        cur_c = action.get_final_c(start_c=self.cur_tc)
-        self.cur_tc = TimeCoordinate(x=cur_c.x, y=cur_c.y, t=self.t)
+        self.cur_tc = action.get_final_c(start_c=self.cur_tc)
         self.time_coordinates.add(self.cur_tc)
 
     def _simul_charge(self, game_state: GameState) -> None:
@@ -290,12 +293,9 @@ class ActionPlanSimulator:
         self.t += 1
 
     def get_final_tc(self) -> TimeCoordinate:
-        cur_tc = self.unit.tc
-
-        for action in self.action_plan.primitive_actions:
-            cur_tc = action.get_final_c(start_c=cur_tc)
-
-        return cur_tc
+        self._init_start()
+        self._simulate_actions_for_tc(actions=self.action_plan.primitive_actions)
+        return self.cur_tc
 
     def can_update_action_queue(self) -> bool:
         return self.cur_power >= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST

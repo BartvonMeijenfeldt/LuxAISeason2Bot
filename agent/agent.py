@@ -40,6 +40,7 @@ class Agent:
         forward_obs = forward_sim(obs, self.env_cfg, n=2)
         forward_game_states = [obs_to_game_state(step + i, self.env_cfg, f_obs) for i, f_obs in enumerate(forward_obs)]
         """
+
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player)
         factory_actions = self.get_factory_actions(game_state)
         unit_actions = self.get_unit_actions(game_state)
