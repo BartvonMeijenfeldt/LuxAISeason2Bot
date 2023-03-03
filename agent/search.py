@@ -56,11 +56,11 @@ class Graph(metaclass=ABCMeta):
         if self.constraints.tc_violates_constraint(to_c):
             return math.inf
 
-        action_power_cost = self.get_power_cost(action=action, from_c=from_c)
+        action_power_cost = self.get_power_cost(action=action, to_c=to_c)
         return action_power_cost + self.time_to_power_cost
 
-    def get_power_cost(self, action: Action, from_c: Coordinate) -> float:
-        power_change = action.get_power_change(unit_cfg=self.unit_cfg, start_c=from_c, board=self.board)
+    def get_power_cost(self, action: Action, to_c: Coordinate) -> float:
+        power_change = action.get_power_change_by_end_c(unit_cfg=self.unit_cfg, end_c=to_c, board=self.board)
         power_cost = max(0, -power_change)
         return power_cost
 

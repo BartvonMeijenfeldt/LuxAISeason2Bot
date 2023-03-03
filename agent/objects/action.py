@@ -38,6 +38,10 @@ class Action(metaclass=ABCMeta):
     def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
         ...
 
+    @abstractmethod
+    def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
+        ...
+
     def get_final_c(self, start_c: TCoordinate) -> TCoordinate:
         return start_c + Direction.CENTER
 
@@ -97,6 +101,16 @@ class MoveAction(Action):
             power_change -= power_required_single_action
 
         return power_change
+    
+    def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
+        assert self.n == 1
+    
+        if self.direction == Direction.CENTER:
+            return 0
+        
+        rubble_at_target = board.rubble[end_c.xy]
+        return self.get_power_cost(rubble_at_target, unit_cfg)
+
 
     @staticmethod
     def get_power_cost(rubble_to: int, unit_cfg: UnitConfig) -> int:
@@ -135,6 +149,14 @@ class TransferAction(Action):
 
     def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
         if self.resource == Resource.Power:
+            return -self.amount * self.n
+        else:
+            return 0
+        
+    def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
+        assert self.n == 1
+
+        if self.resource == Resource.Power:
             return -self.amount
         else:
             return 0
@@ -165,9 +187,17 @@ class PickupAction(Action):
 
     def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
         if self.resource == Resource.Power:
-            return self.amount
+            return self.amount  * self.n
         else:
             return 0
+        
+    def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
+        assert self.n == 1
+
+        if self.resource == Resource.Power:
+            return self.amount
+        else:
+            return 0       
 
 
 @dataclass
@@ -192,6 +222,11 @@ class DigAction(Action):
 
     def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
         return -unit_cfg.DIG_COST * self.n
+    
+    def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
+        assert self.n == 1
+
+        return -unit_cfg.DIG_COST
 
 
 @dataclass
@@ -217,6 +252,10 @@ class SelfDestructAction(Action):
     def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
         return -unit_cfg.SELF_DESTRUCT_COST * self.n
 
+    def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
+        assert self.n == 1
+        return -unit_cfg.SELF_DESTRUCT_COST
+
 
 @dataclass
 class RechargeAction(Action):
@@ -239,4 +278,8 @@ class RechargeAction(Action):
         return np.array([action_identifier, direction, resource, self.amount, self.repeat, self.n])
 
     def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
+        return 0
+    
+    def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
+        assert self.n == 1
         return 0
