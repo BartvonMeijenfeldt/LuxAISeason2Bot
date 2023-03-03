@@ -85,7 +85,7 @@ class MoveToGraph(Graph):
     _potential_actions = [MoveAction(direction) for direction in Direction]
 
     def __post_init__(self):
-        if not self.constraints:
+        if not self.constraints.has_time_constraints:
             self._potential_actions = [
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
@@ -111,7 +111,7 @@ class PickupPowerGraph(Graph):
 
         self._potential_recharge_actions = [PickupAction(amount=self.power_pickup_goal, resource=Resource.Power)]
 
-        if not self.constraints:
+        if not self.constraints.has_time_constraints:
             self._potential_move_actions = [
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
@@ -149,7 +149,7 @@ class DigAtGraph(Graph):
     _potential_dig_actions = [DigAction()]
 
     def __post_init__(self):
-        if not self.constraints:
+        if not self.constraints.has_time_constraints:
             self._potential_move_actions = [
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
