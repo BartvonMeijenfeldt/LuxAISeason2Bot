@@ -84,6 +84,12 @@ class MoveToGraph(Graph):
     goal: Coordinate
     _potential_actions = [MoveAction(direction) for direction in Direction]
 
+    def __post_init__(self):
+        if not self.constraints:
+            self._potential_actions = [
+                MoveAction(direction) for direction in Direction if direction != direction.CENTER
+            ]
+
     def potential_actions(self, c: Coordinate) -> List[Action]:
         return self._potential_actions
 
@@ -104,6 +110,11 @@ class PickupPowerGraph(Graph):
             self.power_pickup_goal = self.constraints.max_power_request
 
         self._potential_recharge_actions = [PickupAction(amount=self.power_pickup_goal, resource=Resource.Power)]
+
+        if not self.constraints:
+            self._potential_move_actions = [
+                MoveAction(direction) for direction in Direction if direction != direction.CENTER
+            ]
 
     def potential_actions(self, c: Coordinate) -> List[Action]:
         if self.board.is_player_factory_tile(c=c):
@@ -136,6 +147,12 @@ class DigAtGraph(Graph):
     goal: DigCoordinate
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
     _potential_dig_actions = [DigAction()]
+
+    def __post_init__(self):
+        if not self.constraints:
+            self._potential_move_actions = [
+                MoveAction(direction) for direction in Direction if direction != direction.CENTER
+            ]
 
     def potential_actions(self, c: Coordinate) -> List[Action]:
         if self.goal.x == c.x and self.goal.y == c.y:
