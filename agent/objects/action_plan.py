@@ -107,7 +107,7 @@ class ActionPlan:
 
     def get_nr_valid_primitive_actions(self, game_state: GameState):
         if len(self.actions) == 0:
-            return 1
+            return 0
 
         simulator = self._init_simulator()
         return simulator.get_nr_valid_primitive_actions(game_state)
@@ -119,7 +119,7 @@ class ActionPlan:
         if len(self.actions) == 0:
             return True
 
-        simulator =self._init_simulator()
+        simulator = self._init_simulator()
 
         try:
             simulator.simulate_action_plan(game_state=game_state)
@@ -281,7 +281,7 @@ class ActionPlanSimulator:
         except ValueError:
             return 0
 
-        for i, action in enumerate(self.action_plan.actions):
+        for i, action in enumerate(self.action_plan.primitive_actions):
             try:
                 self._simulate_primitive_action(action, game_state)
             except ValueError:
