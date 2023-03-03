@@ -62,9 +62,7 @@ class Goal(metaclass=ABCMeta):
         self.solution_hash[constraints.key] = action_plan
         return action_plan
 
-    def _parent_solution_is_valid(
-        self, parent_solution: ActionPlan, constraints: Constraints
-    ) -> bool:
+    def _parent_solution_is_valid(self, parent_solution: ActionPlan, constraints: Constraints) -> bool:
         for tc in parent_solution.get_time_coordinates():
             if constraints.tc_violates_constraint(tc):
                 return False
@@ -296,12 +294,12 @@ class ClearRubbleGoal(Goal):
                 start=start,
             )
 
+            potential_dig_actions = self._get_valid_actions(potential_dig_actions, game_state)
+
             while potential_dig_actions:
                 potential_action_plan = self.action_plan + potential_dig_actions
 
-                if potential_action_plan.unit_can_carry_out_plan(
-                    game_state=game_state
-                ) and self._unit_can_still_reach_factory(
+                if potential_action_plan.is_valid_size and self._unit_can_still_reach_factory(
                     action_plan=potential_action_plan, game_state=game_state, constraints=constraints
                 ):
                     self.action_plan.extend(potential_dig_actions)
@@ -329,18 +327,19 @@ class ClearRubbleGoal(Goal):
         return nr_required_digs
 
     def _get_rubble_actions(
-        self,
-        rubble_c: Coordinate,
-        nr_digs: int,
-        constraints: Constraints,
-        board: Board,
-        start: DigTimeCoordinate,
+        self, rubble_c: Coordinate, nr_digs: int, constraints: Constraints, board: Board, start: DigTimeCoordinate,
     ) -> list[Action]:
         dig_coordinate = DigCoordinate(x=rubble_c.x, y=rubble_c.y, nr_digs=nr_digs)
 
         graph = self._get_dig_graph(board=board, goal=dig_coordinate, constraints=constraints)
         actions = self._search_graph(graph=graph, start=start)
         return actions
+
+    def _get_valid_actions(self, actions: list[Action], game_state: GameState) -> list[Action]:
+        potential_action_plan = self.action_plan + actions
+        nr_valid_primitive_actions = potential_action_plan.get_nr_valid_primitive_actions(game_state)
+        nr_original_primitive_actions = len(self.action_plan.primitive_actions)
+        return potential_action_plan.primitive_actions[nr_original_primitive_actions:nr_valid_primitive_actions]
 
     def _add_additional_rubble_actions(self, game_state: GameState, constraints: Constraints):
         if len(self.action_plan.actions) == 0 or not isinstance(self.action_plan.actions[-1], DigAction):
