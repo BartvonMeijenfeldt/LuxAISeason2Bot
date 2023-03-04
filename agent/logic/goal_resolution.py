@@ -23,9 +23,8 @@ def resolve_goal_conflicts(
         unit_constraints = defaultdict(lambda: Constraints())
 
     cost_matrix = _create_cost_matrix(goal_collections, unit_constraints, game_state)
-    goal_keys = _solve_sum_assigment_problem(cost_matrix)
-    unit_goals = _get_unit_goals(unit_goal_collections=goal_collections, goal_keys=goal_keys)
-    unit_goals = {unit: goal for unit, goal in unit_goals if goal}
+    unit_keys_goals_keys = _solve_sum_assigment_problem(cost_matrix)
+    unit_goals = _get_unit_goals(unit_goal_collections=goal_collections, unit_keys_goals_keys=unit_keys_goals_keys)
 
     return unit_goals
 
@@ -38,31 +37,24 @@ def _create_cost_matrix(
         for unit, goal_collection in goal_collections.items()
     ]
 
-    value_matrix = pd.DataFrame(entries)
+    unit_ids = [u.unit_id for u in goal_collections]
+    value_matrix = pd.DataFrame(entries, index=unit_ids)
     cost_matrix = -1 * value_matrix
     cost_matrix = cost_matrix.fillna(np.inf)
 
     return cost_matrix
 
 
-def _solve_sum_assigment_problem(cost_matrix: pd.DataFrame) -> List[str]:
+def _solve_sum_assigment_problem(cost_matrix: pd.DataFrame) -> Dict[str, str]:
     rows, cols = linear_sum_assignment(cost_matrix)
-    goal_keys = []
-    for i in range(len(cost_matrix)):
-        if i not in rows:
-            goal_keys.append(None)
-        else:
-            index_ = np.argmax(rows == 4)
-            c = cols[index_]
-            goal_keys.append(cost_matrix.columns[c])
-
-    goal_keys = [cost_matrix.columns[c] for c in cols]
-    assert len(goal_keys) == len(set(goal_keys))
-    return goal_keys
+    unit_keys_goals_keys = {cost_matrix.index[r]: cost_matrix.columns[c] for r, c in zip(rows, cols)}
+    return unit_keys_goals_keys
 
 
-def _get_unit_goals(unit_goal_collections: Dict[Unit, GoalCollection], goal_keys: List[str]) -> List[Tuple[Unit, Goal]]:
-    return [
-        (unit, goal_collection.get_goal(goal))
-        for goal, (unit, goal_collection) in zip(goal_keys, unit_goal_collections.items())
-    ]
+def _get_unit_goals(
+    unit_goal_collections: Dict[Unit, GoalCollection], unit_keys_goals_keys: Dict[str, str]
+) -> Dict[Unit, Goal]:
+    return {
+        unit: goal_collection.get_goal(goal)
+        for goal, (unit, goal_collection) in zip(unit_keys_goals_keys.values(), unit_goal_collections.items())
+    }

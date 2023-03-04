@@ -1,5 +1,6 @@
+from __future__ import annotations
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 from objects.cargo import UnitCargo
 from lux.config import UnitConfig
@@ -7,7 +8,7 @@ from objects.coordinate import TimeCoordinate, CoordinateList
 from objects.game_state import GameState
 from objects.action import Action
 
-from logic.goal import GoalCollection, CollectIceGoal, ClearRubbleGoal, NoGoalGoal
+from logic.goal import GoalCollection, CollectIceGoal, ClearRubbleGoal, NoGoalGoal, ActionQueueGoal, FleeGoal
 
 
 @dataclass
@@ -37,16 +38,21 @@ class Unit:
         cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
         return cost
 
-    def generate_goals(self, game_state: GameState) -> GoalCollection:
-        if game_state.env_steps <= 900 and self.unit_type == "HEAVY":
+    def generate_goals(self, game_state: GameState, action_queue_goal: Optional[ActionQueueGoal]) -> GoalCollection:
+        if action_queue_goal:
+            goals = [action_queue_goal]
+            if self.is_under_threath(game_state) and self.next_step_is_stationary():
+                neighboring_opponent = self._get_neighboring_opponent(game_state)
+                flee_goal = FleeGoal(unit=self, opp_c=neighboring_opponent.tc)
+                goals.append(flee_goal)
+
+        elif game_state.env_steps <= 900 and self.unit_type == "HEAVY":
             target_ice_c = game_state.get_closest_ice_tile(c=self.tc)
             target_factory_c = game_state.get_closest_factory_c(c=target_ice_c)
             goals = [CollectIceGoal(unit=self, ice_c=target_ice_c, factory_c=target_factory_c)]
 
         else:
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=10)
-            # TODO add something here to do a feasibility check if
-            # they can ever clear the first rubble, even with a full capacity
             goals = [
                 ClearRubbleGoal(unit=self, rubble_positions=CoordinateList([rubble_tile]))
                 for rubble_tile in closest_rubble_tiles
@@ -56,6 +62,30 @@ class Unit:
         goals = GoalCollection(goals)
 
         return goals
+
+    def is_under_threath(self, game_state: GameState) -> bool:
+        neighboring_opponent = self._get_neighboring_opponent(game_state)
+        if neighboring_opponent:
+            return not self.is_stronger_than(neighboring_opponent) and self.is_not_on_factory(game_state)
+
+        return False
+
+    def next_step_is_stationary(self) -> bool:
+        return self.has_actions_in_queue and self.action_queue[0].is_stationary
+
+    def is_not_on_factory(self, game_state: GameState) -> bool:
+        return not game_state.is_player_factory_tile(self.tc)
+
+    def _get_neighboring_opponent(self, game_state: GameState) -> Optional[Unit]:
+        for tc in self.tc.neighbors:
+            opponent_on_c = game_state.get_opponent_on_c(tc)
+            if opponent_on_c:
+                return opponent_on_c
+
+        return None
+
+    def is_stronger_than(self, other: Unit) -> bool:
+        return self.unit_type == "HEAVY" and other.unit_type == "LIGHT"
 
     @property
     def power_space_left(self) -> int:
@@ -73,4 +103,4 @@ class Unit:
         return out
 
     def __repr__(self) -> str:
-        return f'Unit[id={self.unit_id}]'
+        return f"Unit[id={self.unit_id}]"

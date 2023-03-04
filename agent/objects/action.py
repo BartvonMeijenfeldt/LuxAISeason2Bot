@@ -14,12 +14,12 @@ if TYPE_CHECKING:
     from objects.coordinate import Coordinate
     from objects.unit import UnitConfig
     from objects.board import Board
-    TCoordinate = TypeVar('TCoordinate', bound=Coordinate)
+
+    TCoordinate = TypeVar("TCoordinate", bound=Coordinate)
 
 
 @dataclass
 class Action(metaclass=ABCMeta):
-
     @property
     @abstractmethod
     def unit_direction(self) -> Direction:
@@ -44,6 +44,10 @@ class Action(metaclass=ABCMeta):
 
     def get_final_c(self, start_c: TCoordinate) -> TCoordinate:
         return start_c + Direction.CENTER
+
+    @property
+    def is_stationary(self) -> bool:
+        return self.unit_direction == Direction.CENTER
 
     @classmethod
     def from_array(cls, x: np.ndarray) -> Action:
@@ -101,16 +105,15 @@ class MoveAction(Action):
             power_change -= power_required_single_action
 
         return power_change
-    
+
     def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
         assert self.n == 1
-    
+
         if self.direction == Direction.CENTER:
             return 0
-        
+
         rubble_at_target = board.rubble[end_c.xy]
         return self.get_power_cost(rubble_at_target, unit_cfg)
-
 
     @staticmethod
     def get_power_cost(rubble_to: int, unit_cfg: UnitConfig) -> int:
@@ -152,7 +155,7 @@ class TransferAction(Action):
             return -self.amount * self.n
         else:
             return 0
-        
+
     def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
         assert self.n == 1
 
@@ -187,17 +190,17 @@ class PickupAction(Action):
 
     def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
         if self.resource == Resource.Power:
-            return self.amount  * self.n
+            return self.amount * self.n
         else:
             return 0
-        
+
     def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
         assert self.n == 1
 
         if self.resource == Resource.Power:
             return self.amount
         else:
-            return 0       
+            return 0
 
 
 @dataclass
@@ -222,7 +225,7 @@ class DigAction(Action):
 
     def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
         return -unit_cfg.DIG_COST * self.n
-    
+
     def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
         assert self.n == 1
 
@@ -279,7 +282,7 @@ class RechargeAction(Action):
 
     def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
         return 0
-    
+
     def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
         assert self.n == 1
         return 0

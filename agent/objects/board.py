@@ -31,7 +31,9 @@ class Board:
         self.player_factories_tiles_set = {(c.xy) for factory in self.player_factories for c in factory.coordinates}
         self.opponent_factories_tiles_set = {(c.xy) for factory in self.opp_factories for c in factory.coordinates}
 
-        self.player_factory_tiles = CoordinateList([c for factory in self.player_factories for c in factory.coordinates])
+        self.player_factory_tiles = CoordinateList(
+            [c for factory in self.player_factories for c in factory.coordinates]
+        )
         self.opponent_factory_tiles = CoordinateList([c for factory in self.opp_factories for c in factory.coordinates])
 
     @property
@@ -70,6 +72,13 @@ class Board:
 
     def is_off_the_board(self, c: Coordinate) -> bool:
         return not self.is_off_the_board(c=c)
+
+    def get_opponent_on_c(self, c: Coordinate) -> Optional[Unit]:
+        for unit in self.opp_units:
+            if unit.tc.xy == c.xy:
+                return unit
+
+        return None
 
     def get_closest_factory(self, c: Coordinate) -> Factory:
         return min(self.player_factories, key=lambda x: x.min_dis_to(c))
