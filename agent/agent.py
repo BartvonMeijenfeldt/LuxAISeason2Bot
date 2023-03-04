@@ -1,6 +1,6 @@
 import numpy as np
 
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from lux.kit import obs_to_game_state
 from lux.config import EnvConfig
@@ -9,7 +9,7 @@ from objects.game_state import GameState
 from objects.unit import Unit
 from objects.action_plan import ActionPlan
 from logic.early_setup import get_factory_spawn_loc
-from logic.goal import ActionQueueGoal, NoGoalGoal, Goal, GoalCollection
+from logic.goal import ActionQueueGoal, Goal
 from logic.action_plan_resolution import ActionPlanResolver
 
 
@@ -61,13 +61,8 @@ class Agent:
         unit_goal_collections = {}
 
         for unit in game_state.player_units:
-            if unit.has_actions_in_queue:
-                action_queue_goal = self._get_action_queue_goal(unit=unit)
-                no_goal_goal = NoGoalGoal(unit=unit)
-                goal_collection = GoalCollection([action_queue_goal, no_goal_goal])
-            else:
-                goal_collection = unit.generate_goals(game_state=game_state)
-
+            unit_action_queue_goal = self._get_action_queue_goal(unit=unit)
+            goal_collection = unit.generate_goals(game_state, unit_action_queue_goal)
             unit_goal_collections[unit] = goal_collection
 
         # unit_goals = resolve_goal_conflicts(unit_goal_collections, game_state)
@@ -85,7 +80,10 @@ class Agent:
 
         return unit_actions
 
-    def _get_action_queue_goal(self, unit: Unit) -> ActionQueueGoal:
+    def _get_action_queue_goal(self, unit: Unit) -> Optional[ActionQueueGoal]:
+        if not unit.has_actions_in_queue:
+            return None
+
         last_step_goal = self.prev_steps_goals[unit.unit_id]
         action_plan = ActionPlan(original_actions=unit.action_queue, unit=unit, is_set=True)
         action_queue_goal = ActionQueueGoal(unit=unit, action_plan=action_plan, goal=last_step_goal)

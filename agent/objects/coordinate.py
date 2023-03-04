@@ -67,7 +67,7 @@ class Coordinate:
 
     @property
     def neighbors(self) -> CoordinateList:
-        neighbors = [self + direction.value for direction in Direction]
+        neighbors = [self + direction for direction in Direction]
         return CoordinateList(neighbors)
 
     def distance_to(self, c: Coordinate) -> int:

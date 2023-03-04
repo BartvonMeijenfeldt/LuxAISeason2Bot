@@ -39,7 +39,7 @@ class Graph(metaclass=ABCMeta):
     constraints: Constraints
 
     @abstractmethod
-    def potential_actions(self, c: Coordinate) -> List[Action]:
+    def potential_actions(self, c: TimeCoordinate) -> List[Action]:
         ...
 
     def get_valid_action_nodes(self, c: TimeCoordinate) -> List[Tuple[Action, TimeCoordinate]]:
@@ -90,7 +90,40 @@ class MoveToGraph(Graph):
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
 
-    def potential_actions(self, c: Coordinate) -> List[Action]:
+    def potential_actions(self, c: TimeCoordinate) -> List[Action]:
+        return self._potential_actions
+
+    def heuristic(self, node: Coordinate) -> float:
+        return self._get_distance_heuristic(node=node)
+
+    def node_completes_goal(self, node: Coordinate) -> bool:
+        return self.goal == node
+
+
+@dataclass
+class FleeToGraph(Graph):
+    goal: Coordinate
+    start_c: TimeCoordinate
+    opp_c: Coordinate
+    _potential_actions = [MoveAction(direction) for direction in Direction]
+
+    def __post_init__(self):
+        if not self.constraints.has_time_constraints:
+            self._potential_actions = [
+                MoveAction(direction) for direction in Direction if direction != direction.CENTER
+            ]
+
+    def potential_actions(self, c: TimeCoordinate) -> List[Action]:
+        if c.t == self.start_c.t:
+            return [
+                action
+                for action in self._potential_actions
+                if action.get_final_c(start_c=c).xy != self.opp_c.xy and not action.is_stationary
+            ]
+
+        if c.t == self.start_c.t + 1:
+            return [action for action in self._potential_actions if action.get_final_c(start_c=c).xy != self.start_c.xy]
+
         return self._potential_actions
 
     def heuristic(self, node: Coordinate) -> float:
@@ -116,7 +149,7 @@ class PickupPowerGraph(Graph):
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
 
-    def potential_actions(self, c: Coordinate) -> List[Action]:
+    def potential_actions(self, c: TimeCoordinate) -> List[Action]:
         if self.board.is_player_factory_tile(c=c):
             return self._potential_move_actions + self._potential_recharge_actions
         else:
@@ -154,7 +187,7 @@ class DigAtGraph(Graph):
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
 
-    def potential_actions(self, c: Coordinate) -> List[Action]:
+    def potential_actions(self, c: TimeCoordinate) -> List[Action]:
         if self.goal.x == c.x and self.goal.y == c.y:
             return self._potential_move_actions + self._potential_dig_actions
         else:

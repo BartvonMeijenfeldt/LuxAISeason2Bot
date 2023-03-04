@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from dataclasses import dataclass
 
@@ -21,7 +21,7 @@ class GameState:
     opp_team: Team
 
     def __repr__(self) -> str:
-        return f'Gamestate [t={self.real_env_steps}]'
+        return f"Gamestate [t={self.real_env_steps}]"
 
     @property
     def player_units(self) -> list[Unit]:
@@ -67,6 +67,15 @@ class GameState:
     @property
     def player_factory_tiles(self) -> CoordinateList:
         return self.board.player_factory_tiles
+
+    def is_player_factory_tile(self, c: Coordinate) -> bool:
+        return self.board.is_player_factory_tile(c)
+
+    def is_opponent_factory_tile(self, c: Coordinate) -> bool:
+        return self.board.is_opponent_factory_tile(c)
+
+    def get_opponent_on_c(self, c: Coordinate) -> Optional[Unit]:
+        return self.board.get_opponent_on_c(c)
 
     def get_closest_factory(self, c: Coordinate) -> Factory:
         return self.board.get_closest_factory(c=c)
