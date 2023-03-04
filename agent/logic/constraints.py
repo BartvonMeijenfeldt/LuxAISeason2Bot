@@ -34,6 +34,13 @@ class Constraints:
     def set_max_power_request(self, power: int) -> None:
         self.max_power_request = power
 
+    @property
+    def has_time_constraints(self) -> bool:
+        if self.positive or self.negative:
+            return True
+        else:
+            return False
+
     def tc_in_constraints(self, tc: TimeCoordinate) -> bool:
         return tc in self.positive or tc in self.negative
 
