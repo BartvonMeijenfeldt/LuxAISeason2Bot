@@ -5,8 +5,9 @@ import numpy as np
 from dataclasses import dataclass, replace, field
 from collections.abc import Iterator
 from search import Search
-from objects.coordinate import TimeCoordinate
+from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
 from search import MoveToGraph
+from objects.action import DigAction
 
 
 if TYPE_CHECKING:
@@ -28,6 +29,7 @@ class ActionPlan:
         self._primitive_actions: Optional[list[Action]] = None
         self._value: Optional[int] = None
         self._final_tc: Optional[TimeCoordinate] = None
+        self._final_ptc: Optional[PowerTimeCoordinate] = None
 
     def __iadd__(self, other: list[Action]) -> None:
         other = list(other)
@@ -72,11 +74,21 @@ class ActionPlan:
         return len(self.primitive_actions)
 
     @property
+    def nr_digs(self) -> int:
+        return sum(dig_action.n for dig_action in self.actions if isinstance(dig_action, DigAction))
+
+    @property
     def final_tc(self) -> TimeCoordinate:
         if self._final_tc is None:
             self._final_tc = ActionPlanSimulator(self, unit=self.unit).get_final_tc()
 
         return self._final_tc
+
+    def get_final_ptc(self, game_state: GameState) -> PowerTimeCoordinate:
+        if self._final_ptc is None:
+            self._final_ptc = ActionPlanSimulator(self, unit=self.unit).get_final_ptc(game_state)
+
+        return self._final_ptc
 
     @property
     def power_requested(self) -> int:
@@ -262,7 +274,7 @@ class ActionPlanSimulator:
         self.time_coordinates = {self.cur_tc}
 
     def _optional_update_action_queue(self) -> None:
-        if not self.action_plan.is_set:
+        if not self.action_plan.is_set and self.action_plan.original_actions:
             self._update_action_queue()
 
     def _update_action_queue(self) -> None:
@@ -326,6 +338,10 @@ class ActionPlanSimulator:
         self._init_start()
         self._simulate_actions_for_tc(actions=self.action_plan.primitive_actions)
         return self.cur_tc
+
+    def get_final_ptc(self, game_state: GameState) -> PowerTimeCoordinate:
+        self.simulate_action_plan(game_state)
+        return PowerTimeCoordinate(*self.cur_tc, p=self.cur_power)
 
     def can_update_action_queue(self) -> bool:
         return self.cur_power >= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST

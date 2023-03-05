@@ -63,4 +63,4 @@ class Constraints:
         if not self.max_power_request or not isinstance(tc, PowerTimeCoordinate):
             return False
 
-        return tc.power_recharged > self.max_power_request
+        return tc.p > self.max_power_request

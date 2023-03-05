@@ -50,6 +50,11 @@ class Board:
         return CoordinateList([Coordinate(*xy) for xy in ice_locations])
 
     @property
+    def ore_coordinates(self) -> CoordinateList:
+        ore_locations = np.argwhere(self.ore == 1)
+        return CoordinateList([Coordinate(*xy) for xy in ore_locations])
+
+    @property
     def rubble_coordinates(self) -> CoordinateList:
         is_rubble = self.rubble > 0
         is_no_ice = self.ice == 0
@@ -88,6 +93,9 @@ class Board:
 
     def get_closest_ice_tile(self, c: Coordinate) -> Coordinate:
         return self.ice_coordinates.get_closest_tile(c=c)
+
+    def get_closest_ore_tile(self, c: Coordinate) -> Coordinate:
+        return self.ore_coordinates.get_closest_tile(c=c)
 
     def get_closest_rubble_tile(self, c: Coordinate, exclude_c: Optional[CoordinateList] = None) -> Coordinate:
         return self.rubble_coordinates.get_closest_tile(c=c, exclude_c=exclude_c)
