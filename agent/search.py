@@ -172,7 +172,7 @@ class PickupPowerGraph(Graph):
             return self.time_to_power_cost
 
     def node_completes_goal(self, node: PowerTimeCoordinate) -> bool:
-        return self.power_pickup_goal <= node.power_recharged
+        return self.power_pickup_goal <= node.p
 
 
 @dataclass
@@ -189,7 +189,10 @@ class DigAtGraph(Graph):
 
     def potential_actions(self, c: TimeCoordinate) -> List[Action]:
         if self.goal.x == c.x and self.goal.y == c.y:
-            return self._potential_move_actions + self._potential_dig_actions
+            if self.constraints.has_time_constraints and self.constraints.max_t >= c.t:
+                return self._potential_dig_actions
+            else:
+                return self._potential_move_actions + self._potential_dig_actions
         else:
             return self._potential_move_actions
 
@@ -200,7 +203,7 @@ class DigAtGraph(Graph):
         return distance_min_cost + digs_min_cost
 
     def _get_digs_min_cost(self, node: DigTimeCoordinate) -> float:
-        nr_digs_required = self.goal.nr_digs - node.nr_digs
+        nr_digs_required = self.goal.d - node.d
         cost_per_dig = self.unit_cfg.DIG_COST + self.time_to_power_cost
         min_cost = nr_digs_required * cost_per_dig
         return min_cost

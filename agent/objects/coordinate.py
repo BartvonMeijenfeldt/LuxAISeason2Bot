@@ -110,13 +110,13 @@ class TimeCoordinate(Coordinate):
 
 @dataclass(eq=True, frozen=True)
 class DigCoordinate(Coordinate):
-    nr_digs: int
+    d: int
 
     def __eq__(self, other: DigCoordinate) -> bool:
-        return self.x == other.x and self.y == other.y and self.nr_digs == other.nr_digs
+        return self.x == other.x and self.y == other.y and self.d == other.d
 
     def __iter__(self):
-        return iter((self.x, self.y, self.nr_digs))
+        return iter((self.x, self.y, self.d))
 
     def __add__(self, other) -> DigCoordinate:
         x, y = super()._add_get_new_xy(other)
@@ -125,13 +125,13 @@ class DigCoordinate(Coordinate):
 
     def _add_get_new_nr_digs(self, other) -> int:
         added_digs = other.n if isinstance(other, DigAction) else 0
-        return self.nr_digs + added_digs
+        return self.d + added_digs
 
 
 @dataclass(eq=True, frozen=True)
 class DigTimeCoordinate(DigCoordinate, TimeCoordinate):
     def __iter__(self):
-        return iter((self.x, self.y, self.t, self.nr_digs))
+        return iter((self.x, self.y, self.t, self.d))
 
     def __add__(self, other) -> DigTimeCoordinate:
         x, y = super()._add_get_new_xy(other)
@@ -143,29 +143,23 @@ class DigTimeCoordinate(DigCoordinate, TimeCoordinate):
 
 @dataclass(eq=True, frozen=True)
 class PowerTimeCoordinate(TimeCoordinate):
-    power_recharged: int
+    p: int
 
     def __iter__(self):
-        return iter((self.x, self.y, self.t, self.power_recharged))
+        return iter((self.x, self.y, self.t, self.p))
 
     def __add__(self, other) -> PowerTimeCoordinate:
         x, y = super()._add_get_new_xy(other)
         t = super()._add_get_new_t(other)
-
-        if isinstance(other, PickupAction) and other.resource == Resource.Power:
-            recharged_amount = other.n * other.amount
-        else:
-            recharged_amount = 0
-        new_recharged_amount = self.power_recharged + recharged_amount
-
-        return PowerTimeCoordinate(x, y, t, new_recharged_amount)
+        p = self._add_get_power_recharged(other)
+        return PowerTimeCoordinate(x, y, t, p)
 
     def _add_get_power_recharged(self, other) -> int:
         if isinstance(other, PickupAction) and other.resource == Resource.Power:
             added_power_recharged = other.n * other.amount
         else:
             added_power_recharged = 0
-        return self.power_recharged + added_power_recharged
+        return self.p + added_power_recharged
 
 
 @dataclass
