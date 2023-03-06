@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from collections import defaultdict
 from typing import Optional
 
 from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
@@ -8,11 +9,12 @@ from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
 
 @dataclass
 class Constraints:
-    positive: set[TimeCoordinate] = field(default_factory=set)
-    positive_t: set[int] = field(default_factory=set)
-    negative: set[TimeCoordinate] = field(default_factory=set)
-    max_power_request: Optional[int] = field(default=None)
+    max_power_request: Optional[int] = field(init=False, default=None)
     parent: str = field(default_factory=str)
+
+    def __post_init__(self) -> None:
+        self.positive: dict[int, set[tuple[int, int]]] = defaultdict(set)
+        self.negative: dict[int, set[tuple[int, int]]] = defaultdict(set)
 
     @property
     def key(self) -> str:
@@ -25,14 +27,21 @@ class Constraints:
         return False
 
     def add_positive_constraint(self, tc: TimeCoordinate) -> None:
-        self.positive.add(tc)
-        self.positive_t.add(tc.t)
+        self.positive[tc.t].add(tc.xy)
 
     def add_negative_constraint(self, tc: TimeCoordinate) -> None:
-        self.negative.add(tc)
+        self.negative[tc.t].add(tc.xy)
 
     def set_max_power_request(self, power: int) -> None:
         self.max_power_request = power
+
+    @property
+    def max_t(self) -> Optional[int]:
+        if not self.has_time_constraints:
+            return None
+
+        all_t = self.positive.keys() | self.negative.keys()
+        return max(all_t)
 
     @property
     def has_time_constraints(self) -> bool:
@@ -42,11 +51,9 @@ class Constraints:
             return False
 
     def tc_in_constraints(self, tc: TimeCoordinate) -> bool:
-        return tc in self.positive or tc in self.negative
+        return self.tc_in_negative_constraints(tc) or self.tc_in_positive_constraints(tc)
 
     def tc_violates_constraint(self, tc: TimeCoordinate) -> bool:
-        # To convert DigTimeCoordinates or PowerTimeCoordinates to pure TimeCoordinates
-        tc = TimeCoordinate(tc.x, tc.y, tc.t)
         return (
             self._is_positive_constraint_violated(tc=tc)
             or self._is_negative_constraint_violated(tc=tc)
@@ -54,12 +61,22 @@ class Constraints:
         )
 
     def _is_positive_constraint_violated(self, tc: TimeCoordinate) -> bool:
-        return tc.t in self.positive_t and tc not in self.positive
+        return tc.t in self.positive and tc.xy not in self.positive[tc.t]
 
     def _is_negative_constraint_violated(self, tc: TimeCoordinate) -> bool:
-        return tc in self.negative
+        return self.tc_in_negative_constraints(tc)
+
+    def tc_in_positive_constraints(self, tc: TimeCoordinate) -> bool:
+        return tc.t in self.positive and tc.xy in self.positive[tc.t]
+
+    def tc_in_negative_constraints(self, tc: TimeCoordinate) -> bool:
+        return tc.t in self.negative and tc.xy in self.negative[tc.t]
+
+    def t_in_positive_constraints(self, t: int) -> bool:
+        return t in self.positive
 
     def _is_power_constraint_violated(self, tc: TimeCoordinate) -> bool:
+        # TODO, this does not check properly how much power gets asked and at what timestep
         if not self.max_power_request or not isinstance(tc, PowerTimeCoordinate):
             return False
 

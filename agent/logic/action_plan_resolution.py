@@ -63,7 +63,7 @@ class ActionPlanResolver:
 
     def _get_best_solution(self) -> Solution:
         for i in count():
-            if i > 100 or self.solutions.empty():
+            if i > 10 or self.solutions.empty():
                 break
 
             best_potential_solution: Solution = self.solutions.get()
@@ -168,7 +168,7 @@ class ActionPlanResolver:
             new_constraints.parent = constraints.key
 
             if collsion_unit == unit:
-                if time_coordinate.t in constraints.positive_t:
+                if constraints.t_in_positive_constraints(time_coordinate.t):
                     return None
 
                 new_constraints.add_positive_constraint(time_coordinate)

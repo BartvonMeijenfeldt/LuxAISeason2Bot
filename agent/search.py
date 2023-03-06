@@ -189,7 +189,10 @@ class DigAtGraph(Graph):
 
     def potential_actions(self, c: TimeCoordinate) -> List[Action]:
         if self.goal.x == c.x and self.goal.y == c.y:
-            return self._potential_move_actions + self._potential_dig_actions
+            if self.constraints.has_time_constraints and self.constraints.max_t >= c.t:
+                return self._potential_dig_actions
+            else:
+                return self._potential_move_actions + self._potential_dig_actions
         else:
             return self._potential_move_actions
 

@@ -166,15 +166,39 @@ class Goal(metaclass=ABCMeta):
         if potential_action_plan.unit_has_enough_power(game_state):
             self.action_plan.extend(new_actions)
 
+    def _get_move_to_plan(
+        self, start_tc: TimeCoordinate, goal: Coordinate, constraints: Constraints, board: Board,
+    ) -> list[Action]:
+
+        graph = self._get_move_graph(board=board, goal=goal, constraints=constraints)
+        actions = self._search_graph(graph=graph, start=start_tc)
+        return actions
+
     def _get_dig_plan(
         self, start_tc: TimeCoordinate, dig_c: Coordinate, nr_digs: int, constraints: Constraints, board: Board,
     ) -> list[Action]:
+        if constraints.has_time_constraints:
+            return self._get_dig_plan_with_constraints(start_tc, dig_c, nr_digs, constraints, board)
+
+        return self._get_dig_plan_wihout_constraints(start_tc, dig_c, nr_digs, board)
+
+    def _get_dig_plan_with_constraints(
+        self, start_tc: TimeCoordinate, dig_c: Coordinate, nr_digs: int, constraints: Constraints, board: Board
+    ) -> list[Action]:
+
         start_dtc = DigTimeCoordinate(*start_tc, d=0)
         dig_coordinate = DigCoordinate(x=dig_c.x, y=dig_c.y, d=nr_digs)
 
         graph = self._get_dig_graph(board=board, goal=dig_coordinate, constraints=constraints)
         actions = self._search_graph(graph=graph, start=start_dtc)
         return actions
+
+    def _get_dig_plan_wihout_constraints(
+        self, start_tc: TimeCoordinate, dig_c: Coordinate, nr_digs: int, board: Board
+    ) -> list[Action]:
+        move_to_actions = self._get_move_to_plan(start_tc, goal=dig_c, constraints=Constraints(), board=board)
+        dig_actions = [DigAction(n=1)] * nr_digs
+        return move_to_actions + dig_actions
 
     def _get_valid_actions(self, actions: list[Action], game_state: GameState) -> list[Action]:
         potential_action_plan = self.action_plan + actions
@@ -301,25 +325,15 @@ class CollectGoal(Goal):
 
         return max_nr_digs
 
-    def _get_actions_after_digging(self, board: Board, constraints: Constraints, start: TimeCoordinate) -> list[Action]:
-        ice_to_factory_actions = self._get_move_to_factory_actions(board=board, constraints=constraints, start=start)
-        transfer_action = self._get_transfer_action()
-        return ice_to_factory_actions + [transfer_action]
-
     def _add_ice_to_factory_actions(self, board: Board, constraints: Constraints) -> None:
         actions = self._get_move_to_factory_actions(board=board, constraints=constraints)
         self.action_plan.extend(actions=actions)
 
-    def _get_move_to_factory_actions(
-        self, board: Board, constraints: Constraints, start: Optional[TimeCoordinate] = None
-    ) -> list[Action]:
-
-        if not start:
-            start = self.action_plan.final_tc
-
-        graph = self._get_move_graph(board=board, goal=self.factory_c, constraints=constraints)
-        optimal_actions = self._search_graph(graph=graph, start=start)
-        return optimal_actions
+    def _get_move_to_factory_actions(self, board: Board, constraints: Constraints) -> list[Action]:
+        # TODO, this should move to any Factory tile not a specific tile
+        return self._get_move_to_plan(
+            start_tc=self.action_plan.final_tc, goal=self.factory_c, constraints=constraints, board=board
+        )
 
     def _add_transfer_action(self) -> None:
         max_cargo = self.unit.unit_cfg.CARGO_SPACE
@@ -399,7 +413,6 @@ class ClearRubbleGoal(Goal):
                 return
             else:
                 self.action_plan.extend(max_valid_digs_actions)
-
 
             # while potential_dig_actions:
             #     potential_action_plan = self.action_plan + potential_dig_actions
