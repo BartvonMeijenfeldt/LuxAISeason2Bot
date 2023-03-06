@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 from scipy.optimize import linear_sum_assignment
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict
 from collections import defaultdict
 
 from objects.unit import Unit
