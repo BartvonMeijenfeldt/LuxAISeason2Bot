@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Sequence
 from collections import defaultdict
-from copy import deepcopy
+from copy import copy
 from itertools import count
 
 from search import PriorityQueue
@@ -128,8 +128,8 @@ class ActionPlanResolver:
     def _get_new_power_constraints(
         self, parent_solution: Solution, power_deficit: int, unit: Unit
     ) -> Optional[dict[Unit, Constraints]]:
-        unit_constraints = deepcopy(parent_solution.unit_constraints)
-        unit_constraint = unit_constraints[unit]
+        unit_constraints = copy(parent_solution.unit_constraints)
+        unit_constraint = copy(unit_constraints[unit])
         unit_power_requested = parent_solution.unit_action_plans[unit].actions[0].power_requested
 
         if unit_constraint.max_power_request == 0:
@@ -159,12 +159,12 @@ class ActionPlanResolver:
     def _get_new_positive_tc_constraints(
         self, parent_constraints: dict[Unit, Constraints], collision: UnitCollision
     ) -> Optional[dict[Unit, Constraints]]:
-        unit_constraints = deepcopy(parent_constraints)
+        unit_constraints = copy(parent_constraints)
         collsion_unit = collision.constraint_unit
         time_coordinate = collision.tc
 
         for unit, constraints in unit_constraints.items():
-            new_constraints = deepcopy(constraints)
+            new_constraints = copy(constraints)
             new_constraints.parent = constraints.key
 
             if collsion_unit == unit:
@@ -197,14 +197,14 @@ class ActionPlanResolver:
     def _get_new_negative_tc_constraints(
         self, parent_constraints: dict[Unit, Constraints], collision: UnitCollision
     ) -> Optional[dict[Unit, Constraints]]:
-        unit_constraints = deepcopy(parent_constraints)
+        unit_constraints = copy(parent_constraints)
         unit = collision.constraint_unit
         unit_constraint = parent_constraints[unit]
 
         if unit_constraint.tc_in_constraints(collision.tc):
             return None
 
-        new_constraints = deepcopy(unit_constraint)
+        new_constraints = copy(unit_constraint)
         new_constraints.parent = unit_constraint.key
         new_constraints.add_negative_constraint(collision.tc)
         unit_constraints[unit] = new_constraints
@@ -247,8 +247,8 @@ class ActionPlanResolver:
         self, parent_solution: Solution, new_action_plan: ActionPlan, unit: Unit
     ) -> dict[Unit, ActionPlan]:
 
-        unit_action_plans = deepcopy(parent_solution.unit_action_plans)
-        unit_action_plans[unit] = new_action_plan
+        unit_action_plans = copy(parent_solution.unit_action_plans)
+        unit_action_plans[unit] = copy(new_action_plan)
         return unit_action_plans
 
     def _get_new_solution_value(
