@@ -343,7 +343,7 @@ class CollectGoal(Goal):
     def get_value_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
         number_of_digs = action_plan.nr_digs
         total_cost = self._get_cost_plan(action_plan, game_state)
-        return 1000 * number_of_digs / total_cost
+        return 100 * number_of_digs / total_cost
 
 
 @dataclass

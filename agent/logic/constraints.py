@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from collections import defaultdict
 from typing import Optional
+from copy import copy
 
 from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
 
 
 @dataclass
 class Constraints:
-    max_power_request: Optional[int] = field(init=False, default=None)
     parent: str = field(default_factory=str)
-
-    def __post_init__(self) -> None:
-        self.positive: dict[int, set[tuple[int, int]]] = defaultdict(set)
-        self.negative: dict[int, set[tuple[int, int]]] = defaultdict(set)
+    max_power_request: Optional[int] = field(init=False, default=None)
+    positive: set[tuple[int, int, int]] = field(init=False, default_factory=set)
+    positive_t: set[int] = field(init=False, default_factory=set)
+    negative: set[tuple[int, int, int]] = field(init=False, default_factory=set)
+    negative_t: set[int] = field(init=False, default_factory=set)
 
     @property
     def key(self) -> str:
@@ -27,10 +27,12 @@ class Constraints:
         return False
 
     def add_positive_constraint(self, tc: TimeCoordinate) -> None:
-        self.positive[tc.t].add(tc.xy)
+        self.positive.add(tc.xyt)
+        self.positive_t.add(tc.t)
 
     def add_negative_constraint(self, tc: TimeCoordinate) -> None:
-        self.negative[tc.t].add(tc.xy)
+        self.negative.add(tc.xyt)
+        self.negative_t.add(tc.t)
 
     def set_max_power_request(self, power: int) -> None:
         self.max_power_request = power
@@ -40,7 +42,7 @@ class Constraints:
         if not self.has_time_constraints:
             return None
 
-        all_t = self.positive.keys() | self.negative.keys()
+        all_t = self.positive_t | self.negative_t
         return max(all_t)
 
     @property
@@ -61,19 +63,19 @@ class Constraints:
         )
 
     def _is_positive_constraint_violated(self, tc: TimeCoordinate) -> bool:
-        return tc.t in self.positive and tc.xy not in self.positive[tc.t]
+        return tc.t in self.positive_t and tc.xyt not in self.positive
 
     def _is_negative_constraint_violated(self, tc: TimeCoordinate) -> bool:
         return self.tc_in_negative_constraints(tc)
 
     def tc_in_positive_constraints(self, tc: TimeCoordinate) -> bool:
-        return tc.t in self.positive and tc.xy in self.positive[tc.t]
+        return tc.xyt in self.positive
 
     def tc_in_negative_constraints(self, tc: TimeCoordinate) -> bool:
-        return tc.t in self.negative and tc.xy in self.negative[tc.t]
+        return tc.xyt in self.negative
 
     def t_in_positive_constraints(self, t: int) -> bool:
-        return t in self.positive
+        return t in self.positive_t
 
     def _is_power_constraint_violated(self, tc: TimeCoordinate) -> bool:
         # TODO, this does not check properly how much power gets asked and at what timestep
@@ -81,3 +83,13 @@ class Constraints:
             return False
 
         return tc.p > self.max_power_request
+
+    def __copy__(self) -> Constraints:
+        copy_constraints = Constraints(self.parent)
+        copy_constraints.max_power_request = self.max_power_request
+
+        copy_constraints.positive = copy(self.positive)
+        copy_constraints.positive_t = copy(self.positive_t)
+        copy_constraints.negative = copy(self.negative)
+        copy_constraints.negative_t = copy(self.negative_t)
+        return copy_constraints
