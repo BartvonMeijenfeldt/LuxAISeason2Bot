@@ -9,7 +9,7 @@ from objects.game_state import GameState
 from objects.unit import Unit
 from objects.action_plan import ActionPlan
 from logic.early_setup import get_factory_spawn_loc
-from logic.goal import ActionQueueGoal, Goal
+from logic.goals.unit_goal import ActionQueueGoal, UnitGoal
 from logic.action_plan_resolution import ActionPlanResolver
 
 
@@ -19,7 +19,7 @@ class Agent:
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         np.random.seed(0)
         self.env_cfg: EnvConfig = env_cfg
-        self.prev_steps_goals: dict[str, Goal] = {}
+        self.prev_steps_goals: dict[str, UnitGoal] = {}
 
     def early_setup(self, step: int, obs, remainingOverageTime: int = 60):
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player)
@@ -65,9 +65,8 @@ class Agent:
             goal_collection = unit.generate_goals(game_state, unit_action_queue_goal)
             unit_goal_collections[unit] = goal_collection
 
-        # unit_goals = resolve_goal_conflicts(unit_goal_collections, game_state)
         unit_goals, unit_action_plans = ActionPlanResolver(
-            unit_goal_collections=unit_goal_collections, game_state=game_state
+            actor_goal_collections=unit_goal_collections, game_state=game_state
         ).resolve()
 
         unit_actions = {
@@ -92,5 +91,5 @@ class Agent:
     def _is_new_action_plan(self, unit: Unit, plan: ActionPlan) -> bool:
         return plan.actions != unit.action_queue
 
-    def _update_prev_step_goals(self, unit_goal_collections: Dict[Unit, Goal]) -> None:
+    def _update_prev_step_goals(self, unit_goal_collections: Dict[Unit, UnitGoal]) -> None:
         self.prev_steps_goals = {unit.unit_id: goal for unit, goal in unit_goal_collections.items()}

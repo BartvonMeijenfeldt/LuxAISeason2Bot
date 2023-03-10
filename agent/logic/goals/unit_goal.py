@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Sequence
 
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional
 from math import ceil
@@ -20,6 +20,7 @@ from objects.coordinate import (
     CoordinateList,
 )
 from logic.constraints import Constraints
+from logic.goals.goal import Goal
 
 
 if TYPE_CHECKING:
@@ -30,19 +31,12 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class Goal(metaclass=ABCMeta):
+class UnitGoal(Goal):
     unit: Unit
 
     _value: Optional[float] = field(init=False, default=None)
     _is_valid: Optional[bool] = field(init=False, default=None)
     solution_hash: dict[str, ActionPlan] = field(init=False, default_factory=dict)
-
-    def generate_and_evaluate_action_plan(
-        self, game_state: GameState, constraints: Optional[Constraints] = None
-    ) -> ActionPlan:
-        self.generate_action_plan(game_state=game_state, constraints=constraints)
-        self._value = self.get_value_action_plan(action_plan=self.action_plan, game_state=game_state)
-        return self.action_plan
 
     def generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> ActionPlan:
         if constraints is None:
@@ -74,15 +68,6 @@ class Goal(metaclass=ABCMeta):
 
     @abstractmethod
     def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> ActionPlan:
-        ...
-
-    @abstractmethod
-    def get_value_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
-        ...
-
-    @property
-    @abstractmethod
-    def key(self) -> str:
         ...
 
     @property
@@ -206,7 +191,7 @@ class Goal(metaclass=ABCMeta):
         return potential_action_plan.primitive_actions[nr_original_primitive_actions:nr_valid_primitive_actions]
 
     def find_max_dig_actions_can_still_reach_factory(
-        self, actions: list[Action], game_state: GameState, constraints: Constraints
+        self, actions: Sequence[Action], game_state: GameState, constraints: Constraints
     ) -> list[Action]:
         # TODO, see if when we first start with the upper limit, if that were to improve the speed
 
@@ -229,10 +214,10 @@ class Goal(metaclass=ABCMeta):
         actions = self._get_actions_up_to_n_digs(actions, low)
         return actions
 
-    def _get_nr_digs_in_actions(self, actions: list[Action]) -> int:
+    def _get_nr_digs_in_actions(self, actions: Sequence[Action]) -> int:
         return sum(dig_action.n for dig_action in actions if isinstance(dig_action, DigAction))
 
-    def _get_actions_up_to_n_digs(self, actions: list[Action], n: int) -> list[Action]:
+    def _get_actions_up_to_n_digs(self, actions: Sequence[Action], n: int) -> list[Action]:
         if n == 0:
             return []
 
@@ -264,12 +249,12 @@ class Goal(metaclass=ABCMeta):
         total_cost = number_of_steps * self.unit.time_to_power_cost + power_cost
         return total_cost
 
-    def __lt__(self, other: Goal):
+    def __lt__(self, other: UnitGoal):
         return self.value < other.value
 
 
 @dataclass
-class CollectGoal(Goal):
+class CollectGoal(UnitGoal):
     resource_c: Coordinate
     factory_c: Coordinate
     quantity: Optional[int] = None
@@ -370,7 +355,7 @@ class CollectOreGoal(CollectGoal):
 
 
 @dataclass
-class ClearRubbleGoal(Goal):
+class ClearRubbleGoal(UnitGoal):
     rubble_positions: CoordinateList
 
     def __repr__(self) -> str:
@@ -412,21 +397,6 @@ class ClearRubbleGoal(Goal):
                 return
             else:
                 self.action_plan.extend(max_valid_digs_actions)
-
-            # while potential_dig_actions:
-            #     potential_action_plan = self.action_plan + potential_dig_actions
-
-            #     if potential_action_plan.is_valid_size and self._unit_can_still_reach_factory(
-            #         action_plan=potential_action_plan, game_state=game_state, constraints=constraints
-            #     ):
-            #         self.action_plan.extend(potential_dig_actions)
-            #         self.cur_tc = self.action_plan.final_tc
-            #         break
-
-            #     potential_dig_actions = potential_dig_actions[:-1]
-            # else:
-            #     self._is_valid = False
-            #     return
 
         self._is_valid = True
 
@@ -482,7 +452,7 @@ class ClearRubbleGoal(Goal):
 
 
 @dataclass
-class FleeGoal(Goal):
+class FleeGoal(UnitGoal):
     opp_c: Coordinate
     _is_valid = True
 
@@ -536,10 +506,10 @@ class FleeGoal(Goal):
 
 
 @dataclass
-class ActionQueueGoal(Goal):
+class ActionQueueGoal(UnitGoal):
     """Goal currently in action queue"""
 
-    goal: Goal
+    goal: UnitGoal
     action_plan: ActionPlan
     _is_valid = True
 
@@ -562,7 +532,7 @@ class ActionQueueGoal(Goal):
         return self.goal.key
 
 
-class NoGoalGoal(Goal):
+class NoGoalGoal(UnitGoal):
     _value = None
     _is_valid = True
 
@@ -579,24 +549,3 @@ class NoGoalGoal(Goal):
     @property
     def key(self) -> str:
         return str(self)
-
-
-class GoalCollection:
-    def __init__(self, goals: Sequence[Goal]) -> None:
-        self.goals_dict = {goal.key: goal for goal in goals}
-
-    def generate_and_evaluate_action_plans(
-        self, game_state: GameState, constraints: Optional[Constraints] = None
-    ) -> None:
-        for goal in self.goals_dict.values():
-            goal.generate_and_evaluate_action_plan(game_state=game_state, constraints=constraints)
-
-    def get_goal(self, key: str) -> Goal:
-        return self.goals_dict[key]
-
-    def get_keys(self) -> set[str]:
-        return {key for key, goal in self.goals_dict.items() if goal.is_valid}
-
-    def get_key_values(self, game_state: GameState, constraints: Optional[Constraints] = None) -> dict[str, float]:
-        self.generate_and_evaluate_action_plans(game_state=game_state, constraints=constraints)
-        return {key: goal.value for key, goal in self.goals_dict.items() if goal.is_valid}

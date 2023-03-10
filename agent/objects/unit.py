@@ -8,8 +8,8 @@ from objects.coordinate import TimeCoordinate, CoordinateList
 from objects.game_state import GameState
 from objects.action import Action
 
-from logic.goal import (
-    GoalCollection,
+from logic.goals.goal import GoalCollection
+from logic.goals.unit_goal import (
     CollectIceGoal,
     ClearRubbleGoal,
     CollectOreGoal,
