@@ -5,7 +5,6 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional
 from math import ceil
-from itertools import count
 
 from search import Search, MoveToGraph, FleeToGraph, DigAtGraph, PickupPowerGraph, Graph
 from objects.action import DigAction, TransferAction
