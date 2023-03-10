@@ -7,14 +7,21 @@ from objects.coordinate import Coordinate, CoordinateList
 
 
 def get_factory_spawn_loc(obs: dict) -> tuple:
-    rubble_score = get_rubble_score(obs["board"]["rubble"])
+    rubble_score = get_rubble_score(obs["board"]["rubble"], obs["factories"]["player_0"], obs["factories"]["player_1"])
     ice_score = get_ice_score(obs["board"]["ice"])
-    scores = get_scores(rubble_score, ice_score, valid_spawns=obs["board"]["valid_spawns_mask"])
+    ore_score = get_ore_score(obs["board"]["ore"])
+    scores = get_scores(rubble_score, ice_score, ore_score, valid_spawns=obs["board"]["valid_spawns_mask"])
     spawn_loc = get_coordinate_biggest(scores)
     return spawn_loc
 
 
-def get_rubble_score(rubble: np.ndarray) -> np.ndarray:
+def get_rubble_score(rubble: np.ndarray, factories_player_0: dict, factories_player_1: dict) -> np.ndarray:
+    rubble = rubble.copy()
+    for factories_player in [factories_player_0, factories_player_1]:
+        for factory in factories_player.values():
+            x, y = factory["pos"]
+            #rubble[x - 1: x + 2, y - 1: y + 2] = 100
+
     neighbouring_inverted_rubble = sum_neighbouring_inverted_rubble(rubble)
     rubble_score = neighbouring_inverted_rubble / 100000
     return rubble_score
@@ -28,8 +35,16 @@ def sum_neighbouring_inverted_rubble(rubble: np.ndarray) -> np.ndarray:
 
 def get_ice_score(ice: np.ndarray) -> np.ndarray:
     ice_surrounding = sum_closest_numbers(ice, r=1)
-    ice_score = ice_surrounding * 100
+    ice_surrounding = np.clip(ice_surrounding, a_min=0, a_max=1)
+    ice_score = ice_surrounding * 10000
     return ice_score
+
+
+def get_ore_score(ore: np.ndarray) -> np.ndarray:
+    ore_surrounding = sum_closest_numbers(ore, r=1)
+    ore_surrounding = np.clip(ore_surrounding, a_min=0, a_max=1)
+    ore_score = ore_surrounding * 1000
+    return ore_score
 
 
 def sum_closest_numbers(x: np.ndarray, r: int) -> np.ndarray:
@@ -73,8 +88,9 @@ def _convert_min_distance_to_conv_filter(distance_array: np.ndarray, r: int) -> 
     return np.where(between_0_and_r, 1, 0)
 
 
-def get_scores(rubble_score: np.ndarray, ice_score: np.ndarray, valid_spawns: np.ndarray) -> np.ndarray:
-    score = rubble_score + ice_score
+def get_scores(rubble_score: np.ndarray, ice_score: np.ndarray, ore_score: np.ndarray, valid_spawns: np.ndarray
+               ) -> np.ndarray:
+    score = rubble_score + ice_score + ore_score
     score = zero_invalid_spawns(score, valid_spawns)
     return score
 

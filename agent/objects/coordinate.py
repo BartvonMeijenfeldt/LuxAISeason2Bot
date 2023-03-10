@@ -107,6 +107,10 @@ class TimeCoordinate(Coordinate):
         new_t = self.t + nr_time_steps
         return new_t
 
+    @property
+    def xyt(self) -> tuple[int, int, int]:
+        return self.x, self.y, self.t
+
 
 @dataclass(eq=True, frozen=True)
 class DigCoordinate(Coordinate):
