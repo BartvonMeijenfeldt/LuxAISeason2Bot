@@ -40,7 +40,7 @@ class UnitAction(Action):
         ...
 
     def get_final_c(self, start_c: TCoordinate) -> TCoordinate:
-        return start_c + Direction.CENTER
+        return start_c.__add__(Direction.CENTER)
 
     @property
     def is_stationary(self) -> bool:
