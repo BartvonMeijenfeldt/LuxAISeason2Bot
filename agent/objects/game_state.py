@@ -4,12 +4,12 @@ from typing import TYPE_CHECKING, Optional
 from dataclasses import dataclass
 
 if TYPE_CHECKING:
-    from agent.objects.board import Board
-    from agent.objects.factory import Factory
-    from agent.objects.unit import Unit
-    from agent.lux.team import Team
-    from agent.objects.coordinate import Coordinate, CoordinateList
-    from agent.lux.config import EnvConfig
+    from objects.board import Board
+    from objects.actors.factory import Factory
+    from objects.actors.unit import Unit
+    from lux.team import Team
+    from objects.coordinate import Coordinate, CoordinateList
+    from lux.config import EnvConfig
 
 
 @dataclass

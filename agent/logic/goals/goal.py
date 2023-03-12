@@ -5,7 +5,7 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
 
-from objects.action_plan import ActionPlan
+from objects.actions.action_plan import ActionPlan
 from logic.constraints import Constraints
 
 

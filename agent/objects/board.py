@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from objects.coordinate import Coordinate, CoordinateList
 
 if TYPE_CHECKING:
-    from objects.unit import Unit
-    from objects.factory import Factory
+    from objects.actors.unit import Unit
+    from objects.actors.factory import Factory
 
 
 @dataclass

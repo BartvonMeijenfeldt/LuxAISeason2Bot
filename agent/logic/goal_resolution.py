@@ -5,7 +5,7 @@ from scipy.optimize import linear_sum_assignment
 from typing import Dict
 from collections import defaultdict
 
-from type_classes import Actor
+from objects.actors.actor import Actor
 from objects.game_state import GameState
 from logic.goals.goal import Goal, GoalCollection
 from logic.constraints import Constraints

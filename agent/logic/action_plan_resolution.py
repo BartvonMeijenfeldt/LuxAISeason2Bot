@@ -6,10 +6,11 @@ from copy import copy
 from itertools import count
 
 from search import PriorityQueue
-from type_classes import Actor
-from objects.unit import Unit
+from objects.actors.actor import Actor
+from objects.actors.unit import Unit
 from objects.coordinate import TimeCoordinate
-from objects.action_plan import ActionPlan
+from objects.actions.action_plan import ActionPlan
+from objects.actions.unit_action_plan import UnitActionPlan
 from objects.game_state import GameState
 from logic.constraints import Constraints
 from logic.goals.goal import GoalCollection
@@ -132,7 +133,7 @@ class ActionPlanResolver:
     ) -> Optional[dict[Actor, Constraints]]:
         unit_constraints = copy(parent_solution.constraints)
         unit_constraint = copy(unit_constraints[unit])
-        unit_power_requested = parent_solution.action_plans[unit].actions[0].power_requested
+        unit_power_requested = parent_solution.action_plans[unit].actions[0].requested_power
 
         if unit_constraint.max_power_request == 0:
             return None
@@ -227,7 +228,7 @@ class ActionPlanResolver:
             new_action_plan = self._get_new_action_plan(
                 unit=unit, unit_goals=unit_goals, unit_constraints=unit_constraints
             )
-            if not new_action_plan.unit_can_carry_out_plan(game_state=self.game_state):
+            if not new_action_plan.actor_can_carry_out_plan(game_state=self.game_state):
                 return
 
             new_joint_action_plans = self._get_new_joint_action_plans(solution, new_action_plan, unit=unit)
@@ -257,10 +258,10 @@ class ActionPlanResolver:
         self, parent_solution: Solution, unit_goals: dict[Actor, Goal], new_action_plan: ActionPlan, unit: Actor,
     ) -> float:
 
-        unit_action_plans = parent_solution.action_plans
+        actor_action_plans = parent_solution.action_plans
         unit_goal = unit_goals[unit]
 
-        old_action_plan_value = unit_goal.get_value_action_plan(unit_action_plans[unit], self.game_state)
+        old_action_plan_value = unit_goal.get_value_action_plan(actor_action_plans[unit], self.game_state)
         new_value = unit_goal.get_value_action_plan(new_action_plan, self.game_state)
         old_solution_value = parent_solution.value
 
@@ -271,8 +272,10 @@ class ActionPlanResolver:
 def get_power_collision(actor_action_plans: dict[Actor, ActionPlan], game_state: GameState):
     factories_power_available = {factory: factory.power for factory in game_state.board.player_factories}
     factories_requested_by_units = defaultdict(list)
-    unit_action_plans = [
-        (unit, action_plan) for unit, action_plan in actor_action_plans.items() if isinstance(unit, Unit)
+    unit_action_plans: list[tuple[Unit, UnitActionPlan]] = [
+        (unit, action_plan)
+        for unit, action_plan in actor_action_plans.items()
+        if isinstance(unit, Unit) and isinstance(action_plan, UnitActionPlan)
     ]
 
     for unit, action_plan in unit_action_plans:
@@ -280,7 +283,7 @@ def get_power_collision(actor_action_plans: dict[Actor, ActionPlan], game_state:
             continue
 
         first_action = action_plan.primitive_actions[0]
-        unit_power_requested = first_action.power_requested
+        unit_power_requested = first_action.requested_power
 
         if not unit_power_requested:
             continue
@@ -301,7 +304,7 @@ def get_unit_collision(unit_action_plans: dict[Actor, ActionPlan]) -> Optional[A
     all_time_coordinates = set()
 
     for action_plan in unit_action_plans.values():
-        time_coordinates = action_plan.get_time_coordinates()
+        time_coordinates = action_plan.time_coordinates
 
         collisions = all_time_coordinates & time_coordinates
         if collisions:
@@ -316,7 +319,7 @@ def get_unit_collision(unit_action_plans: dict[Actor, ActionPlan]) -> Optional[A
 def _get_unit_collision(unit_action_plans: dict[Actor, ActionPlan], collision_tc: TimeCoordinate) -> ActorCollision:
     collision_units = []
     for unit, action_plan in unit_action_plans.items():
-        time_coordinates = action_plan.get_time_coordinates()
+        time_coordinates = action_plan.time_coordinates
         if collision_tc in time_coordinates:
             collision_units.append(unit)
 

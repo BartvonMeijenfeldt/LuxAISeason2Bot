@@ -2,33 +2,29 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from objects.cargo import UnitCargo
+from objects.actors.actor import Actor
 from lux.config import UnitConfig
 from objects.coordinate import TimeCoordinate, CoordinateList
 from objects.game_state import GameState
-from objects.action import Action
+from objects.actions.unit_action import UnitAction
 
 from logic.goals.goal import GoalCollection
 from logic.goals.unit_goal import (
     CollectIceGoal,
     ClearRubbleGoal,
     CollectOreGoal,
-    NoGoalGoal,
+    UnitNoGoal,
     ActionQueueGoal,
     FleeGoal,
 )
 
 
 @dataclass
-class Unit:
-    team_id: int
-    unit_id: str
+class Unit(Actor):
     unit_type: str  # "LIGHT" or "HEAVY"
     tc: TimeCoordinate
-    power: int
-    cargo: UnitCargo
     unit_cfg: UnitConfig
-    action_queue: List[Action]
+    action_queue: List[UnitAction]
     time_to_power_cost = 50
     _is_under_threath: Optional[bool] = field(init=False, default=None)
 
@@ -51,7 +47,7 @@ class Unit:
         if action_queue_goal:
             goals = [action_queue_goal]
             if self.is_under_threath(game_state) and self.next_step_is_stationary():
-                # TODO, this should be getting all threatening opponents and the flee goal should be adapted to 
+                # TODO, this should be getting all threatening opponents and the flee goal should be adapted to
                 # take multiple opponents into account
                 neighboring_opponents = self._get_neighboring_opponents(game_state)
                 randomly_picked_neighboring_opponent = neighboring_opponents[0]
@@ -75,7 +71,7 @@ class Unit:
             collect_ore_goal = CollectOreGoal(unit=self, resource_c=target_ore_c, factory_c=target_factory_c)
             goals.append(collect_ore_goal)
 
-        goals += [NoGoalGoal(unit=self)]
+        goals += [UnitNoGoal(unit=self)]
         goals = GoalCollection(goals)
 
         return goals
