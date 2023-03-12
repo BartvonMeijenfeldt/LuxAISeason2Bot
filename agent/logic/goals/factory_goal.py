@@ -8,7 +8,9 @@ from logic.constraints import Constraints
 from objects.actions.factory_action import BuildHeavyAction, BuildLightAction, WaterAction
 from objects.game_state import GameState
 from objects.actions.factory_action_plan import FactoryActionPlan
-from objects.actors.factory import Factory
+
+if TYPE_CHECKING:
+    from objects.actors.factory import Factory
 
 
 @dataclass
@@ -17,12 +19,10 @@ class FactoryGoal(Goal):
 
     _value: Optional[float] = field(init=False, default=None)
     # TODO, should not be valid if constraints
-    _is_valid: Optional[bool] = field(init=False, default=True)
+    _is_valid: Optional[bool] = field(init=False, default=None)
 
     @abstractmethod
-    def generate_action_plan(
-        self, game_state: GameState, constraints: Optional[Constraints] = None
-    ) -> FactoryActionPlan:
+    def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> FactoryActionPlan:
         ...
 
     @abstractmethod
@@ -43,14 +43,25 @@ class FactoryGoal(Goal):
 
         return self._is_valid
 
+    def set_validity_plan(self, constraints: Constraints) -> None:
+        for tc in self.action_plan.time_coordinates:
+            if constraints.tc_violates_constraint(tc):
+                self._is_valid = False
+                return
+
+        power_requested = self.action_plan.power_requested
+        if constraints.max_power_request and power_requested > constraints.max_power_request:
+            self._is_valid = False
+            return
+
+        self._is_valid = True
+
 
 class BuildHeavyGoal(FactoryGoal):
-    def generate_action_plan(
-        self, game_state: GameState, constraints: Optional[Constraints] = None
-    ) -> FactoryActionPlan:
-        factory_action_plan = FactoryActionPlan(self.factory)
-        factory_action_plan.actions += [BuildHeavyAction()]
-        return factory_action_plan
+    def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> FactoryActionPlan:
+        self.action_plan = FactoryActionPlan(self.factory, [BuildHeavyAction()])
+        self.set_validity_plan(constraints)
+        return self.action_plan
 
     def get_value_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return 10_000
@@ -61,12 +72,10 @@ class BuildHeavyGoal(FactoryGoal):
 
 
 class BuildLightGoal(FactoryGoal):
-    def generate_action_plan(
-        self, game_state: GameState, constraints: Optional[Constraints] = None
-    ) -> FactoryActionPlan:
-        factory_action_plan = FactoryActionPlan(self.factory)
-        factory_action_plan.actions += [BuildLightAction()]
-        return factory_action_plan
+    def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> FactoryActionPlan:
+        self.action_plan = FactoryActionPlan(self.factory, [BuildLightAction()])
+        self.set_validity_plan(constraints)
+        return self.action_plan
 
     def get_value_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return 1_000
@@ -76,13 +85,15 @@ class BuildLightGoal(FactoryGoal):
         return f"Build_Light_{self.factory.center_tc.xy}"
 
 
+@dataclass
 class WaterGoal(FactoryGoal):
-    def generate_action_plan(
-        self, game_state: GameState, constraints: Optional[Constraints] = None
-    ) -> FactoryActionPlan:
-        factory_action_plan = FactoryActionPlan(self.factory)
-        factory_action_plan.actions += [WaterAction()]
-        return factory_action_plan
+    # TODO, should not be valid if can not water, or if it is too risky, next step factory will explode
+    _is_valid: Optional[bool] = field(init=False, default=True)
+
+    def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> FactoryActionPlan:
+        self.action_plan = FactoryActionPlan(self.factory, [WaterAction()])
+        self.set_validity_plan(constraints)
+        return self.action_plan
 
     def get_value_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return 100
@@ -96,10 +107,7 @@ class FactoryNoGoal(FactoryGoal):
     _value = None
     _is_valid = True
 
-    def generate_action_plan(
-        self, game_state: GameState, constraints: Optional[Constraints] = None
-    ) -> FactoryActionPlan:
-
+    def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> FactoryActionPlan:
         return FactoryActionPlan(self.factory)
 
     def get_value_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:

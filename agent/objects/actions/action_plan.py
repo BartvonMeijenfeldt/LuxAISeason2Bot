@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from abc import abstractmethod, ABCMeta
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from collections.abc import Iterator
 from objects.coordinate import TimeCoordinate
 
@@ -16,11 +16,7 @@ if TYPE_CHECKING:
 @dataclass
 class ActionPlan(metaclass=ABCMeta):
     actor: Actor
-
-    @property
-    @abstractmethod
-    def actions(self) -> list[Action]:
-        ...
+    actions: list[Action] = field(init=False)
 
     @abstractmethod
     def actor_can_carry_out_plan(self, game_state: GameState) -> bool:
@@ -31,12 +27,16 @@ class ActionPlan(metaclass=ABCMeta):
     def time_coordinates(self) -> set[TimeCoordinate]:
         ...
 
+    @abstractmethod
     def to_lux_output(self):
-        return [action.to_lux_output() for action in self.actions]
+        ...
+
+    @property
+    def power_requested(self) -> int:
+        return sum(action.requested_power for action in self.actions)
 
     def __iter__(self) -> Iterator[Action]:
         return iter(self.actions)
 
     def __len__(self) -> int:
         return len(self.actions)
-

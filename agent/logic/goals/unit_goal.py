@@ -38,7 +38,7 @@ class UnitGoal(Goal):
     _is_valid: Optional[bool] = field(init=False, default=None)
     solution_hash: dict[str, UnitActionPlan] = field(init=False, default_factory=dict)
 
-    def generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> UnitActionPlan:
+    def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
         if constraints is None:
             constraints = Constraints()
 
@@ -514,7 +514,7 @@ class ActionQueueGoal(UnitGoal):
     action_plan: UnitActionPlan
     _is_valid = True
 
-    def _generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> UnitActionPlan:
+    def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
         # TODO add something to generation infeasible if it violates constraints
         return self.action_plan
 

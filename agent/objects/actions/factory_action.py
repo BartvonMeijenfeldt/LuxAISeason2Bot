@@ -7,7 +7,7 @@ from lux.config import EnvConfig
 
 ENV_CFG = EnvConfig()
 LIGHT_CFG = ENV_CFG.ROBOTS["LIGHT"]
-HEAVY_CFG = ENV_CFG.ROBOTS["LIGHT"]
+HEAVY_CFG = ENV_CFG.ROBOTS["HEAVY"]
 
 
 class FactoryAction(Action):
@@ -17,13 +17,15 @@ class FactoryAction(Action):
     def to_lux_output(self) -> int:
         ...
 
+    @staticmethod
     @abstractmethod
-    def get_water_cost(self, game_state: GameState) -> int:
+    def get_water_cost(game_state: GameState, strain_id: int) -> int:
         ...
 
 
 class BuildAction(FactoryAction):
-    def get_water_cost(self, game_state: GameState) -> int:
+    @staticmethod
+    def get_water_cost(game_state: GameState, strain_id: int) -> int:
         return 0
 
 

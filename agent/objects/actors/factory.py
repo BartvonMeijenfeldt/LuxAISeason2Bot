@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from typing import Tuple
 from lux.config import EnvConfig
 from objects.actions.factory_action import WaterAction, LIGHT_CFG, HEAVY_CFG
 from objects.actors.actor import Actor
@@ -25,48 +26,48 @@ class Factory(Actor):
         return self.unit_id == __o.unit_id
 
     def generate_goals(self, game_state: GameState) -> GoalCollection:
-        if game_state.real_env_steps == 0:
-            goals = [BuildHeavyGoal(self)]
-        elif game_state.real_env_steps in [2, 4, 6, 8, 10]:
-            goals = [BuildLightGoal(self)]
-        elif self.can_build_light and game_state.real_env_steps > 11:
-            goals = [BuildLightGoal(self)]
-        elif (
+        goals = []
+
+        if self.can_build_heavy:
+            goals.append(BuildHeavyGoal(self))
+
+        if self.can_build_light:
+            goals.append(BuildLightGoal(self))
+
+        if (
             game_state.env_steps > 700
             and self.can_water(game_state)
             and self.cargo.water - self.water_cost(game_state) > game_state.steps_left
         ):
-            goals = [WaterGoal(self)]
-        else:
-            goals = []
+            goals.append(WaterGoal(self))
 
         goals.append(FactoryNoGoal(self))
         return GoalCollection(goals)
 
     @property
-    def can_build_heavy(self):
+    def can_build_heavy(self) -> bool:
         return self.power >= HEAVY_CFG.POWER_COST and self.cargo.metal >= HEAVY_CFG.METAL_COST
 
     @property
-    def can_build_light(self):
+    def can_build_light(self) -> bool:
         return self.power >= LIGHT_CFG.POWER_COST and self.cargo.metal >= LIGHT_CFG.METAL_COST
 
-    def water_cost(self, game_state: GameState):
+    def water_cost(self, game_state: GameState) -> int:
         return WaterAction.get_water_cost(game_state=game_state, strain_id=self.strain_id)
 
     def can_water(self, game_state):
         return self.cargo.water >= self.water_cost(game_state)
 
     @property
-    def pos_slice(self):
+    def pos_slice(self) -> Tuple[slice, slice]:
         return self.x_slice, self.y_slice
 
     @property
-    def x_slice(self):
+    def x_slice(self) -> slice:
         return slice(self.center_tc.x - self.radius, self.center_tc.x + self.radius + 1)
 
     @property
-    def y_slice(self):
+    def y_slice(self) -> slice:
         return slice(self.center_tc.y - self.radius, self.center_tc.y + self.radius + 1)
 
     @property
@@ -95,3 +96,6 @@ class Factory(Actor):
 
     def get_closest_factory_tile(self, c: Coordinate) -> Coordinate:
         return self.coordinates.get_closest_tile(c)
+
+    def __repr__(self) -> str:
+        return f"Factory[id={self.unit_id}]"

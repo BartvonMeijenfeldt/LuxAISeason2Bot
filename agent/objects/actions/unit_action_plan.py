@@ -89,10 +89,6 @@ class UnitActionPlan(ActionPlan):
         return self._final_ptc
 
     @property
-    def power_requested(self) -> int:
-        return sum(action.requested_power for action in self.actions)
-
-    @property
     def time_coordinates(self) -> set[TimeCoordinate]:
         simulator = ActionPlanSimulator(self, unit=self.actor)
         return simulator.get_time_coordinates()
@@ -186,6 +182,9 @@ class UnitActionPlan(ActionPlan):
             return False
 
         return simulator.can_update_action_queue()
+
+    def to_lux_output(self):
+        return [action.to_lux_output() for action in self.actions]
 
 
 @dataclass

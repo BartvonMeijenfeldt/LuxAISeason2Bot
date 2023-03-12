@@ -86,7 +86,7 @@ class Agent:
         return {
             actor.unit_id: plan.to_lux_output()
             for actor, plan in actor_action_plans.items()
-            if self._is_new_action_plan(actor, plan)
+            if plan.actions and self._is_new_action_plan(actor, plan)
         }
 
     def _get_action_queue_goal(self, unit: Unit) -> Optional[ActionQueueGoal]:

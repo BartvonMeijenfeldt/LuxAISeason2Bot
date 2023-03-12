@@ -15,9 +15,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class Goal(metaclass=ABCMeta):
-    def generate_and_evaluate_action_plan(
-        self, game_state: GameState, constraints: Optional[Constraints] = None
-    ) -> ActionPlan:
+    def generate_and_evaluate_action_plan(self, game_state: GameState, constraints: Constraints) -> ActionPlan:
         self.action_plan = self.generate_action_plan(game_state=game_state, constraints=constraints)
         self._value = self.get_value_action_plan(action_plan=self.action_plan, game_state=game_state)
         return self.action_plan
@@ -50,9 +48,7 @@ class GoalCollection:
     def __init__(self, goals: Sequence[Goal]) -> None:
         self.goals_dict = {goal.key: goal for goal in goals}
 
-    def generate_and_evaluate_action_plans(
-        self, game_state: GameState, constraints: Optional[Constraints] = None
-    ) -> None:
+    def generate_and_evaluate_action_plans(self, game_state: GameState, constraints: Constraints) -> None:
         for goal in self.goals_dict.values():
             goal.generate_and_evaluate_action_plan(game_state=game_state, constraints=constraints)
 
@@ -62,6 +58,6 @@ class GoalCollection:
     def get_keys(self) -> set[str]:
         return {key for key, goal in self.goals_dict.items() if goal.is_valid}
 
-    def get_key_values(self, game_state: GameState, constraints: Optional[Constraints] = None) -> dict[str, float]:
+    def get_key_values(self, game_state: GameState, constraints: Constraints) -> dict[str, float]:
         self.generate_and_evaluate_action_plans(game_state=game_state, constraints=constraints)
         return {key: goal.value for key, goal in self.goals_dict.items() if goal.is_valid}

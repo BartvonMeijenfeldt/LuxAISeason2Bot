@@ -106,7 +106,7 @@ class ActionPlanResolver:
         sum_value = 0
 
         for actor, goal in actor_goals.items():
-            action_plan = goal.generate_action_plan(self.game_state)
+            action_plan = goal.generate_action_plan(self.game_state, constraints=Constraints())
             actor_action_plans[actor] = action_plan
             value = goal.get_value_action_plan(action_plan, self.game_state)
             sum_value += value
