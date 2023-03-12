@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Optional
 from dataclasses import dataclass
-from objects.action import Action, DigAction, PickupAction
+from objects.actions.unit_action import UnitAction, DigAction, PickupAction
 from objects.resource import Resource
 from objects.direction import Direction
 
@@ -19,7 +19,7 @@ class Coordinate:
         return Coordinate(x, y)
 
     def _add_get_new_xy(self, other) -> tuple[int, int]:
-        if isinstance(other, Action):
+        if isinstance(other, UnitAction):
             return self._add_get_new_xy_action(other)
 
         if isinstance(other, Direction):
@@ -30,7 +30,7 @@ class Coordinate:
 
         raise TypeError(f"Unexpected type of other: {type(other)}")
 
-    def _add_get_new_xy_action(self, action: Action) -> tuple[int, int]:
+    def _add_get_new_xy_action(self, action: UnitAction) -> tuple[int, int]:
         direction_tuple = action.unit_direction.value
         x = self.x + direction_tuple[0] * action.n
         y = self.y + direction_tuple[1] * action.n
@@ -103,7 +103,7 @@ class TimeCoordinate(Coordinate):
         return TimeCoordinate(x, y, t)
 
     def _add_get_new_t(self, other) -> int:
-        nr_time_steps = other.n if isinstance(other, Action) else 1
+        nr_time_steps = other.n if isinstance(other, UnitAction) else 1
         new_t = self.t + nr_time_steps
         return new_t
 

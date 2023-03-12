@@ -1,37 +1,34 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
 
-from abc import ABCMeta, abstractmethod
+from typing import TYPE_CHECKING, TypeVar
+from abc import abstractmethod
 from dataclasses import dataclass
 from math import floor
 
+from objects.actions.action import Action
 from objects.resource import Resource
 from objects.direction import Direction, NUMBER_DIRECTION
 
 if TYPE_CHECKING:
     from objects.coordinate import Coordinate
-    from objects.unit import UnitConfig
+    from objects.actors.unit import UnitConfig
     from objects.board import Board
 
     TCoordinate = TypeVar("TCoordinate", bound=Coordinate)
 
 
-@dataclass
-class Action(metaclass=ABCMeta):
+class UnitAction(Action):
+    n: int
+
+    @abstractmethod
+    def to_lux_output(self) -> np.ndarray:
+        ...
+
     @property
     @abstractmethod
     def unit_direction(self) -> Direction:
-        ...
-
-    @property
-    @abstractmethod
-    def power_requested(self) -> int:
-        ...
-
-    @abstractmethod
-    def to_array(self) -> np.ndarray:
         ...
 
     @abstractmethod
@@ -43,14 +40,14 @@ class Action(metaclass=ABCMeta):
         ...
 
     def get_final_c(self, start_c: TCoordinate) -> TCoordinate:
-        return start_c + Direction.CENTER
+        return start_c.__add__(Direction.CENTER)
 
     @property
     def is_stationary(self) -> bool:
         return self.unit_direction == Direction.CENTER
 
     @classmethod
-    def from_array(cls, x: np.ndarray) -> Action:
+    def from_array(cls, x: np.ndarray) -> UnitAction:
         action_identifier, direction, resource, amount, repeat, n = x
         direction = NUMBER_DIRECTION[direction]
         resource = Resource(resource)
@@ -72,7 +69,7 @@ class Action(metaclass=ABCMeta):
 
 
 @dataclass
-class MoveAction(Action):
+class MoveAction(UnitAction):
     direction: Direction
     repeat: int = 0
     n: int = 1
@@ -82,10 +79,10 @@ class MoveAction(Action):
         return self.direction
 
     @property
-    def power_requested(self) -> int:
+    def requested_power(self) -> int:
         return 0
 
-    def to_array(self) -> np.ndarray:
+    def to_lux_output(self) -> np.ndarray:
         action_identifier = 0
         resource = 0
         amount = 0
@@ -129,7 +126,7 @@ class MoveAction(Action):
 
 
 @dataclass
-class TransferAction(Action):
+class TransferAction(UnitAction):
     direction: Direction
     amount: int
     resource: Resource
@@ -141,10 +138,10 @@ class TransferAction(Action):
         return Direction.CENTER
 
     @property
-    def power_requested(self) -> int:
+    def requested_power(self) -> int:
         return 0
 
-    def to_array(self) -> np.ndarray:
+    def to_lux_output(self) -> np.ndarray:
         action_identifier = 1
         return np.array(
             [action_identifier, self.direction.number, self.resource.value, self.amount, self.repeat, self.n]
@@ -166,7 +163,7 @@ class TransferAction(Action):
 
 
 @dataclass
-class PickupAction(Action):
+class PickupAction(UnitAction):
     amount: int
     resource: Resource
     repeat: int = 0
@@ -177,13 +174,13 @@ class PickupAction(Action):
         return Direction.CENTER
 
     @property
-    def power_requested(self) -> int:
+    def requested_power(self) -> int:
         if self.resource == Resource.Power:
-            return self.amount
+            return self.amount * self.n
 
         return 0
 
-    def to_array(self) -> np.ndarray:
+    def to_lux_output(self) -> np.ndarray:
         action_identifier = 2
         direction = 0
         return np.array([action_identifier, direction, self.resource.value, self.amount, self.repeat, self.n])
@@ -204,7 +201,7 @@ class PickupAction(Action):
 
 
 @dataclass
-class DigAction(Action):
+class DigAction(UnitAction):
     repeat: int = 0
     n: int = 1
 
@@ -213,10 +210,10 @@ class DigAction(Action):
         return Direction.CENTER
 
     @property
-    def power_requested(self) -> int:
+    def requested_power(self) -> int:
         return 0
 
-    def to_array(self) -> np.ndarray:
+    def to_lux_output(self) -> np.ndarray:
         action_identifier = 3
         direction = 0
         resource = 0
@@ -233,7 +230,7 @@ class DigAction(Action):
 
 
 @dataclass
-class SelfDestructAction(Action):
+class SelfDestructAction(UnitAction):
     repeat: int = 0
     n: int = 1
 
@@ -242,10 +239,10 @@ class SelfDestructAction(Action):
         return Direction.CENTER
 
     @property
-    def power_requested(self) -> int:
+    def requested_power(self) -> int:
         return 0
 
-    def to_array(self) -> np.ndarray:
+    def to_lux_output(self) -> np.ndarray:
         action_identifier = 4
         direction = 0
         resource = 0
@@ -261,20 +258,20 @@ class SelfDestructAction(Action):
 
 
 @dataclass
-class RechargeAction(Action):
+class RechargeAction(UnitAction):
     amount: int
     repeat: int = 0
     n: int = 1
 
     @property
-    def power_requested(self) -> int:
+    def requested_power(self) -> int:
         return 0
 
     @property
     def unit_direction(self) -> Direction:
         return Direction.CENTER
 
-    def to_array(self) -> np.ndarray:
+    def to_lux_output(self) -> np.ndarray:
         action_identifier = 5
         direction = 0
         resource = 0

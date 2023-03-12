@@ -1,16 +1,22 @@
+from __future__ import annotations
 import numpy as np
 
-from typing import List, Dict, Optional
+from typing import TYPE_CHECKING, Dict, Tuple, Optional, Any
 
 from lux.kit import obs_to_game_state
 from lux.config import EnvConfig
 from lux.utils import is_my_turn_to_place_factory
 from objects.game_state import GameState
-from objects.unit import Unit
-from objects.action_plan import ActionPlan
+from objects.actors.factory import Factory
+from objects.actors.unit import Unit
+from objects.actions.unit_action_plan import ActionPlan, UnitActionPlan
 from logic.early_setup import get_factory_spawn_loc
-from logic.goal import ActionQueueGoal, Goal
+from logic.goals.goal import Goal, GoalCollection
+from logic.goals.unit_goal import ActionQueueGoal, UnitGoal
 from logic.action_plan_resolution import ActionPlanResolver
+
+if TYPE_CHECKING:
+    from objects.actors.actor import Actor
 
 
 class Agent:
@@ -19,7 +25,7 @@ class Agent:
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         np.random.seed(0)
         self.env_cfg: EnvConfig = env_cfg
-        self.prev_steps_goals: dict[str, Goal] = {}
+        self.prev_steps_goals: dict[str, UnitGoal] = {}
 
     def early_setup(self, step: int, obs, remainingOverageTime: int = 60):
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player)
@@ -42,55 +48,62 @@ class Agent:
         """
 
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player)
-        factory_actions = self.get_factory_actions(game_state)
-        unit_actions = self.get_unit_actions(game_state)
 
-        actions = {**factory_actions, **unit_actions}
-        return actions
+        factory_goal_collections = self.get_factory_goal_collections(game_state)
+        unit_goal_collections = self.get_unit_goal_collections(game_state)
+        actor_goal_collections = {**factory_goal_collections, **unit_goal_collections}
 
-    def get_factory_actions(self, game_state: GameState) -> Dict[str, List[np.ndarray]]:
-        actions = dict()
-        for factory in game_state.player_factories:
-            action = factory.act(game_state=game_state)
-            if isinstance(action, int):
-                actions[factory.unit_id] = action
+        actor_goals, actor_action_plans = self.resolve_goals(actor_goal_collections, game_state)
+        self._update_prev_step_goals(actor_goals)
+        actions = self.get_actions(actor_action_plans)
 
         return actions
 
-    def get_unit_actions(self, game_state: GameState) -> Dict[str, List[np.ndarray]]:
-        unit_goal_collections = {}
+    def get_factory_goal_collections(self, game_state: GameState) -> Dict[Factory, GoalCollection]:
+        return {factory: factory.generate_goals(game_state) for factory in game_state.player_factories}
+
+    def get_unit_goal_collections(self, game_state: GameState) -> Dict[Unit, GoalCollection]:
+        unit_goal_collections: Dict[Unit, GoalCollection] = {}
 
         for unit in game_state.player_units:
             unit_action_queue_goal = self._get_action_queue_goal(unit=unit)
             goal_collection = unit.generate_goals(game_state, unit_action_queue_goal)
             unit_goal_collections[unit] = goal_collection
 
-        # unit_goals = resolve_goal_conflicts(unit_goal_collections, game_state)
-        unit_goals, unit_action_plans = ActionPlanResolver(
-            unit_goal_collections=unit_goal_collections, game_state=game_state
+        return unit_goal_collections
+
+    def resolve_goals(
+        self, actor_goal_collections: Dict[Actor, GoalCollection], game_state: GameState
+    ) -> Tuple[Dict[Actor, Goal], Dict[Actor, ActionPlan]]:
+
+        actor_goals, actor_action_plans = ActionPlanResolver(
+            actor_goal_collections=actor_goal_collections, game_state=game_state
         ).resolve()
 
-        unit_actions = {
-            unit.unit_id: plan.to_action_arrays()
-            for unit, plan in unit_action_plans.items()
-            if self._is_new_action_plan(unit, plan)
+        return actor_goals, actor_action_plans
+
+    def get_actions(self, actor_action_plans: Dict[Actor, ActionPlan]) -> Dict[str, Any]:
+        return {
+            actor.unit_id: plan.to_lux_output()
+            for actor, plan in actor_action_plans.items()
+            if plan.actions and self._is_new_action_plan(actor, plan)
         }
-
-        self._update_prev_step_goals(unit_goals)
-
-        return unit_actions
 
     def _get_action_queue_goal(self, unit: Unit) -> Optional[ActionQueueGoal]:
         if not unit.has_actions_in_queue:
             return None
 
         last_step_goal = self.prev_steps_goals[unit.unit_id]
-        action_plan = ActionPlan(original_actions=unit.action_queue, unit=unit, is_set=True)
+        action_plan = UnitActionPlan(original_actions=unit.action_queue, actor=unit, is_set=True)
         action_queue_goal = ActionQueueGoal(unit=unit, action_plan=action_plan, goal=last_step_goal)
         return action_queue_goal
 
-    def _is_new_action_plan(self, unit: Unit, plan: ActionPlan) -> bool:
-        return plan.actions != unit.action_queue
+    def _is_new_action_plan(self, actor: Actor, plan: ActionPlan) -> bool:
+        return isinstance(actor, Factory) or plan.actions != actor.action_queue
 
-    def _update_prev_step_goals(self, unit_goal_collections: Dict[Unit, Goal]) -> None:
-        self.prev_steps_goals = {unit.unit_id: goal for unit, goal in unit_goal_collections.items()}
+    def _update_prev_step_goals(self, actor_goal_collections: Dict[Actor, Goal]) -> None:
+        self.prev_steps_goals = {
+            unit.unit_id: goal
+            for unit, goal in actor_goal_collections.items()
+            if isinstance(unit, Unit) and isinstance(goal, UnitGoal)
+        }

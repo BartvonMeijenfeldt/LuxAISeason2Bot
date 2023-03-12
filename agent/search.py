@@ -8,9 +8,9 @@ from dataclasses import dataclass
 from objects.coordinate import PowerTimeCoordinate, DigTimeCoordinate, TimeCoordinate, DigCoordinate, Coordinate
 from objects.direction import Direction
 from objects.board import Board
-from objects.action import Action, MoveAction, DigAction, PickupAction
+from objects.actions.unit_action import UnitAction, MoveAction, DigAction, PickupAction
 from objects.resource import Resource
-from objects.unit import UnitConfig
+from objects.actors.unit import UnitConfig
 from logic.constraints import Constraints
 
 
@@ -39,10 +39,10 @@ class Graph(metaclass=ABCMeta):
     constraints: Constraints
 
     @abstractmethod
-    def potential_actions(self, c: TimeCoordinate) -> List[Action]:
+    def potential_actions(self, c: TimeCoordinate) -> List[UnitAction]:
         ...
 
-    def get_valid_action_nodes(self, c: TimeCoordinate) -> List[Tuple[Action, TimeCoordinate]]:
+    def get_valid_action_nodes(self, c: TimeCoordinate) -> List[Tuple[UnitAction, TimeCoordinate]]:
         action_nodes = []
 
         for action in self.potential_actions(c=c):
@@ -52,14 +52,14 @@ class Graph(metaclass=ABCMeta):
 
         return action_nodes
 
-    def cost(self, action: Action, from_c: TimeCoordinate, to_c: TimeCoordinate) -> float:
+    def cost(self, action: UnitAction, from_c: TimeCoordinate, to_c: TimeCoordinate) -> float:
         if self.constraints.tc_violates_constraint(to_c):
             return math.inf
 
         action_power_cost = self.get_power_cost(action=action, to_c=to_c)
         return action_power_cost + self.time_to_power_cost
 
-    def get_power_cost(self, action: Action, to_c: Coordinate) -> float:
+    def get_power_cost(self, action: UnitAction, to_c: Coordinate) -> float:
         power_change = action.get_power_change_by_end_c(unit_cfg=self.unit_cfg, end_c=to_c, board=self.board)
         power_cost = max(0, -power_change)
         return power_cost
@@ -90,7 +90,7 @@ class MoveToGraph(Graph):
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
 
-    def potential_actions(self, c: TimeCoordinate) -> List[Action]:
+    def potential_actions(self, c: TimeCoordinate) -> List[UnitAction]:
         return self._potential_actions
 
     def heuristic(self, node: Coordinate) -> float:
@@ -113,7 +113,7 @@ class FleeToGraph(Graph):
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
 
-    def potential_actions(self, c: TimeCoordinate) -> List[Action]:
+    def potential_actions(self, c: TimeCoordinate) -> List[UnitAction]:
         if c.t == self.start_c.t:
             return [
                 action
@@ -149,7 +149,7 @@ class PickupPowerGraph(Graph):
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
 
-    def potential_actions(self, c: TimeCoordinate) -> List[Action]:
+    def potential_actions(self, c: TimeCoordinate) -> List[UnitAction]:
         if self.board.is_player_factory_tile(c=c):
             return self._potential_move_actions + self._potential_recharge_actions
         else:
@@ -187,7 +187,7 @@ class DigAtGraph(Graph):
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
 
-    def potential_actions(self, c: TimeCoordinate) -> List[Action]:
+    def potential_actions(self, c: TimeCoordinate) -> List[UnitAction]:
         if self.goal.x == c.x and self.goal.y == c.y:
             if self.constraints.has_time_constraints and self.constraints.max_t <= c.t:
                 return self._potential_dig_actions
@@ -215,11 +215,11 @@ class DigAtGraph(Graph):
 class Search:
     def __init__(self, graph: Graph) -> None:
         self.frontier = PriorityQueue()
-        self.came_from: dict[TimeCoordinate, tuple[Action, TimeCoordinate]] = {}
+        self.came_from: dict[TimeCoordinate, tuple[UnitAction, TimeCoordinate]] = {}
         self.cost_so_far: dict[TimeCoordinate, float] = {}
         self.graph = graph
 
-    def get_actions_to_complete_goal(self, start: TimeCoordinate) -> List[Action]:
+    def get_actions_to_complete_goal(self, start: TimeCoordinate) -> List[UnitAction]:
         self._init_search(start)
         self._find_optimal_solution()
         return self._get_solution_actions()
@@ -245,13 +245,13 @@ class Search:
 
         self.final_node = current_node
 
-    def _add_node(self, node: TimeCoordinate, action: Action, current_node: TimeCoordinate, node_cost: float) -> None:
+    def _add_node(self, node: TimeCoordinate, action: UnitAction, current_node: TimeCoordinate, node_cost: float) -> None:
         self.cost_so_far[node] = node_cost
         priority = node_cost + self.graph.heuristic(node)
         self.frontier.put(node, priority)
         self.came_from[node] = (action, current_node)
 
-    def _get_solution_actions(self) -> List[Action]:
+    def _get_solution_actions(self) -> List[UnitAction]:
         solution = []
         cur_c = self.final_node
 

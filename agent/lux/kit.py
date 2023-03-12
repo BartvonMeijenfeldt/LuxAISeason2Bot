@@ -6,12 +6,12 @@ from typing import Dict, List
 
 from lux.config import EnvConfig
 from lux.team import Team
-from objects.unit import Unit
+from objects.actors.unit import Unit
 from objects.game_state import GameState
 from objects.board import Board
-from objects.coordinate import TimeCoordinate, Coordinate
-from objects.factory import Factory
-from objects.action import Action
+from objects.coordinate import TimeCoordinate
+from objects.actors.factory import Factory
+from objects.actions.unit_action import UnitAction
 
 
 def process_action(action):
@@ -72,7 +72,7 @@ def process_obs(player, game_state, step, obs):
 
 def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str):
     units = create_units(obs=obs, env_cfg=env_cfg, t=obs['real_env_steps'])
-    factories = create_factories(obs=obs, env_cfg=env_cfg)
+    factories = create_factories(obs=obs, env_cfg=env_cfg, t=obs['real_env_steps'])
     factory_occupancy_map = create_factory_occupancy_map(factories, obs["board"]["rubble"].shape)
 
     player_team = Team(**obs["teams"][player], agent=player) if player in obs["teams"] else None
@@ -112,20 +112,20 @@ def create_units(obs, env_cfg: EnvConfig, t: int) -> Dict[str, List[Unit]]:
             del unit_data["pos"]
             unit_data["cargo"] = UnitCargo(**unit_data["cargo"])
             unit_data["unit_cfg"] = env_cfg.ROBOTS[unit_data["unit_type"]]
-            unit_data["action_queue"] = [Action.from_array(action) for action in unit_data["action_queue"]]
+            unit_data["action_queue"] = [UnitAction.from_array(action) for action in unit_data["action_queue"]]
             unit = Unit(**unit_data)
             units[agent].append(unit)
 
     return units
 
 
-def create_factories(obs, env_cfg) -> Dict[str, List[Factory]]:
+def create_factories(obs, env_cfg, t: int) -> Dict[str, List[Factory]]:
     factories = defaultdict(list)
 
     for agent in obs["factories"]:
         for factory_data in obs["factories"][agent].values():
             factory_data = factory_data.copy()
-            factory_data["center"] = Coordinate(*factory_data["pos"])
+            factory_data["center_tc"] = TimeCoordinate(*factory_data["pos"], t=t)
             del factory_data["pos"]
             factory_data["cargo"] = UnitCargo(**factory_data["cargo"])
             factory = Factory(**factory_data, env_cfg=env_cfg)
