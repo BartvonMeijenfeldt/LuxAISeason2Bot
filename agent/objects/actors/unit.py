@@ -54,10 +54,17 @@ class Unit(Actor):
                 flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
                 goals.append(flee_goal)
 
-        elif game_state.env_steps <= 900 and self.unit_type == "HEAVY":
+        elif game_state.env_steps <= 920 and self.unit_type == "HEAVY":
             target_ice_c = game_state.get_closest_ice_tile(c=self.tc)
             target_factory_c = game_state.get_closest_factory_c(c=target_ice_c)
             goals = [CollectIceGoal(unit=self, resource_c=target_ice_c, factory_c=target_factory_c)]
+
+        elif game_state.env_steps > 920 and self.unit_type == "HEAVY":
+            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
+            goals = [
+                ClearRubbleGoal(unit=self, rubble_positions=CoordinateList([rubble_tile]))
+                for rubble_tile in closest_rubble_tiles
+            ]
 
         else:
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
