@@ -161,7 +161,7 @@ class UnitGoal(Goal):
     def _get_dig_plan(
         self, start_tc: TimeCoordinate, dig_c: Coordinate, nr_digs: int, constraints: Constraints, board: Board,
     ) -> list[UnitAction]:
-        if constraints.has_time_constraints:
+        if constraints.has_time_constraints and constraints.max_t > start_tc.t:
             return self._get_dig_plan_with_constraints(start_tc, dig_c, nr_digs, constraints, board)
 
         return self._get_dig_plan_wihout_constraints(start_tc, dig_c, nr_digs, board)
@@ -515,7 +515,7 @@ class ActionQueueGoal(UnitGoal):
     _is_valid = True
 
     def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
-        # TODO add something to generation infeasible if it violates constraints
+        self.set_validity_plan(constraints)
         return self.action_plan
 
     def get_value_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
