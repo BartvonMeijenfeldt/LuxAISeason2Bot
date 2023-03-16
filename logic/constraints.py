@@ -67,9 +67,6 @@ class Constraints:
 
         return constraints
 
-    def set_max_power_request(self, power: int) -> None:
-        self.max_power_request = power
-
     @property
     def max_t(self) -> Optional[int]:
         if not self.has_time_constraints:
