@@ -45,10 +45,14 @@ class Graph(metaclass=ABCMeta):
     def get_valid_action_nodes(self, c: TimeCoordinate) -> Generator[Tuple[UnitAction, TimeCoordinate], None, None]:
         for action in self.potential_actions(c=c):
             to_c = c + action
-            if not self.constraints.tc_violates_constraint(to_c) and self.board.is_valid_c_for_player(c=to_c):
+            if (
+                not self.constraints.tc_violates_constraint(to_c)
+                and self.board.is_valid_c_for_player(c=to_c)
+                and self.constraints.can_fullfill_next_positive_constraint(to_c)
+            ):
                 yield ((action, to_c))
 
-    def cost(self, action: UnitAction, from_c: TimeCoordinate, to_c: TimeCoordinate) -> float:
+    def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
         action_power_cost = self.get_power_cost(action=action, to_c=to_c)
         return action_power_cost + self.time_to_power_cost
 
@@ -241,7 +245,7 @@ class Search:
             current_cost = self.cost_so_far[current_node]
 
             for action, next_node in self.graph.get_valid_action_nodes(current_node):
-                new_cost = current_cost + self.graph.cost(action=action, from_c=current_node, to_c=next_node)
+                new_cost = current_cost + self.graph.cost(action=action, to_c=next_node)
                 # With a good heuristic (new_cost < cost_so_far[node]) shouldn't be relevant
                 if next_node not in self.cost_so_far or new_cost < self.cost_so_far[next_node]:
                     self._add_node(node=next_node, action=action, current_node=current_node, node_cost=new_cost)
