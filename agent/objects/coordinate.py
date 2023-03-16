@@ -18,10 +18,11 @@ class Coordinate:
         x, y = self._add_get_new_xy(other)
         return Coordinate(x, y)
 
-    def _add_get_new_xy(self, other) -> tuple[int, int]:
-        if isinstance(other, UnitAction):
-            return self._add_get_new_xy_action(other)
+    def add_action(self, action: UnitAction) -> Coordinate:
+        x, y = self._add_get_new_xy_action(action)
+        return Coordinate(x, y)
 
+    def _add_get_new_xy(self, other) -> tuple[int, int]:
         if isinstance(other, Direction):
             return self._add_get_new_xy_direction(other)
 
@@ -98,14 +99,20 @@ class TimeCoordinate(Coordinate):
         return self.t < other.t
 
     def __add__(self, other) -> TimeCoordinate:
-        x, y = super()._add_get_new_xy(other)
-        t = self._add_get_new_t(other)
+        x, y = self._add_get_new_xy(other)
+        t = self._add_get_new_t()
         return TimeCoordinate(x, y, t)
 
-    def _add_get_new_t(self, other) -> int:
-        nr_time_steps = other.n if isinstance(other, UnitAction) else 1
-        new_t = self.t + nr_time_steps
-        return new_t
+    def _add_get_new_t(self) -> int:
+        return self.t + 1
+
+    def add_action(self, action: UnitAction) -> TimeCoordinate:
+        x, y = self._add_get_new_xy_action(action)
+        t = self._add_get_new_t_action(action)
+        return TimeCoordinate(x, y, t)
+
+    def _add_get_new_t_action(self, action: UnitAction) -> int:
+        return self.t + action.n
 
     @property
     def xyt(self) -> tuple[int, int, int]:
@@ -123,13 +130,16 @@ class DigCoordinate(Coordinate):
         return iter((self.x, self.y, self.d))
 
     def __add__(self, other) -> DigCoordinate:
-        x, y = super()._add_get_new_xy(other)
-        nr_digs = self._add_get_new_nr_digs(other)
-        return DigCoordinate(x, y, nr_digs)
+        x, y = self._add_get_new_xy(other)
+        return DigCoordinate(x, y, self.d)
 
-    def _add_get_new_nr_digs(self, other) -> int:
-        added_digs = other.n if isinstance(other, DigAction) else 0
-        return self.d + added_digs
+    def add_action(self, action: UnitAction) -> DigCoordinate:
+        x, y = self._add_get_new_xy_action(action)
+        d = self._add_get_new_d_action(action)
+        return DigCoordinate(x, y, d)
+
+    def _add_get_new_d_action(self, action: UnitAction) -> int:
+        return self.d + action.n if isinstance(action, DigAction) else self.d
 
 
 @dataclass(eq=True, frozen=True)
@@ -139,10 +149,14 @@ class DigTimeCoordinate(DigCoordinate, TimeCoordinate):
 
     def __add__(self, other) -> DigTimeCoordinate:
         x, y = super()._add_get_new_xy(other)
-        t = super()._add_get_new_t(other)
-        nr_digs = super()._add_get_new_nr_digs(other)
+        t = super()._add_get_new_t()
+        return DigTimeCoordinate(x, y, t, self.d)
 
-        return DigTimeCoordinate(x, y, t, nr_digs)
+    def add_action(self, action: UnitAction) -> DigTimeCoordinate:
+        x, y = self._add_get_new_xy_action(action)
+        t = self._add_get_new_t_action(action)
+        d = self._add_get_new_d_action(action)
+        return DigTimeCoordinate(x, y, t, d)
 
 
 @dataclass(eq=True, frozen=True)
@@ -154,11 +168,21 @@ class PowerTimeCoordinate(TimeCoordinate):
 
     def __add__(self, other) -> PowerTimeCoordinate:
         x, y = super()._add_get_new_xy(other)
-        t = super()._add_get_new_t(other)
-        p = self._add_get_power_recharged(other)
+        t = super()._add_get_new_t()
+        p = self._add_get_p_recharged()
         return PowerTimeCoordinate(x, y, t, p)
 
-    def _add_get_power_recharged(self, other) -> int:
+    def _add_get_p_recharged(self) -> int:
+        return self.p
+
+    def add_action(self, action: UnitAction) -> PowerTimeCoordinate:
+        x, y = self._add_get_new_xy_action(action)
+        t = self._add_get_new_t_action(action)
+        p = self._add_get_new_p_action(action)
+
+        return PowerTimeCoordinate(x, y, t, p)
+
+    def _add_get_new_p_action(self, other) -> int:
         if isinstance(other, PickupAction) and other.resource == Resource.Power:
             added_power_recharged = other.n * other.amount
         else:
