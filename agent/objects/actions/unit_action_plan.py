@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Optional, Sequence
 from dataclasses import dataclass, replace, field
 from search import Search
 from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
+from objects.direction import Direction
 from search import MoveToGraph
 from objects.actions.unit_action import DigAction
 from objects.actions.action_plan import ActionPlan
@@ -90,6 +91,9 @@ class UnitActionPlan(ActionPlan):
 
     @property
     def time_coordinates(self) -> set[TimeCoordinate]:
+        if len(self.actions) == 0:
+            return {self.actor.tc + Direction.CENTER}
+
         simulator = ActionPlanSimulator(self, unit=self.actor)
         return simulator.get_time_coordinates()
 
@@ -260,7 +264,7 @@ class ActionPlanSimulator:
         self.cur_power = self.unit.power
         self.t = self.unit.tc.t
         self.cur_tc = TimeCoordinate(x=self.unit.tc.x, y=self.unit.tc.y, t=self.t)
-        self.time_coordinates = {self.cur_tc}
+        self.time_coordinates = set()
 
     def _optional_update_action_queue(self) -> None:
         if not self.action_plan.is_set and self.action_plan.original_actions:

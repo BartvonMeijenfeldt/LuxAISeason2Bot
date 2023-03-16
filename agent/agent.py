@@ -86,7 +86,7 @@ class Agent:
         return {
             actor.unit_id: plan.to_lux_output()
             for actor, plan in actor_action_plans.items()
-            if plan.actions and self._is_new_action_plan(actor, plan)
+            if self._is_new_action_plan(actor, plan)
         }
 
     def _get_action_queue_goal(self, unit: Unit) -> Optional[ActionQueueGoal]:
@@ -99,7 +99,12 @@ class Agent:
         return action_queue_goal
 
     def _is_new_action_plan(self, actor: Actor, plan: ActionPlan) -> bool:
-        return isinstance(actor, Factory) or plan.actions != actor.action_queue
+        if isinstance(actor, Factory):
+            return len(plan.actions) > 0
+        elif isinstance(actor, Unit):
+            return plan.actions != actor.action_queue
+        else:
+            raise ValueError("Actor is not Factor nor Unit!")
 
     def _update_prev_step_goals(self, actor_goal_collections: Dict[Actor, Goal]) -> None:
         self.prev_steps_goals = {

@@ -1,9 +1,8 @@
 import heapq
-import math
 
-from typing import TypeVar, List, Tuple
+from typing import List, Tuple, Any, Generator
 from abc import ABCMeta, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from objects.coordinate import PowerTimeCoordinate, DigTimeCoordinate, TimeCoordinate, DigCoordinate, Coordinate
 from objects.direction import Direction
@@ -14,21 +13,21 @@ from objects.actors.unit import UnitConfig
 from logic.constraints import Constraints
 
 
-T = TypeVar("T")
-
-
 class PriorityQueue:
     def __init__(self):
-        self.elements: list[tuple[float, T]] = []
+        self.elements: list[tuple[float, Any]] = []
 
     def empty(self) -> bool:
         return not self.elements
 
-    def put(self, item: T, priority: float):
+    def put(self, item: Any, priority: float):
         heapq.heappush(self.elements, (priority, item))
 
-    def get(self) -> T:
+    def get(self) -> Any:
         return heapq.heappop(self.elements)[1]
+
+    def __len__(self) -> int:
+        return len(self.elements)
 
 
 @dataclass
@@ -37,25 +36,23 @@ class Graph(metaclass=ABCMeta):
     time_to_power_cost: float
     unit_cfg: UnitConfig
     constraints: Constraints
+    goal: Coordinate = field(init=False)
 
     @abstractmethod
-    def potential_actions(self, c: TimeCoordinate) -> List[UnitAction]:
+    def potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
         ...
 
-    def get_valid_action_nodes(self, c: TimeCoordinate) -> List[Tuple[UnitAction, TimeCoordinate]]:
-        action_nodes = []
-
+    def get_valid_action_nodes(self, c: TimeCoordinate) -> Generator[Tuple[UnitAction, TimeCoordinate], None, None]:
         for action in self.potential_actions(c=c):
-            new_c = c + action
-            if self.board.is_valid_c_for_player(c=new_c):
-                action_nodes.append((action, new_c))
+            to_c = c + action
+            if (
+                not self.constraints.tc_violates_constraint(to_c)
+                and self.board.is_valid_c_for_player(c=to_c)
+                and self.constraints.can_fullfill_next_positive_constraint(to_c)
+            ):
+                yield ((action, to_c))
 
-        return action_nodes
-
-    def cost(self, action: UnitAction, from_c: TimeCoordinate, to_c: TimeCoordinate) -> float:
-        if self.constraints.tc_violates_constraint(to_c):
-            return math.inf
-
+    def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
         action_power_cost = self.get_power_cost(action=action, to_c=to_c)
         return action_power_cost + self.time_to_power_cost
 
@@ -90,7 +87,7 @@ class MoveToGraph(Graph):
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
 
-    def potential_actions(self, c: TimeCoordinate) -> List[UnitAction]:
+    def potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
         return self._potential_actions
 
     def heuristic(self, node: Coordinate) -> float:
@@ -113,18 +110,20 @@ class FleeToGraph(Graph):
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
 
-    def potential_actions(self, c: TimeCoordinate) -> List[UnitAction]:
+    def potential_actions(self, c: TimeCoordinate) -> Generator[MoveAction, None, None]:
         if c.t == self.start_c.t:
-            return [
-                action
-                for action in self._potential_actions
-                if action.get_final_c(start_c=c).xy != self.opp_c.xy and not action.is_stationary
-            ]
+            for action in self._potential_actions:
+                if action.get_final_c(start_c=c).xy != self.opp_c.xy and not action.is_stationary:
+                    yield (action)
+            return
 
         if c.t == self.start_c.t + 1:
-            return [action for action in self._potential_actions if action.get_final_c(start_c=c).xy != self.start_c.xy]
+            for action in self._potential_actions:
+                if action.get_final_c(start_c=c).xy != self.start_c.xy:
+                    yield (action)
 
-        return self._potential_actions
+        for action in self._potential_actions:
+            yield (action)
 
     def heuristic(self, node: Coordinate) -> float:
         return self._get_distance_heuristic(node=node)
@@ -142,18 +141,22 @@ class PickupPowerGraph(Graph):
         if self.constraints.max_power_request and self.constraints.max_power_request < self.power_pickup_goal:
             self.power_pickup_goal = self.constraints.max_power_request
 
-        self._potential_recharge_actions = [PickupAction(amount=self.power_pickup_goal, resource=Resource.Power)]
+        self._potential_recharge_action = PickupAction(amount=self.power_pickup_goal, resource=Resource.Power)
 
         if not self.constraints.has_time_constraints:
             self._potential_move_actions = [
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
 
-    def potential_actions(self, c: TimeCoordinate) -> List[UnitAction]:
+    def potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
         if self.board.is_player_factory_tile(c=c):
-            return self._potential_move_actions + self._potential_recharge_actions
+            for action in self._potential_move_actions:
+                yield (action)
+
+            yield (self._potential_recharge_action)
         else:
-            return self._potential_move_actions
+            for action in self._potential_move_actions:
+                yield (action)
 
     def heuristic(self, node: PowerTimeCoordinate) -> float:
         min_distance_cost = self._get_distance_heuristic(node=node)
@@ -179,7 +182,7 @@ class PickupPowerGraph(Graph):
 class DigAtGraph(Graph):
     goal: DigCoordinate
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
-    _potential_dig_actions = [DigAction()]
+    _potential_dig_action = DigAction()
 
     def __post_init__(self):
         if not self.constraints.has_time_constraints:
@@ -187,14 +190,18 @@ class DigAtGraph(Graph):
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
 
-    def potential_actions(self, c: TimeCoordinate) -> List[UnitAction]:
+    def potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
         if self.goal.x == c.x and self.goal.y == c.y:
             if self.constraints.has_time_constraints and self.constraints.max_t <= c.t:
-                return self._potential_dig_actions
+                yield (self._potential_dig_action)
             else:
-                return self._potential_move_actions + self._potential_dig_actions
+                for action in self._potential_move_actions:
+                    yield (action)
+
+                yield (self._potential_dig_action)
         else:
-            return self._potential_move_actions
+            for action in self._potential_move_actions:
+                yield (action)
 
     def heuristic(self, node: DigTimeCoordinate) -> float:
         distance_min_cost = self._get_distance_heuristic(node=node)
@@ -238,14 +245,16 @@ class Search:
             current_cost = self.cost_so_far[current_node]
 
             for action, next_node in self.graph.get_valid_action_nodes(current_node):
-                new_cost = current_cost + self.graph.cost(action=action, from_c=current_node, to_c=next_node)
+                new_cost = current_cost + self.graph.cost(action=action, to_c=next_node)
                 # With a good heuristic (new_cost < cost_so_far[node]) shouldn't be relevant
                 if next_node not in self.cost_so_far or new_cost < self.cost_so_far[next_node]:
                     self._add_node(node=next_node, action=action, current_node=current_node, node_cost=new_cost)
 
         self.final_node = current_node
 
-    def _add_node(self, node: TimeCoordinate, action: UnitAction, current_node: TimeCoordinate, node_cost: float) -> None:
+    def _add_node(
+        self, node: TimeCoordinate, action: UnitAction, current_node: TimeCoordinate, node_cost: float
+    ) -> None:
         self.cost_so_far[node] = node_cost
         priority = node_cost + self.graph.heuristic(node)
         self.frontier.put(node, priority)

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 from copy import copy
+from operator import itemgetter
 
 from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
 
@@ -74,8 +75,32 @@ class Constraints:
     def tc_in_negative_constraints(self, tc: TimeCoordinate) -> bool:
         return tc.xyt in self.negative
 
+    def t_in_constraints(self, t: int) -> bool:
+        return self.t_in_positive_constraints(t) or self.t_in_negative_constraints(t)
+
     def t_in_positive_constraints(self, t: int) -> bool:
         return t in self.positive_t
+
+    def t_in_negative_constraints(self, t: int) -> bool:
+        return t in self.negative_t
+
+    def can_fullfill_next_positive_constraint(self, cur_tc: TimeCoordinate) -> bool:
+        next_postive_constraint = self.get_next_positive_constraint(cur_tc.t)
+        if not next_postive_constraint:
+            return True
+
+        nr_steps_available = next_postive_constraint.t - cur_tc.t
+        min_nr_steps_required = next_postive_constraint.distance_to(cur_tc)
+        return nr_steps_available >= min_nr_steps_required
+
+    def get_next_positive_constraint(self, t: int) -> Optional[TimeCoordinate]:
+        next_positive_constraints = [tc_tuple for tc_tuple in self.positive if tc_tuple[2] > t]
+
+        if not next_positive_constraints:
+            return None
+
+        min_positive_constraint = min(next_positive_constraints, key=itemgetter(2))
+        return TimeCoordinate(*min_positive_constraint)
 
     def _is_power_constraint_violated(self, tc: TimeCoordinate) -> bool:
         # TODO, this does not check properly how much power gets asked and at what timestep
@@ -93,3 +118,10 @@ class Constraints:
         copy_constraints.negative = copy(self.negative)
         copy_constraints.negative_t = copy(self.negative_t)
         return copy_constraints
+
+    def __repr__(self) -> str:
+        pos_str = f"pos={self.positive}, " if self.positive else ""
+        neg_str = f"neg={self.negative}, " if self.negative else ""
+        pow_str = f"pow={self.max_power_request}" if self.max_power_request else ""
+
+        return f"Constraints: {pos_str}{neg_str}{pow_str}"

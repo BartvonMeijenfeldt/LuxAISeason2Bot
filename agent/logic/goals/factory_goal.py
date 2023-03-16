@@ -43,19 +43,6 @@ class FactoryGoal(Goal):
 
         return self._is_valid
 
-    def set_validity_plan(self, constraints: Constraints) -> None:
-        for tc in self.action_plan.time_coordinates:
-            if constraints.tc_violates_constraint(tc):
-                self._is_valid = False
-                return
-
-        power_requested = self.action_plan.power_requested
-        if constraints.max_power_request and power_requested > constraints.max_power_request:
-            self._is_valid = False
-            return
-
-        self._is_valid = True
-
 
 class BuildHeavyGoal(FactoryGoal):
     def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> FactoryActionPlan:

@@ -66,7 +66,7 @@ class ActionPlanResolver:
 
     def _get_best_solution(self) -> Solution:
         for i in count():
-            if i > 10 or self.solutions.empty():
+            if i > 50 or self.solutions.empty():
                 break
 
             best_potential_solution: Solution = self.solutions.get()
@@ -164,19 +164,22 @@ class ActionPlanResolver:
     ) -> Optional[dict[Actor, Constraints]]:
         unit_constraints = copy(parent_constraints)
         collsion_unit = collision.constraint_actor
-        time_coordinate = collision.tc
+        tc = collision.tc
 
         for unit, constraints in unit_constraints.items():
             new_constraints = copy(constraints)
             new_constraints.parent = constraints.key
 
             if collsion_unit == unit:
-                if constraints.t_in_positive_constraints(time_coordinate.t):
+                if constraints.t_in_positive_constraints(tc.t) or constraints.tc_in_constraints(tc):
                     return None
 
-                new_constraints.add_positive_constraint(time_coordinate)
+                new_constraints.add_positive_constraint(tc)
             else:
-                new_constraints.add_negative_constraint(time_coordinate)
+                if constraints.tc_in_constraints(tc):
+                    return None
+
+                new_constraints.add_negative_constraint(tc)
 
             unit_constraints[unit] = new_constraints
 
