@@ -59,30 +59,30 @@ class Constraints:
     def tc_violates_constraint(self, tc: TimeCoordinate) -> bool:
         return (
             self._is_positive_constraint_violated(tc=tc)
-            or self._is_negative_constraint_violated(tc=tc)
+            or self.tc_in_negative_constraints(tc=tc)
             or self._is_power_constraint_violated(tc)
         )
 
     def _is_positive_constraint_violated(self, tc: TimeCoordinate) -> bool:
         return tc.t in self.positive_t and tc.xyt not in self.positive
 
-    def _is_negative_constraint_violated(self, tc: TimeCoordinate) -> bool:
-        return self.tc_in_negative_constraints(tc)
-
     def tc_in_positive_constraints(self, tc: TimeCoordinate) -> bool:
-        return tc.xyt in self.positive
+        return tc.t in self.positive_t and tc.xyt in self.positive
 
     def tc_in_negative_constraints(self, tc: TimeCoordinate) -> bool:
-        return tc.xyt in self.negative
-
-    def t_in_constraints(self, t: int) -> bool:
-        return self.t_in_positive_constraints(t) or self.t_in_negative_constraints(t)
+        return tc.t in self.negative_t and tc.xyt in self.negative
 
     def t_in_positive_constraints(self, t: int) -> bool:
         return t in self.positive_t
 
     def t_in_negative_constraints(self, t: int) -> bool:
         return t in self.negative_t
+
+    def can_not_add_positive_constraint(self, tc: TimeCoordinate) -> bool:
+        return self.t_in_positive_constraints(tc.t) or self.tc_in_negative_constraints(tc)
+
+    def can_not_add_negative_constraint(self, tc: TimeCoordinate) -> bool:
+        return self.tc_in_constraints(tc)
 
     def can_fullfill_next_positive_constraint(self, cur_tc: TimeCoordinate) -> bool:
         next_postive_constraint = self.get_next_positive_constraint(cur_tc.t)
