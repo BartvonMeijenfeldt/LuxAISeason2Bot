@@ -137,7 +137,7 @@ class ActionPlanResolver:
         unit_power_requested = parent_solution.action_plans[unit].actions[0].requested_power
         max_power_request = max(unit_power_requested - power_deficit, 0)
 
-        if unit_constraint.can_not_add_max_power_constraint(max_power_request):
+        if unit_constraint.can_not_add_max_power_constraint():
             return None
 
         new_constraint = unit_constraint.add_power_constraint(max_power_request)

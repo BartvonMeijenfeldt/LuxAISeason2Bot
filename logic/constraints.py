@@ -130,10 +130,11 @@ class Constraints:
 
     def get_next_positive_constraint(self, tc: TimeCoordinate) -> Optional[TimeCoordinate]:
         index = bisect.bisect_right(self.positive_sorted, tc)
-        if index == len(self.positive_sorted):
-            return None
 
-        return self.positive_sorted[index]
+        try:
+            return self.positive_sorted[index]
+        except IndexError:
+            return None
 
     def _is_power_constraint_violated(self, tc: TimeCoordinate) -> bool:
         # TODO, this does not check properly how much power gets asked and at what timestep
