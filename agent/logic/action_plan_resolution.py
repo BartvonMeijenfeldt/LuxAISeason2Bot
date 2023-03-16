@@ -171,12 +171,12 @@ class ActionPlanResolver:
             new_constraints.parent = constraints.key
 
             if collsion_unit == unit:
-                if constraints.t_in_positive_constraints(tc.t) or constraints.tc_in_constraints(tc):
+                if constraints.can_not_add_positive_constraint(tc):
                     return None
 
                 new_constraints.add_positive_constraint(tc)
             else:
-                if constraints.tc_in_constraints(tc):
+                if constraints.can_not_add_negative_constraint(tc):
                     return None
 
                 new_constraints.add_negative_constraint(tc)
@@ -207,7 +207,7 @@ class ActionPlanResolver:
         unit = collision.constraint_actor
         unit_constraint = parent_constraints[unit]
 
-        if unit_constraint.tc_in_constraints(collision.tc):
+        if unit_constraint.can_not_add_negative_constraint(collision.tc):
             return None
 
         new_constraints = copy(unit_constraint)
