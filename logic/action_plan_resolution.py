@@ -5,7 +5,7 @@ from collections import defaultdict
 from copy import copy
 from itertools import count
 
-from search import PriorityQueue
+from search.search import PriorityQueue
 from objects.actors.actor import Actor
 from objects.actors.unit import Unit
 from objects.coordinate import TimeCoordinate

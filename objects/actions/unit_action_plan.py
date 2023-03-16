@@ -2,10 +2,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, Sequence
 
 from dataclasses import dataclass, replace, field
-from search import Search
+from search.search import Search
 from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
 from objects.direction import Direction
-from search import MoveToGraph
+from search.search import MoveToGraph
 from objects.actions.unit_action import DigAction
 from objects.actions.action_plan import ActionPlan
 

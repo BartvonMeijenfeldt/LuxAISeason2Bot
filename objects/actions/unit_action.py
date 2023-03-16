@@ -110,7 +110,8 @@ class MoveAction(UnitAction):
             return 0
 
         rubble_at_target = board.rubble[end_c.xy]
-        return self.get_power_cost(rubble_at_target, unit_cfg)
+        power_cost = self.get_power_cost(rubble_at_target, unit_cfg)
+        return - power_cost
 
     @staticmethod
     def get_power_cost(rubble_to: int, unit_cfg: UnitConfig) -> int:

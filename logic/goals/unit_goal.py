@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from math import ceil
 
-from search import Search, MoveToGraph, FleeToGraph, DigAtGraph, PickupPowerGraph, Graph
+from search.search import Search, MoveToGraph, FleeToGraph, DigAtGraph, PickupPowerGraph, Graph
 from objects.actions.unit_action import DigAction, TransferAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.direction import Direction

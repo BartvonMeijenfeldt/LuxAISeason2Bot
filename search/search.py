@@ -1,6 +1,7 @@
+from __future__ import annotations
 import heapq
 
-from typing import List, Tuple, Any, Generator
+from typing import List, Tuple, Any, Generator, TYPE_CHECKING
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 
@@ -9,8 +10,11 @@ from objects.direction import Direction
 from objects.board import Board
 from objects.actions.unit_action import UnitAction, MoveAction, DigAction, PickupAction
 from objects.resource import Resource
-from objects.actors.unit import UnitConfig
+
 from logic.constraints import Constraints
+
+if TYPE_CHECKING:
+    from objects.actors.unit import UnitConfig
 
 
 class PriorityQueue:
