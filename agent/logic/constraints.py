@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import bisect
+
 from dataclasses import dataclass, field
 from typing import Optional
 from copy import copy
-from operator import itemgetter
 
 from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
 
@@ -13,9 +14,24 @@ class Constraints:
     parent: str = field(default_factory=str)
     max_power_request: Optional[int] = field(init=False, default=None)
     positive: set[tuple[int, int, int]] = field(init=False, default_factory=set)
-    positive_t: set[int] = field(init=False, default_factory=set)
     negative: set[tuple[int, int, int]] = field(init=False, default_factory=set)
+
+    positive_t: set[int] = field(init=False, default_factory=set)
+    positive_sorted: list[TimeCoordinate] = field(init=False, default_factory=list)
     negative_t: set[int] = field(init=False, default_factory=set)
+
+    def _copy_with_parent_key(self) -> Constraints:
+        # Like a copy, but stores the key of the object that created this copy
+
+        copy_constraints = Constraints(parent=self.key)
+        copy_constraints.max_power_request = self.max_power_request
+
+        copy_constraints.positive = copy(self.positive)
+        copy_constraints.positive_t = copy(self.positive_t)
+        copy_constraints.positive_sorted = copy(self.positive_sorted)
+        copy_constraints.negative = copy(self.negative)
+        copy_constraints.negative_t = copy(self.negative_t)
+        return copy_constraints
 
     @property
     def key(self) -> str:
@@ -27,13 +43,29 @@ class Constraints:
 
         return False
 
-    def add_positive_constraint(self, tc: TimeCoordinate) -> None:
-        self.positive.add(tc.xyt)
-        self.positive_t.add(tc.t)
+    def add_positive_constraint(self, tc: TimeCoordinate) -> Constraints:
+        constraints = self._copy_with_parent_key()
 
-    def add_negative_constraint(self, tc: TimeCoordinate) -> None:
-        self.negative.add(tc.xyt)
-        self.negative_t.add(tc.t)
+        constraints.positive.add(tc.xyt)
+        bisect.insort_right(constraints.positive_sorted, tc)
+        constraints.positive_t.add(tc.t)
+
+        return constraints
+
+    def add_negative_constraint(self, tc: TimeCoordinate) -> Constraints:
+        constraints = self._copy_with_parent_key()
+
+        constraints.negative.add(tc.xyt)
+        constraints.negative_t.add(tc.t)
+
+        return constraints
+
+    def add_power_constraint(self, max_power_request: int) -> Constraints:
+        constraints = self._copy_with_parent_key()
+
+        constraints.max_power_request = max_power_request
+
+        return constraints
 
     def set_max_power_request(self, power: int) -> None:
         self.max_power_request = power
@@ -84,8 +116,11 @@ class Constraints:
     def can_not_add_negative_constraint(self, tc: TimeCoordinate) -> bool:
         return self.tc_in_constraints(tc)
 
+    def can_not_add_max_power_constraint(self) -> bool:
+        return self.max_power_request == 0
+
     def can_fullfill_next_positive_constraint(self, cur_tc: TimeCoordinate) -> bool:
-        next_postive_constraint = self.get_next_positive_constraint(cur_tc.t)
+        next_postive_constraint = self.get_next_positive_constraint(cur_tc)
         if not next_postive_constraint:
             return True
 
@@ -93,14 +128,12 @@ class Constraints:
         min_nr_steps_required = next_postive_constraint.distance_to(cur_tc)
         return nr_steps_available >= min_nr_steps_required
 
-    def get_next_positive_constraint(self, t: int) -> Optional[TimeCoordinate]:
-        next_positive_constraints = [tc_tuple for tc_tuple in self.positive if tc_tuple[2] > t]
-
-        if not next_positive_constraints:
+    def get_next_positive_constraint(self, tc: TimeCoordinate) -> Optional[TimeCoordinate]:
+        index = bisect.bisect_right(self.positive_sorted, tc)
+        if index == len(self.positive_sorted):
             return None
 
-        min_positive_constraint = min(next_positive_constraints, key=itemgetter(2))
-        return TimeCoordinate(*min_positive_constraint)
+        return self.positive_sorted[index]
 
     def _is_power_constraint_violated(self, tc: TimeCoordinate) -> bool:
         # TODO, this does not check properly how much power gets asked and at what timestep
@@ -108,16 +141,6 @@ class Constraints:
             return False
 
         return tc.p > self.max_power_request
-
-    def __copy__(self) -> Constraints:
-        copy_constraints = Constraints(self.parent)
-        copy_constraints.max_power_request = self.max_power_request
-
-        copy_constraints.positive = copy(self.positive)
-        copy_constraints.positive_t = copy(self.positive_t)
-        copy_constraints.negative = copy(self.negative)
-        copy_constraints.negative_t = copy(self.negative_t)
-        return copy_constraints
 
     def __repr__(self) -> str:
         pos_str = f"pos={self.positive}, " if self.positive else ""

@@ -132,15 +132,16 @@ class ActionPlanResolver:
         self, parent_solution: Solution, power_deficit: int, unit: Actor
     ) -> Optional[dict[Actor, Constraints]]:
         unit_constraints = copy(parent_solution.constraints)
-        unit_constraint = copy(unit_constraints[unit])
-        unit_power_requested = parent_solution.action_plans[unit].actions[0].requested_power
+        unit_constraint = unit_constraints[unit]
 
-        if unit_constraint.max_power_request == 0:
+        unit_power_requested = parent_solution.action_plans[unit].actions[0].requested_power
+        max_power_request = max(unit_power_requested - power_deficit, 0)
+
+        if unit_constraint.can_not_add_max_power_constraint(max_power_request):
             return None
 
-        unit_constraint.parent = unit_constraint.key
-        unit_constraint.max_power_request = max(unit_power_requested - power_deficit, 0)
-        unit_constraints[unit] = unit_constraint
+        new_constraint = unit_constraint.add_power_constraint(max_power_request)
+        unit_constraints[unit] = new_constraint
 
         return unit_constraints
 
@@ -167,19 +168,16 @@ class ActionPlanResolver:
         tc = collision.tc
 
         for unit, constraints in unit_constraints.items():
-            new_constraints = copy(constraints)
-            new_constraints.parent = constraints.key
-
             if collsion_unit == unit:
                 if constraints.can_not_add_positive_constraint(tc):
                     return None
 
-                new_constraints.add_positive_constraint(tc)
+                new_constraints = constraints.add_positive_constraint(tc)
             else:
                 if constraints.can_not_add_negative_constraint(tc):
                     return None
 
-                new_constraints.add_negative_constraint(tc)
+                new_constraints = constraints.add_negative_constraint(tc)
 
             unit_constraints[unit] = new_constraints
 
@@ -210,9 +208,7 @@ class ActionPlanResolver:
         if unit_constraint.can_not_add_negative_constraint(collision.tc):
             return None
 
-        new_constraints = copy(unit_constraint)
-        new_constraints.parent = unit_constraint.key
-        new_constraints.add_negative_constraint(collision.tc)
+        new_constraints = unit_constraint.add_negative_constraint(collision.tc)
         unit_constraints[unit] = new_constraints
 
         return unit_constraints
