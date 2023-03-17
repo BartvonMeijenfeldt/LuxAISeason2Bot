@@ -236,8 +236,11 @@ class ActionPlanPrimitiveMaker:
         primitive_actions = []
 
         for action in self.original_actions:
-            primitive = action.n * [self._get_primitive_action(action)]
-            primitive_actions += primitive
+            if action.n == 1:
+                primitive_actions.append(action)
+            else:
+                primitive = action.n * [self._get_primitive_action(action)]
+                primitive_actions.extend(primitive)
 
         return primitive_actions
 
