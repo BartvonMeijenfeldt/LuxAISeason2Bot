@@ -66,7 +66,7 @@ class ActionPlanResolver:
 
     def _get_best_solution(self) -> Solution:
         for i in count():
-            if i > 50 or self.solutions.empty():
+            if i > 30 or self.solutions.empty():
                 break
 
             best_potential_solution: Solution = self.solutions.get()

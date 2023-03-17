@@ -249,9 +249,9 @@ class Search:
             current_cost = self.cost_so_far[current_node]
 
             for action, next_node in self.graph.get_valid_action_nodes(current_node):
-                new_cost = current_cost + self.graph.cost(action=action, to_c=next_node)
                 # With a good heuristic (new_cost < cost_so_far[node]) shouldn't be relevant
-                if next_node not in self.cost_so_far or new_cost < self.cost_so_far[next_node]:
+                if next_node not in self.cost_so_far: # or new_cost < self.cost_so_far[next_node]:
+                    new_cost = current_cost + self.graph.cost(action=action, to_c=next_node)
                     self._add_node(node=next_node, action=action, current_node=current_node, node_cost=new_cost)
 
         self.final_node = current_node

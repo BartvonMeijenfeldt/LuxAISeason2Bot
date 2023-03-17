@@ -3,13 +3,14 @@ import unittest
 from typing import Optional, Sequence
 
 from logic.constraints import Constraints
-from objects.coordinate import Coordinate, TimeCoordinate
+from objects.coordinate import Coordinate, TimeCoordinate as TC
 from objects.actions.unit_action import MoveAction, UnitAction
 from objects.direction import Direction as D
 from search.search import MoveToGraph, Search
 from lux.kit import GameState
 from lux.config import EnvConfig
 from tests.generate_game_state import get_state, FactoryPositions, UnitPos, Tiles, RubbleTile
+from tests.init_constraints import init_constraints
 
 
 ENV_CFG = EnvConfig()
@@ -19,7 +20,7 @@ class TestMoveToSearch(unittest.TestCase):
     def _test_move_to_search(
         self,
         state: GameState,
-        start: TimeCoordinate,
+        start: TC,
         goal: Coordinate,
         expected_actions: Sequence[UnitAction],
         time_to_power_cost: int = 50,
@@ -45,7 +46,7 @@ class TestMoveToSearch(unittest.TestCase):
         self.assertEqual(actions, expected_actions)
 
     def test_already_there_path(self):
-        start = TimeCoordinate(3, 3, 0)
+        start = TC(3, 3, 0)
         goal = Coordinate(3, 3)
         state = get_state(board_width=9)
         expected_actions = []
@@ -54,7 +55,7 @@ class TestMoveToSearch(unittest.TestCase):
 
     def test_one_down_path(self):
 
-        start = TimeCoordinate(3, 2, 0)
+        start = TC(3, 2, 0)
         goal = Coordinate(3, 3)
         state = get_state(board_width=9)
         expected_actions = [MoveAction(D.DOWN)]
@@ -63,7 +64,7 @@ class TestMoveToSearch(unittest.TestCase):
 
     def test_through_own_factory(self):
 
-        start = TimeCoordinate(1, 3, 0)
+        start = TC(1, 3, 0)
         goal = Coordinate(1, 7)
         factory_positions = FactoryPositions(player=[UnitPos(2, 5)])
 
@@ -74,7 +75,7 @@ class TestMoveToSearch(unittest.TestCase):
         self._test_move_to_search(state=state, start=start, goal=goal, expected_actions=expected_actions)
 
     def test_around_opponent_factory(self):
-        start = TimeCoordinate(1, 3, 0)
+        start = TC(1, 3, 0)
         goal = Coordinate(1, 7)
         factory_positions = FactoryPositions(opp=[UnitPos(2, 5)])
 
@@ -86,7 +87,7 @@ class TestMoveToSearch(unittest.TestCase):
         self._test_move_to_search(state=state, start=start, goal=goal, expected_actions=expected_actions)
 
     def test_through_the_rubble(self):
-        start = TimeCoordinate(2, 2, 0)
+        start = TC(2, 2, 0)
         goal = Coordinate(5, 5)
         rubble_tiles = [
             RubbleTile(3, 2, 20),
@@ -104,6 +105,34 @@ class TestMoveToSearch(unittest.TestCase):
         state = get_state(board_width=9, tiles=tiles)
 
         self._test_move_to_search(state=state, start=start, goal=goal, expected_actions=expected_actions)
+
+    def test_neg_constraint_wait_now(self):
+        start = TC(2, 2, 0)
+        goal = Coordinate(5, 2)
+        constraints = init_constraints(negative_constraints=[TC(3, 2, 1)])
+
+        directions = [D.CENTER, D.RIGHT, D.RIGHT, D.RIGHT]
+        expected_actions = [MoveAction(d) for d in directions]
+
+        state = get_state(board_width=9)
+
+        self._test_move_to_search(
+            state=state, start=start, goal=goal, expected_actions=expected_actions, constraints=constraints
+        )
+
+    def test_neg_constraint_wait_in_3_steps(self):
+        start = TC(2, 2, 0)
+        goal = Coordinate(5, 2)
+        constraints = init_constraints(negative_constraints=[TC(5, 2, 3)])
+
+        directions = [D.RIGHT, D.RIGHT, D.CENTER, D.RIGHT]
+        expected_actions = [MoveAction(d) for d in directions]
+
+        state = get_state(board_width=9)
+
+        self._test_move_to_search(
+            state=state, start=start, goal=goal, expected_actions=expected_actions, constraints=constraints
+        )
 
 
 if __name__ == "__main__":
