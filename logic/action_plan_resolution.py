@@ -5,7 +5,7 @@ from collections import defaultdict
 from copy import copy
 from itertools import count
 
-from search import PriorityQueue
+from search.search import PriorityQueue
 from objects.actors.actor import Actor
 from objects.actors.unit import Unit
 from objects.coordinate import TimeCoordinate
@@ -66,7 +66,7 @@ class ActionPlanResolver:
 
     def _get_best_solution(self) -> Solution:
         for i in count():
-            if i > 50 or self.solutions.empty():
+            if i > 30 or self.solutions.empty():
                 break
 
             best_potential_solution: Solution = self.solutions.get()
