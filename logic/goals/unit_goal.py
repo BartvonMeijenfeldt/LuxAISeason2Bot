@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from math import ceil
 
-from search.search import Search, MoveToGraph, FleeToGraph, DigAtGraph, PickupPowerGraph, Graph
+from search.search import Search, MoveToGraph, DigAtGraph, PickupPowerGraph, Graph
 from objects.actions.unit_action import DigAction, TransferAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.direction import Direction
@@ -459,14 +459,26 @@ class FleeGoal(UnitGoal):
 
     def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
         self._init_action_plan()
+        constraints = self._add_flee_constraints(constraints)
         self._go_to_factory_actions(game_state, constraints)
 
         return self.action_plan
 
+    def _add_flee_constraints(self, constraints: Constraints) -> Constraints:
+        current_tc = self.unit.tc
+        opp_c = self.opp_c
+        current_c_next_t = self.unit.tc + Direction.CENTER
+
+        for neg_tc_constraint in [current_tc, opp_c, current_c_next_t]:
+            constraints = constraints.add_negative_constraint(neg_tc_constraint)
+
+        return constraints
+
     def _go_to_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
         closest_factory_c = game_state.get_closest_factory_c(c=self.action_plan.final_tc)
-        graph = self._get_flee_to_graph(board=game_state.board, goal=closest_factory_c, constraints=constraints)
-        potential_move_actions = self._search_graph(graph=graph, start=self.action_plan.final_tc)
+        potential_move_actions = self._get_move_to_plan(
+            start_tc=self.unit.tc, goal=closest_factory_c, constraints=constraints, board=game_state.board
+        )
         potential_move_actions = self._get_valid_actions(potential_move_actions, game_state)
 
         while potential_move_actions:
@@ -481,19 +493,6 @@ class FleeGoal(UnitGoal):
         else:
             self._is_valid = False
             return
-
-    def _get_flee_to_graph(self, board: Board, goal: Coordinate, constraints: Constraints) -> FleeToGraph:
-        graph = FleeToGraph(
-            board=board,
-            time_to_power_cost=self.unit.time_to_power_cost,
-            unit_cfg=self.unit.unit_cfg,
-            goal=goal,
-            start_c=self.unit.tc,
-            opp_c=self.opp_c,
-            constraints=constraints,
-        )
-
-        return graph
 
     def get_value_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return 1000

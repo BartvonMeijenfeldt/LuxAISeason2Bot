@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from copy import copy
 
-from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
+from objects.coordinate import TimeCoordinate, PowerCoordinate
 
 
 @dataclass
@@ -135,7 +135,7 @@ class Constraints:
 
     def _is_power_constraint_violated(self, tc: TimeCoordinate) -> bool:
         # TODO, this does not check properly how much power gets asked and at what timestep
-        if not self.max_power_request or not isinstance(tc, PowerTimeCoordinate):
+        if not self.max_power_request or not isinstance(tc, PowerCoordinate):
             return False
 
         return tc.p > self.max_power_request

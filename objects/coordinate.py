@@ -118,6 +118,9 @@ class TimeCoordinate(Coordinate):
     def xyt(self) -> tuple[int, int, int]:
         return self.x, self.y, self.t
 
+    def to_timeless_coordinate(self) -> Coordinate:
+        return Coordinate(self.x, self.y)
+
 
 @dataclass(eq=True, frozen=True)
 class DigCoordinate(Coordinate):
@@ -158,11 +161,44 @@ class DigTimeCoordinate(DigCoordinate, TimeCoordinate):
         d = self._add_get_new_d_action(action)
         return DigTimeCoordinate(x, y, t, d)
 
+    def to_timeless_coordinate(self) -> DigCoordinate:
+        return DigCoordinate(self.x, self.y, self.d)
+
 
 @dataclass(eq=True, frozen=True)
-class PowerTimeCoordinate(TimeCoordinate):
+class PowerCoordinate(Coordinate):
     p: int
 
+    def __iter__(self):
+        return iter((self.x, self.y, self.p))
+
+    def __add__(self, other) -> PowerCoordinate:
+        x, y = super()._add_get_new_xy(other)
+        p = self._add_get_p_recharged()
+        return PowerCoordinate(x, y, p)
+
+    def __eq__(self, other: PowerCoordinate) -> bool:
+        return self.x == other.x and self.y == other.y and self.p == other.p
+
+    def _add_get_p_recharged(self) -> int:
+        return self.p
+
+    def add_action(self, action: UnitAction) -> PowerCoordinate:
+        x, y = self._add_get_new_xy_action(action)
+        p = self._add_get_new_p_action(action)
+
+        return PowerCoordinate(x, y, p)
+
+    def _add_get_new_p_action(self, other) -> int:
+        if isinstance(other, PickupAction) and other.resource == Resource.Power:
+            added_power_recharged = other.n * other.amount
+        else:
+            added_power_recharged = 0
+        return self.p + added_power_recharged
+
+
+@dataclass(eq=True, frozen=True)
+class PowerTimeCoordinate(PowerCoordinate, TimeCoordinate):
     def __iter__(self):
         return iter((self.x, self.y, self.t, self.p))
 
@@ -172,9 +208,6 @@ class PowerTimeCoordinate(TimeCoordinate):
         p = self._add_get_p_recharged()
         return PowerTimeCoordinate(x, y, t, p)
 
-    def _add_get_p_recharged(self) -> int:
-        return self.p
-
     def add_action(self, action: UnitAction) -> PowerTimeCoordinate:
         x, y = self._add_get_new_xy_action(action)
         t = self._add_get_new_t_action(action)
@@ -182,12 +215,8 @@ class PowerTimeCoordinate(TimeCoordinate):
 
         return PowerTimeCoordinate(x, y, t, p)
 
-    def _add_get_new_p_action(self, other) -> int:
-        if isinstance(other, PickupAction) and other.resource == Resource.Power:
-            added_power_recharged = other.n * other.amount
-        else:
-            added_power_recharged = 0
-        return self.p + added_power_recharged
+    def to_timeless_coordinate(self) -> PowerCoordinate:
+        return PowerCoordinate(self.x, self.y, self.p)
 
 
 @dataclass
