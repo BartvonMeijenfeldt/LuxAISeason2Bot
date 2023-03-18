@@ -25,8 +25,10 @@ class Unit(Actor):
     tc: TimeCoordinate
     unit_cfg: UnitConfig
     action_queue: List[UnitAction]
-    time_to_power_cost = 50
     _is_under_threath: Optional[bool] = field(init=False, default=None)
+
+    def __post_init__(self):
+        self.time_to_power_cost = 5 if self.unit_type == "LIGHT" else 50
 
     @property
     def agent_id(self):
@@ -73,7 +75,7 @@ class Unit(Actor):
                 for rubble_tile in closest_rubble_tiles
             ]
 
-            closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=3)
+            closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=1)
 
             ice_goals = [
                 CollectIceGoal(unit=self, resource_c=ice_tile, factory_c=game_state.get_closest_factory_c(c=ice_tile))
