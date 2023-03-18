@@ -245,6 +245,7 @@ class CoordinateList:
     def get_closest_tile(self, c: Coordinate, exclude_c: Optional[CoordinateList] = None) -> Coordinate:
         return self.get_all_closest_tiles(c=c, exclude_c=exclude_c)[0]
 
+    # TODO rewrite this function, takes huge amount of total run time
     def get_n_closest_tiles(self, c: Coordinate, n: int) -> CoordinateList:
         coordinates_sorted = sorted(self.coordinates, key=c.distance_to)
         n_closest_coordinates = coordinates_sorted[:n]

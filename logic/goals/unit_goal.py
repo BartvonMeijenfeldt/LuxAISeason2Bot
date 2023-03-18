@@ -11,14 +11,7 @@ from objects.actions.unit_action import DigAction, TransferAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.direction import Direction
 from objects.resource import Resource
-from objects.coordinate import (
-    PowerTimeCoordinate,
-    DigCoordinate,
-    DigTimeCoordinate,
-    TimeCoordinate,
-    Coordinate,
-    CoordinateList,
-)
+from objects.coordinate import PowerTimeCoordinate, DigCoordinate, DigTimeCoordinate, TimeCoordinate, Coordinate
 from logic.constraints import Constraints
 from logic.goals.goal import Goal
 
@@ -154,7 +147,7 @@ class UnitGoal(Goal):
     def _get_dig_plan(
         self, start_tc: TimeCoordinate, dig_c: Coordinate, nr_digs: int, constraints: Constraints, board: Board,
     ) -> list[UnitAction]:
-        if constraints.has_time_constraints and constraints.max_t > start_tc.t:
+        if constraints.max_t and constraints.max_t > start_tc.t:
             return self._get_dig_plan_with_constraints(start_tc, dig_c, nr_digs, constraints, board)
 
         return self._get_dig_plan_wihout_constraints(start_tc, dig_c, nr_digs, board)
@@ -402,7 +395,7 @@ class ClearRubbleGoal(UnitGoal):
         if len(max_valid_digs_actions) == 0:
             self._is_valid = False
             return
-        
+
         self.action_plan.extend(max_valid_digs_actions)
         self._is_valid = True
 
@@ -425,30 +418,6 @@ class ClearRubbleGoal(UnitGoal):
 
         best_value = max_revenue - min_cost
         return best_value
-
-    # def _add_additional_rubble_actions(self, game_state: GameState, constraints: Constraints):
-    #     if len(self.action_plan.actions) == 0 or not isinstance(self.action_plan.actions[-1], DigAction):
-    #         return
-
-    #     while True:
-    #         closest_rubble = game_state.board.get_closest_rubble_tile(self.cur_tc, exclude_c=self.rubble_positions)
-    #         dig_time_coordinate = DigTimeCoordinate(*self.cur_tc, d=0)
-    #         potential_dig_rubble_actions = self._get_dig_plan(
-    #             start_tc=dig_time_coordinate, dig_c=closest_rubble, board=game_state.board, constraints=constraints
-    #         )
-
-    #         potential_action_plan = self.action_plan + potential_dig_rubble_actions
-
-    #         if potential_action_plan.unit_can_carry_out_plan(
-    #             game_state=game_state
-    #         ) and self._unit_can_still_reach_factory(
-    #             action_plan=potential_action_plan, game_state=game_state, constraints=constraints
-    #         ):
-    #             self.action_plan.extend(potential_dig_rubble_actions)
-    #             self.rubble_positions.append(c=closest_rubble)
-    #             self.cur_tc = self.action_plan.final_tc
-    #         else:
-    #             return
 
     def _optional_add_go_to_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
         closest_factory_c = game_state.get_closest_factory_c(c=self.action_plan.final_tc)

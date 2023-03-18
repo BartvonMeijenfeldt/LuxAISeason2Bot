@@ -35,6 +35,9 @@ class Board:
             [c for factory in self.player_factories for c in factory.coordinates]
         )
         self.opponent_factory_tiles = CoordinateList([c for factory in self.opp_factories for c in factory.coordinates])
+        self.ice_coordinates = self.get_ice_coordinates()
+        self.ore_coordinates = self.get_ore_coordinates()
+        self.rubble_coordinates = self.get_rubble_coordinates()
 
     @property
     def length(self):
@@ -44,18 +47,15 @@ class Board:
     def width(self):
         return self.rubble.shape[1]
 
-    @property
-    def ice_coordinates(self) -> CoordinateList:
+    def get_ice_coordinates(self) -> CoordinateList:
         ice_locations = np.argwhere(self.ice == 1)
         return CoordinateList([Coordinate(*xy) for xy in ice_locations])
 
-    @property
-    def ore_coordinates(self) -> CoordinateList:
+    def get_ore_coordinates(self) -> CoordinateList:
         ore_locations = np.argwhere(self.ore == 1)
         return CoordinateList([Coordinate(*xy) for xy in ore_locations])
 
-    @property
-    def rubble_coordinates(self) -> CoordinateList:
+    def get_rubble_coordinates(self) -> CoordinateList:
         is_rubble = self.rubble > 0
         is_no_ice = self.ice == 0
         is_no_ore = self.ore == 0

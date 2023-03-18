@@ -59,7 +59,7 @@ class BuildLightGoal(FactoryGoal):
         self.action_plan = FactoryActionPlan(self.factory, [BuildLightAction()])
         self.set_validity_plan(constraints)
         return self.action_plan
-    
+
     def _get_best_value(self) -> float:
         return 10_000
 
