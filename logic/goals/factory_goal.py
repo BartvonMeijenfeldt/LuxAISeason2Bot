@@ -30,13 +30,6 @@ class FactoryGoal(Goal):
         ...
 
     @property
-    def value(self) -> float:
-        if self._value is None:
-            raise ValueError("Value is not supposed to be None here")
-
-        return self._value
-
-    @property
     def is_valid(self) -> bool:
         if self._is_valid is None:
             raise ValueError("_is_valid is not supposed to be None here")
@@ -49,6 +42,9 @@ class BuildHeavyGoal(FactoryGoal):
         self.action_plan = FactoryActionPlan(self.factory, [BuildHeavyAction()])
         self.set_validity_plan(constraints)
         return self.action_plan
+
+    def _get_best_value(self) -> float:
+        return 10_000
 
     def get_value_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return 10_000
@@ -63,6 +59,9 @@ class BuildLightGoal(FactoryGoal):
         self.action_plan = FactoryActionPlan(self.factory, [BuildLightAction()])
         self.set_validity_plan(constraints)
         return self.action_plan
+    
+    def _get_best_value(self) -> float:
+        return 10_000
 
     def get_value_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return 1_000
@@ -82,6 +81,9 @@ class WaterGoal(FactoryGoal):
         self.set_validity_plan(constraints)
         return self.action_plan
 
+    def _get_best_value(self) -> float:
+        return 10_000
+
     def get_value_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return 100
 
@@ -96,6 +98,9 @@ class FactoryNoGoal(FactoryGoal):
 
     def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> FactoryActionPlan:
         return FactoryActionPlan(self.factory)
+
+    def _get_best_value(self) -> float:
+        return 0.0
 
     def get_value_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return 0.0

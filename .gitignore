@@ -5,5 +5,6 @@ matches
 .ipynb_checkpoints
 data
 *.json
+*.prof
 
 prof

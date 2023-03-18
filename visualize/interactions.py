@@ -57,6 +57,11 @@ def interact(env: LuxAI_S2, agents, nr_steps: int, seed=None):
         actions = {}
         for player in env.agents:
             o = obs[player]
+            # if o["real_env_steps"] in [193, 195] and player == 'player_0':
+            #     import cProfile
+            #     env_step = o["real_env_steps"]
+            #     cProfile.runctx("a = agents[player].act(step, o)", None, locals(), f"test_{env_step}.prof")
+
             a = agents[player].act(step, o)
             actions[player] = a
 

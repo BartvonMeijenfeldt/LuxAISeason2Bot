@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from typing import Tuple
+from typing import Tuple, List
 from lux.config import EnvConfig
 from objects.actions.factory_action import WaterAction, LIGHT_CFG, HEAVY_CFG
 from objects.actors.actor import Actor
 from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
 from objects.game_state import GameState
-from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal
-from logic.goals.goal import GoalCollection
+from logic.constraints import Constraints
+from logic.goals.factory_goal import FactoryGoal, BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal
 
 
 @dataclass
@@ -25,7 +25,7 @@ class Factory(Actor):
     def __eq__(self, __o: Factory) -> bool:
         return self.unit_id == __o.unit_id
 
-    def generate_goals(self, game_state: GameState) -> GoalCollection:
+    def generate_goals(self, game_state: GameState) -> List[FactoryGoal]:
         goals = []
 
         if self.can_build_heavy:
@@ -42,7 +42,7 @@ class Factory(Actor):
             goals.append(WaterGoal(self))
 
         goals.append(FactoryNoGoal(self))
-        return GoalCollection(goals)
+        return goals
 
     @property
     def can_build_heavy(self) -> bool:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import bisect
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Iterable
 from copy import copy
 
 from objects.coordinate import TimeCoordinate, PowerCoordinate
@@ -54,11 +54,20 @@ class Constraints:
 
     def add_negative_constraint(self, tc: TimeCoordinate) -> Constraints:
         constraints = self._copy_with_parent_key()
-
-        constraints.negative.add(tc.xyt)
-        constraints.negative_t.add(tc.t)
+        constraints._add_negative_constraint(tc)
 
         return constraints
+
+    def add_negative_constraints(self, tcs: Iterable[TimeCoordinate]) -> Constraints:
+        constraints = self._copy_with_parent_key()
+        for tc in tcs:
+            constraints._add_negative_constraint(tc)
+
+        return constraints
+
+    def _add_negative_constraint(self, tc: TimeCoordinate) -> None:
+        self.negative.add(tc.xyt)
+        self.negative_t.add(tc.t)
 
     def add_power_constraint(self, max_power_request: int) -> Constraints:
         constraints = self._copy_with_parent_key()

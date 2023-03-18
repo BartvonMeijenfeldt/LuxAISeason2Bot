@@ -8,8 +8,8 @@ from objects.coordinate import TimeCoordinate, CoordinateList
 from objects.game_state import GameState
 from objects.actions.unit_action import UnitAction
 
-from logic.goals.goal import GoalCollection
 from logic.goals.unit_goal import (
+    UnitGoal,
     CollectIceGoal,
     ClearRubbleGoal,
     CollectOreGoal,
@@ -45,18 +45,20 @@ class Unit(Actor):
         cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
         return cost
 
-    def generate_goals(self, game_state: GameState, action_queue_goal: Optional[ActionQueueGoal]) -> GoalCollection:
-        if action_queue_goal:
-            goals = [action_queue_goal]
-            if self.is_under_threath(game_state) and self.next_step_is_stationary():
-                # TODO, this should be getting all threatening opponents and the flee goal should be adapted to
-                # take multiple opponents into account
-                neighboring_opponents = self._get_neighboring_opponents(game_state)
-                randomly_picked_neighboring_opponent = neighboring_opponents[0]
-                flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
-                goals.append(flee_goal)
+    def generate_goals(self, game_state: GameState) -> List[UnitGoal]:
+        # TODO add action_queue goal again
+        # if action_queue_goal:
+        #     goals = [action_queue_goal]
+        #     if self.is_under_threath(game_state) and self.next_step_is_stationary():
+        #         # TODO, this should be getting all threatening opponents and the flee goal should be adapted to
+        #         # take multiple opponents into account
+        #         neighboring_opponents = self._get_neighboring_opponents(game_state)
+        #         randomly_picked_neighboring_opponent = neighboring_opponents[0]
+        #         flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
+        #         goals.append(flee_goal)
 
-        elif game_state.env_steps <= 920 and self.unit_type == "HEAVY":
+        # elif game_state.env_steps <= 920 and self.unit_type == "HEAVY":
+        if game_state.env_steps <= 920 and self.unit_type == "HEAVY":
             target_ice_c = game_state.get_closest_ice_tile(c=self.tc)
             target_factory_c = game_state.get_closest_factory_c(c=target_ice_c)
             goals = [CollectIceGoal(unit=self, resource_c=target_ice_c, factory_c=target_factory_c)]
@@ -64,14 +66,14 @@ class Unit(Actor):
         elif game_state.env_steps > 920 and self.unit_type == "HEAVY":
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
             goals = [
-                ClearRubbleGoal(unit=self, rubble_positions=CoordinateList([rubble_tile]))
+                ClearRubbleGoal(unit=self, rubble_position=rubble_tile)
                 for rubble_tile in closest_rubble_tiles
             ]
 
         else:
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
             goals = [
-                ClearRubbleGoal(unit=self, rubble_positions=CoordinateList([rubble_tile]))
+                ClearRubbleGoal(unit=self, rubble_position=rubble_tile)
                 for rubble_tile in closest_rubble_tiles
             ]
 
@@ -91,7 +93,6 @@ class Unit(Actor):
             goals.append(collect_ore_goal)
 
         goals += [UnitNoGoal(unit=self)]
-        goals = GoalCollection(goals)
 
         return goals
 
@@ -134,12 +135,20 @@ class Unit(Actor):
         return self.unit_cfg.CHARGE
 
     @property
+    def move_power_cost(self) -> int:
+        return self.unit_cfg.MOVE_COST
+
+    @property
     def dig_power_cost(self) -> int:
         return self.unit_cfg.DIG_COST
 
     @property
+    def battery_capacity(self) -> int:
+        return self.unit_cfg.BATTERY_CAPACITY
+
+    @property
     def power_space_left(self) -> int:
-        return self.unit_cfg.BATTERY_CAPACITY - self.power
+        return self.battery_capacity - self.power
 
     @property
     def cargo_space_left(self) -> int:

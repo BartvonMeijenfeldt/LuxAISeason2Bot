@@ -71,13 +71,6 @@ class UnitGoal(Goal):
         ...
 
     @property
-    def value(self) -> float:
-        if self._value is None:
-            raise ValueError("Value is not supposed to be None here")
-
-        return self._value
-
-    @property
     def is_valid(self) -> bool:
         if self._is_valid is None:
             raise ValueError("_is_valid is not supposed to be None here")
@@ -240,6 +233,19 @@ class UnitGoal(Goal):
             game_state=game_state, constraints=constraints
         ) or action_plan.unit_can_reach_factory_after_action_plan(game_state=game_state, constraints=constraints)
 
+    def _get_max_nr_digs(self, cur_power: int) -> int:
+        dig_power_cost = self.unit.dig_power_cost
+        recharge_power = self.unit.recharge_power
+        min_power_change_per_dig = dig_power_cost - recharge_power
+
+        quotient, remainder = divmod(cur_power, min_power_change_per_dig)
+        if remainder >= recharge_power:
+            max_nr_digs = quotient
+        else:
+            max_nr_digs = max(0, quotient - 1)
+
+        return max_nr_digs
+
     def _init_action_plan(self) -> None:
         self.action_plan = UnitActionPlan(actor=self.unit)
 
@@ -248,9 +254,6 @@ class UnitGoal(Goal):
         power_cost = action_plan.get_power_used(board=game_state.board)
         total_cost = number_of_steps * self.unit.time_to_power_cost + power_cost
         return total_cost
-
-    def __lt__(self, other: UnitGoal):
-        return self.value < other.value
 
 
 @dataclass
@@ -277,7 +280,7 @@ class CollectGoal(UnitGoal):
         return TransferAction(direction=Direction.CENTER, amount=max_cargo, resource=Resource.Ice)
 
     def _add_dig_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        max_nr_digs = self._get_max_nr_digs(game_state)
+        max_nr_digs = self._get_max_nr_digs_current_ptc(game_state)
         actions_max_nr_digs = self._get_dig_plan(
             start_tc=self.action_plan.final_tc,
             dig_c=self.resource_c,
@@ -296,19 +299,9 @@ class CollectGoal(UnitGoal):
         else:
             self.action_plan.extend(max_valid_digs_actions)
 
-    def _get_max_nr_digs(self, game_state: GameState) -> int:
+    def _get_max_nr_digs_current_ptc(self, game_state: GameState) -> int:
         cur_power = self.action_plan.get_final_ptc(game_state).p
-        dig_power_cost = self.unit.dig_power_cost
-        recharge_power = self.unit.recharge_power
-        min_power_change_per_dig = dig_power_cost - recharge_power
-
-        quotient, remainder = divmod(cur_power, min_power_change_per_dig)
-        if remainder >= recharge_power:
-            max_nr_digs = quotient
-        else:
-            max_nr_digs = max(0, quotient - 1)
-
-        return max_nr_digs
+        return self._get_max_nr_digs(cur_power=cur_power)
 
     def _add_ice_to_factory_actions(self, board: Board, constraints: Constraints) -> None:
         actions = self._get_move_to_factory_actions(board=board, constraints=constraints)
@@ -329,6 +322,20 @@ class CollectGoal(UnitGoal):
         number_of_digs = action_plan.nr_digs
         total_cost = self._get_cost_plan(action_plan, game_state)
         return 100 * number_of_digs / total_cost
+
+    def _get_best_value(self) -> float:
+        # TODO smarter assumption than full capacity
+        max_nr_digs = self._get_max_nr_digs(self.unit.battery_capacity)
+        max_revenue_per_dig = 1000
+        max_revenue = max_nr_digs * max_revenue_per_dig
+
+        min_cost_digging = max_nr_digs * (self.unit.time_to_power_cost + self.unit.dig_power_cost)
+        distance_to_resource = self.unit.tc.distance_to(self.resource_c)
+        min_cost_moving = distance_to_resource * (self.unit.time_to_power_cost + self.unit.move_power_cost)
+        min_cost = min_cost_digging + min_cost_moving
+
+        best_value = max_revenue - min_cost
+        return best_value
 
 
 @dataclass
@@ -357,10 +364,10 @@ class CollectOreGoal(CollectGoal):
 
 @dataclass
 class ClearRubbleGoal(UnitGoal):
-    rubble_positions: CoordinateList
+    rubble_position: Coordinate
 
     def __repr__(self) -> str:
-        first_rubble_c = self.rubble_positions[0]
+        first_rubble_c = self.rubble_position
         return f"clear_rubble_[{first_rubble_c}]"
 
     @property
@@ -376,29 +383,27 @@ class ClearRubbleGoal(UnitGoal):
         return self.action_plan
 
     def _add_clear_initial_rubble_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        for rubble_c in self.rubble_positions:
-            nr_required_digs = self._get_nr_required_digs(rubble_c=rubble_c, board=game_state.board)
+        nr_required_digs = self._get_nr_required_digs(rubble_c=self.rubble_position, board=game_state.board)
 
-            potential_dig_actions = self._get_dig_plan(
-                start_tc=self.action_plan.final_tc,
-                dig_c=rubble_c,
-                nr_digs=nr_required_digs,
-                constraints=constraints,
-                board=game_state.board,
-            )
+        potential_dig_actions = self._get_dig_plan(
+            start_tc=self.action_plan.final_tc,
+            dig_c=self.rubble_position,
+            nr_digs=nr_required_digs,
+            constraints=constraints,
+            board=game_state.board,
+        )
 
-            potential_dig_actions = self._get_valid_actions(potential_dig_actions, game_state)
+        potential_dig_actions = self._get_valid_actions(potential_dig_actions, game_state)
 
-            max_valid_digs_actions = self.find_max_dig_actions_can_still_reach_factory(
-                potential_dig_actions, game_state, constraints
-            )
+        max_valid_digs_actions = self.find_max_dig_actions_can_still_reach_factory(
+            potential_dig_actions, game_state, constraints
+        )
 
-            if len(max_valid_digs_actions) == 0:
-                self._is_valid = False
-                return
-            else:
-                self.action_plan.extend(max_valid_digs_actions)
-
+        if len(max_valid_digs_actions) == 0:
+            self._is_valid = False
+            return
+        
+        self.action_plan.extend(max_valid_digs_actions)
         self._is_valid = True
 
     def _get_nr_required_digs(self, rubble_c: Coordinate, board: Board) -> int:
@@ -406,6 +411,20 @@ class ClearRubbleGoal(UnitGoal):
         rubble_at_pos = board.rubble[rubble_c.xy]
         nr_required_digs = ceil(rubble_at_pos / self.unit.unit_cfg.DIG_RUBBLE_REMOVED)
         return nr_required_digs
+
+    def _get_best_value(self) -> float:
+        # TODO smarter assumption than full capacity
+        max_nr_digs = self._get_max_nr_digs(self.unit.battery_capacity)
+        max_revenue_per_dig = 100
+        max_revenue = max_nr_digs * max_revenue_per_dig
+
+        min_cost_digging = max_nr_digs * (self.unit.time_to_power_cost + self.unit.dig_power_cost)
+        distance_to_resource = self.unit.tc.distance_to(self.rubble_position)
+        min_cost_moving = distance_to_resource * (self.unit.time_to_power_cost + self.unit.move_power_cost)
+        min_cost = min_cost_digging + min_cost_moving
+
+        best_value = max_revenue - min_cost
+        return best_value
 
     # def _add_additional_rubble_actions(self, game_state: GameState, constraints: Constraints):
     #     if len(self.action_plan.actions) == 0 or not isinstance(self.action_plan.actions[-1], DigAction):
@@ -494,6 +513,9 @@ class FleeGoal(UnitGoal):
             self._is_valid = False
             return
 
+    def _get_best_value(self) -> float:
+        return 1000
+
     def get_value_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return 1000
 
@@ -531,6 +553,9 @@ class ActionQueueGoal(UnitGoal):
         # Can probably be solved by just picking the highest one / returning highest one by the goal collection
         return self.goal.key
 
+    def _get_best_value(self) -> float:
+        return self.goal._get_best_value()
+
 
 class UnitNoGoal(UnitGoal):
     _value = None
@@ -539,6 +564,9 @@ class UnitNoGoal(UnitGoal):
     def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
         self._init_action_plan()
         return self.action_plan
+
+    def _get_best_value(self) -> float:
+        return 0
 
     def get_value_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return 0.0
