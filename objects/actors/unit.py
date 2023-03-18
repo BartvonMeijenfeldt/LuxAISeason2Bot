@@ -73,8 +73,18 @@ class Unit(Actor):
                 for rubble_tile in closest_rubble_tiles
             ]
 
+            closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=3)
+
+            ice_goals = [
+                CollectIceGoal(unit=self, resource_c=ice_tile, factory_c=game_state.get_closest_factory_c(c=ice_tile))
+                for ice_tile in closest_ice_tiles
+            ]
+
+            goals.extend(ice_goals)
+
             target_ore_c = game_state.get_closest_ore_tile(c=self.tc)
             target_factory_c = game_state.get_closest_factory_c(c=target_ore_c)
+
             collect_ore_goal = CollectOreGoal(unit=self, resource_c=target_ore_c, factory_c=target_factory_c)
             goals.append(collect_ore_goal)
 

@@ -172,14 +172,13 @@ class ActionPlanResolver:
                 if constraints.can_not_add_positive_constraint(tc):
                     return None
 
-                new_constraints = constraints.add_positive_constraint(tc)
+                # new_constraints = constraints.add_positive_constraint(tc)
             else:
                 if constraints.can_not_add_negative_constraint(tc):
                     return None
 
                 new_constraints = constraints.add_negative_constraint(tc)
-
-            unit_constraints[unit] = new_constraints
+                unit_constraints[unit] = new_constraints
 
         return unit_constraints
 

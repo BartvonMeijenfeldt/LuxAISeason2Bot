@@ -106,6 +106,9 @@ class Board:
     def get_n_closest_rubble_tiles(self, c: Coordinate, n: int) -> CoordinateList:
         return self.rubble_coordinates.get_n_closest_tiles(c=c, n=n)
 
+    def get_n_closest_ice_tiles(self, c: Coordinate, n: int) -> CoordinateList:
+        return self.ice_coordinates.get_n_closest_tiles(c=c, n=n)
+
     def get_valid_neighbor_coordinates(self, c: Coordinate) -> CoordinateList:
         coordinates = [
             neighbor_c

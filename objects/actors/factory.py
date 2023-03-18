@@ -35,7 +35,7 @@ class Factory(Actor):
             goals.append(BuildLightGoal(self))
 
         if (
-            game_state.env_steps > 725
+            game_state.env_steps > 750
             and self.can_water(game_state)
             and self.cargo.water - self.water_cost(game_state) > game_state.steps_left
         ):
