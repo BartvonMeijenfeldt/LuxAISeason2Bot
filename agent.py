@@ -52,12 +52,6 @@ class Agent:
         # start = datetime.datetime.now()
 
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player)
-
-        # factory_goal_collections = self.get_factory_goal_collections(game_state)
-        # unit_goal_collections = self.get_unit_goal_collections(game_state)
-        # actor_goal_collections = {**factory_goal_collections, **unit_goal_collections}
-
-        # actor_goals, actor_action_plans = self.resolve_goals(actor_goal_collections, game_state)
         actor_goals = self.resolve_goals(game_state)
 
         self._update_prev_step_goals(actor_goals)
@@ -70,19 +64,6 @@ class Agent:
         #     print(f"{game_state.real_env_steps}: {self.player} {time_taken: .1f}")
 
         return actions
-
-    # def get_factory_goal_collections(self, game_state: GameState) -> Dict[Factory, GoalCollection]:
-    #     return {factory: factory.generate_goals(game_state) for factory in game_state.player_factories}
-
-    # def get_unit_goal_collections(self, game_state: GameState) -> Dict[Unit, GoalCollection]:
-    #     unit_goal_collections: Dict[Unit, GoalCollection] = {}
-
-    #     for unit in game_state.player_units:
-    #         unit_action_queue_goal = self._get_action_queue_goal(unit=unit)
-    #         goal_collection = unit.generate_goals(game_state, unit_action_queue_goal)
-    #         unit_goal_collections[unit] = goal_collection
-
-    #     return unit_goal_collections
 
     def resolve_goals(self, game_state: GameState) -> Dict[Actor, Goal]:
         constraints = Constraints()
@@ -103,12 +84,6 @@ class Agent:
         # TODO POWER GOALS
 
         return goals
-
-        # actor_goals, actor_action_plans = ConflichtBasedPlanResolver(
-        #     actor_goal_collections=actor_goal_collections, game_state=game_state
-        # ).resolve()
-
-        # return actor_goals
 
     def get_sorted_actors(self, game_state: GameState) -> List[Actor]:
         actors = game_state.player_factories + game_state.player_units
@@ -135,16 +110,6 @@ class Agent:
 
         else:
             raise ValueError(f"{actor} is not of type Unit or Factory")
-
-    # def resolve_goals(
-    #     self, actor_goal_collections: Dict[Actor, GoalCollection], game_state: GameState
-    # ) -> Tuple[Dict[Actor, Goal], Dict[Actor, ActionPlan]]:
-
-    #     # actor_goals, actor_action_plans = ConflichtBasedPlanResolver(
-    #     #     actor_goal_collections=actor_goal_collections, game_state=game_state
-    #     # ).resolve()
-
-    #     return actor_goals, actor_action_plans
 
     def get_actions(self, actor_goal_collections: Dict[Actor, Goal]) -> Dict[str, Any]:
         return {

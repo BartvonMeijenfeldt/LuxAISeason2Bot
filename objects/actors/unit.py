@@ -46,18 +46,7 @@ class Unit(Actor):
         return cost
 
     def generate_goals(self, game_state: GameState) -> List[UnitGoal]:
-        # TODO add action_queue goal again
-        # if action_queue_goal:
-        #     goals = [action_queue_goal]
-        #     if self.is_under_threath(game_state) and self.next_step_is_stationary():
-        #         # TODO, this should be getting all threatening opponents and the flee goal should be adapted to
-        #         # take multiple opponents into account
-        #         neighboring_opponents = self._get_neighboring_opponents(game_state)
-        #         randomly_picked_neighboring_opponent = neighboring_opponents[0]
-        #         flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
-        #         goals.append(flee_goal)
-
-        # elif game_state.env_steps <= 920 and self.unit_type == "HEAVY":
+        # TODO, readd FleeGoal
         if game_state.env_steps <= 920 and self.unit_type == "HEAVY":
             target_ice_c = game_state.get_closest_ice_tile(c=self.tc)
             target_factory_c = game_state.get_closest_factory_c(c=target_ice_c)
