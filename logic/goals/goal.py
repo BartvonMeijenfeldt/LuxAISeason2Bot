@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from objects.actions.action_plan import ActionPlan
+from objects.actions.unit_action_plan import UnitActionPlan
 from logic.constraints import Constraints
 
 
@@ -17,6 +18,9 @@ if TYPE_CHECKING:
 class Goal(metaclass=ABCMeta):
     def generate_and_evaluate_action_plan(self, game_state: GameState, constraints: Constraints) -> ActionPlan:
         self.action_plan = self.generate_action_plan(game_state=game_state, constraints=constraints)
+        if isinstance(self.action_plan, UnitActionPlan) and not self.action_plan.is_valid_size:
+            self._is_valid = False
+
         self._value = self.get_value_action_plan(action_plan=self.action_plan, game_state=game_state)
         return self.action_plan
 
