@@ -4,12 +4,12 @@ from typing import List, Optional
 
 from objects.actors.actor import Actor
 from lux.config import UnitConfig
-from objects.coordinate import TimeCoordinate, CoordinateList
+from objects.coordinate import TimeCoordinate
 from objects.game_state import GameState
 from objects.actions.unit_action import UnitAction
-
-from logic.goals.goal import GoalCollection
+from objects.actions.unit_action_plan import UnitActionPlan
 from logic.goals.unit_goal import (
+    UnitGoal,
     CollectIceGoal,
     ClearRubbleGoal,
     CollectOreGoal,
@@ -25,6 +25,7 @@ class Unit(Actor):
     tc: TimeCoordinate
     unit_cfg: UnitConfig
     action_queue: List[UnitAction]
+    prev_step_goal: Optional[UnitGoal]
     _is_under_threath: Optional[bool] = field(init=False, default=None)
 
     def __post_init__(self):
@@ -45,9 +46,15 @@ class Unit(Actor):
         cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
         return cost
 
-    def generate_goals(self, game_state: GameState, action_queue_goal: Optional[ActionQueueGoal]) -> GoalCollection:
-        if action_queue_goal:
+    def generate_goals(self, game_state: GameState) -> List[UnitGoal]:
+        if self.action_queue:
+            if not self.prev_step_goal:
+                raise RuntimeError()
+
+            action_plan = UnitActionPlan(original_actions=self.action_queue, actor=self, is_set=True)
+            action_queue_goal = ActionQueueGoal(unit=self, action_plan=action_plan, goal=self.prev_step_goal)
             goals = [action_queue_goal]
+
             if self.is_under_threath(game_state) and self.next_step_is_stationary():
                 # TODO, this should be getting all threatening opponents and the flee goal should be adapted to
                 # take multiple opponents into account
@@ -63,17 +70,11 @@ class Unit(Actor):
 
         elif game_state.env_steps > 920 and self.unit_type == "HEAVY":
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
-            goals = [
-                ClearRubbleGoal(unit=self, rubble_positions=CoordinateList([rubble_tile]))
-                for rubble_tile in closest_rubble_tiles
-            ]
+            goals = [ClearRubbleGoal(unit=self, rubble_position=rubble_tile) for rubble_tile in closest_rubble_tiles]
 
         else:
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
-            goals = [
-                ClearRubbleGoal(unit=self, rubble_positions=CoordinateList([rubble_tile]))
-                for rubble_tile in closest_rubble_tiles
-            ]
+            goals = [ClearRubbleGoal(unit=self, rubble_position=rubble_tile) for rubble_tile in closest_rubble_tiles]
 
             closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=1)
 
@@ -91,7 +92,6 @@ class Unit(Actor):
             goals.append(collect_ore_goal)
 
         goals += [UnitNoGoal(unit=self)]
-        goals = GoalCollection(goals)
 
         return goals
 
@@ -134,12 +134,20 @@ class Unit(Actor):
         return self.unit_cfg.CHARGE
 
     @property
+    def move_power_cost(self) -> int:
+        return self.unit_cfg.MOVE_COST
+
+    @property
     def dig_power_cost(self) -> int:
         return self.unit_cfg.DIG_COST
 
     @property
+    def battery_capacity(self) -> int:
+        return self.unit_cfg.BATTERY_CAPACITY
+
+    @property
     def power_space_left(self) -> int:
-        return self.unit_cfg.BATTERY_CAPACITY - self.power
+        return self.battery_capacity - self.power
 
     @property
     def cargo_space_left(self) -> int:

@@ -1,7 +1,6 @@
 from __future__ import annotations
-import heapq
 
-from typing import List, Tuple, Any, Generator, TYPE_CHECKING
+from typing import List, Tuple, Generator, TYPE_CHECKING
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 
@@ -12,26 +11,10 @@ from objects.actions.unit_action import UnitAction, MoveAction, DigAction, Picku
 from objects.resource import Resource
 
 from logic.constraints import Constraints
+from utils import PriorityQueue
 
 if TYPE_CHECKING:
     from objects.actors.unit import UnitConfig
-
-
-class PriorityQueue:
-    def __init__(self):
-        self.elements: list[tuple[float, Any]] = []
-
-    def empty(self) -> bool:
-        return not self.elements
-
-    def put(self, item: Any, priority: float):
-        heapq.heappush(self.elements, (priority, item))
-
-    def get(self) -> Any:
-        return heapq.heappop(self.elements)[1]
-
-    def __len__(self) -> int:
-        return len(self.elements)
 
 
 @dataclass
@@ -52,7 +35,6 @@ class Graph(metaclass=ABCMeta):
             if (
                 not self._tc_violates_constraint(to_c)
                 and self.board.is_valid_c_for_player(c=to_c)
-                and self.constraints.can_fullfill_next_positive_constraint(to_c)
             ):
                 yield ((action, to_c))
 
@@ -217,8 +199,8 @@ class Search:
         self.frontier.put(start, 0)
 
     def _find_optimal_solution(self) -> None:
-        while not self.frontier.empty():
-            current_node: TimeCoordinate = self.frontier.get()
+        while not self.frontier.is_empty():
+            current_node: TimeCoordinate = self.frontier.pop()
 
             if self.graph.node_completes_goal(node=current_node):
                 break

@@ -16,6 +16,10 @@ def is_init_row(row: List[str]) -> bool:
     return row[0].startswith("player_")
 
 
+def is_unit_collision_row(row: List[str]) -> bool:
+    return "collided" in row and "surviving" not in row
+
+
 def is_unit_surviving_collision_row(row: List[str]) -> bool:
     return "collided" in row and "surviving" in row
 
@@ -37,6 +41,22 @@ def is_episode_final_row(row: List[str]) -> bool:
 
 
 def parse_collision_row(row: List[str]) -> dict:
+    time_step = int(strip_non_alpha_numeric(row[0]))
+    nr_units_collided = int(row[1]) + 1
+    collision_spot = row[-1]
+    collision_spot_x, collision_spot_y = [int(c) for c in collision_spot.split(",")]
+    lost_units = [strip_non_alpha_numeric(c) for c in row[3:-4]]
+
+    return dict(
+        time_step=time_step,
+        nr_units_collided=nr_units_collided,
+        collision_spot_x=collision_spot_x,
+        collision_spot_y=collision_spot_y,
+        lost_unit=lost_units,
+    )
+
+
+def parse_surviving_collision_row(row: List[str]) -> dict:
     time_step = int(strip_non_alpha_numeric(row[0]))
     nr_units_collided = int(row[1]) + 1
     collision_spot = row[-12]
@@ -123,8 +143,10 @@ if __name__ == "__main__":
         for row in reader:
             if is_nr_seconds_row(row) or is_init_row(row) or is_episode_final_row(row):
                 continue
-            elif is_unit_surviving_collision_row(row):
+            elif is_unit_collision_row(row):
                 collision_rows.append(parse_collision_row(row))
+            elif is_unit_surviving_collision_row(row):
+                collision_rows.append(parse_surviving_collision_row(row))
                 continue
             elif is_invalid_dig_action_row(row):
                 invalid_action_rows.append(parse_invalid_action_row(row))

@@ -12,6 +12,7 @@ from objects.board import Board
 from objects.coordinate import TimeCoordinate
 from objects.actors.factory import Factory
 from objects.actions.unit_action import UnitAction
+from logic.goals.unit_goal import UnitGoal
 
 
 def process_action(action):
@@ -70,8 +71,8 @@ def process_obs(player, game_state, step, obs):
     return game_state
 
 
-def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str):
-    units = create_units(obs=obs, env_cfg=env_cfg, t=obs['real_env_steps'])
+def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str, prev_steps_goals: Dict[str, UnitGoal]):
+    units = create_units(obs=obs, env_cfg=env_cfg, t=obs['real_env_steps'], prev_step_goals=prev_steps_goals)
     factories = create_factories(obs=obs, env_cfg=env_cfg, t=obs['real_env_steps'])
     factory_occupancy_map = create_factory_occupancy_map(factories, obs["board"]["rubble"].shape)
 
@@ -102,7 +103,7 @@ def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str):
     )
 
 
-def create_units(obs, env_cfg: EnvConfig, t: int) -> Dict[str, List[Unit]]:
+def create_units(obs, env_cfg: EnvConfig, t: int, prev_step_goals: Dict[str, UnitGoal]) -> Dict[str, List[Unit]]:
     units = defaultdict(list)
 
     for agent in obs["units"]:
@@ -113,6 +114,12 @@ def create_units(obs, env_cfg: EnvConfig, t: int) -> Dict[str, List[Unit]]:
             unit_data["cargo"] = UnitCargo(**unit_data["cargo"])
             unit_data["unit_cfg"] = env_cfg.ROBOTS[unit_data["unit_type"]]
             unit_data["action_queue"] = [UnitAction.from_array(action) for action in unit_data["action_queue"]]
+
+            if unit_data["unit_id"] in prev_step_goals:
+                unit_data["prev_step_goal"] = prev_step_goals[unit_data["unit_id"]]
+            else:
+                unit_data["prev_step_goal"] = None
+
             unit = Unit(**unit_data)
             units[agent].append(unit)
 
