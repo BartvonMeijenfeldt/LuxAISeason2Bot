@@ -68,6 +68,13 @@ class Unit(Actor):
             target_factory_c = game_state.get_closest_factory_c(c=target_ice_c)
             goals = [CollectIceGoal(unit=self, resource_c=target_ice_c, factory_c=target_factory_c)]
 
+            # target_ore_c = game_state.get_closest_ore_tile(c=self.tc)
+            # target_factory_c = game_state.get_closest_factory_c(c=target_ore_c)
+
+            # collect_ore_goal = CollectOreGoal(unit=self, resource_c=target_ore_c, factory_c=target_factory_c)
+            # goals.append(collect_ore_goal)
+
+
         elif game_state.env_steps > 920 and self.unit_type == "HEAVY":
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
             goals = [ClearRubbleGoal(unit=self, rubble_position=rubble_tile) for rubble_tile in closest_rubble_tiles]
@@ -152,6 +159,14 @@ class Unit(Actor):
     @property
     def cargo_space_left(self) -> int:
         return self.unit_cfg.CARGO_SPACE - self.cargo.total
+
+    @property
+    def rubble_removed_per_dig(self) -> int:
+        return self.unit_cfg.DIG_RUBBLE_REMOVED
+
+    @property
+    def resources_gained_per_dig(self) -> int:
+        return self.unit_cfg.DIG_RESOURCE_GAIN
 
     def __hash__(self) -> int:
         return hash(str(self))

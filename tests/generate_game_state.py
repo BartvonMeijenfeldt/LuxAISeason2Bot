@@ -17,6 +17,7 @@ OPP_TEAM_ID = 1
 class UnitPos:
     x: int
     y: int
+    id: int = field(default=0)
 
 
 @dataclass
@@ -36,24 +37,24 @@ class FactoryPositions:
 def _get_units(unit_positions: UnitPositions) -> Dict[str, dict]:
 
     player_light_units = [
-        _generate_unit(team_id=PLAYER_TEAM_ID, unit_id=i, unit_type="LIGHT", pos=pos)
+        _generate_unit(team_id=PLAYER_TEAM_ID, unit_type="LIGHT", pos=pos)
         for i, pos in enumerate(unit_positions.player_lights)
     ]
 
     player_heavy_units = [
-        _generate_unit(team_id=PLAYER_TEAM_ID, unit_id=i, unit_type="HEAVY", pos=pos)
+        _generate_unit(team_id=PLAYER_TEAM_ID, unit_type="HEAVY", pos=pos)
         for i, pos in enumerate(unit_positions.player_heavies, start=len(player_light_units))
     ]
 
     player_units = {unit["unit_id"]: unit for unit in player_light_units + player_heavy_units}
 
     opp_light_units = [
-        _generate_unit(team_id=OPP_TEAM_ID, unit_id=i, unit_type="LIGHT", pos=pos)
+        _generate_unit(team_id=OPP_TEAM_ID, unit_type="LIGHT", pos=pos)
         for i, pos in enumerate(unit_positions.opp_lights, start=len(player_units))
     ]
 
     opp_heavy_units = [
-        _generate_unit(team_id=OPP_TEAM_ID, unit_id=i, unit_type="HEAVY", pos=pos)
+        _generate_unit(team_id=OPP_TEAM_ID, unit_type="HEAVY", pos=pos)
         for i, pos in enumerate(unit_positions.opp_heavies, start=len(player_units) + len(opp_light_units))
     ]
 
@@ -64,7 +65,6 @@ def _get_units(unit_positions: UnitPositions) -> Dict[str, dict]:
 
 def _generate_unit(
     team_id: int,
-    unit_id: int,
     unit_type: str,
     pos: UnitPos,
     power: int = 500,
@@ -77,7 +77,7 @@ def _generate_unit(
     if action_queue is None:
         action_queue = []
 
-    unit_id_str = f"unit_{unit_id}"
+    unit_id_str = f"unit_{pos.id}"
 
     np_pos = np.array([pos.x, pos.y])
 
@@ -187,30 +187,22 @@ def _get_board(board_width: int, tiles: Tiles) -> dict:
 def _get_factories(factory_positions: FactoryPositions) -> Dict[str, dict]:
 
     player_factories = {
-        f"factory_{i}": _generate_factory(PLAYER_TEAM_ID, factory_id=i, pos=pos)
-        for i, pos in enumerate(factory_positions.player)
+        f"factory_{pos.id}": _generate_factory(PLAYER_TEAM_ID, pos=pos) for pos in factory_positions.player
     }
 
-    opp_factories = {
-        f"factory_{i}": _generate_factory(OPP_TEAM_ID, factory_id=i, pos=pos)
-        for i, pos in enumerate(factory_positions.opp, start=len(player_factories))
-    }
+    opp_factories = {f"factory_{pos.id}": _generate_factory(OPP_TEAM_ID, pos=pos) for pos in factory_positions.opp}
 
     return {f"player_{PLAYER_TEAM_ID}": player_factories, f"player_{OPP_TEAM_ID}": opp_factories}
 
 
-def _generate_factory(
-    team_id: int, factory_id: int, pos: UnitPos, power: int = 500, cargo: Optional[dict] = None
-) -> dict:
+def _generate_factory(team_id: int, pos: UnitPos, power: int = 500, cargo: Optional[dict] = None) -> dict:
 
     if cargo is None:
         cargo = dict(ice=0, ore=0, water=0, metal=0)
 
     np_pos = np.array([pos.x, pos.y])
 
-    return dict(
-        pos=np_pos, power=power, cargo=cargo, unit_id=f"factory_{factory_id}", strain_id=factory_id, team_id=team_id,
-    )
+    return dict(pos=np_pos, power=power, cargo=cargo, unit_id=f"factory_{pos.id}", strain_id=pos.id, team_id=team_id,)
 
 
 def _get_obs(

@@ -53,7 +53,7 @@ class Factory(Actor):
         return self.power >= LIGHT_CFG.POWER_COST and self.cargo.metal >= LIGHT_CFG.METAL_COST
 
     def water_cost(self, game_state: GameState) -> int:
-        return WaterAction.get_water_cost(game_state=game_state, strain_id=self.strain_id)
+        return WaterAction.get_water_cost_from_strain_id(game_state=game_state, strain_id=self.strain_id)
 
     def can_water(self, game_state):
         return self.cargo.water >= self.water_cost(game_state)

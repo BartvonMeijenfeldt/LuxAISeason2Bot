@@ -55,6 +55,10 @@ class UnitActionPlan(ActionPlan):
 
         return self._actions
 
+    @property
+    def nr_time_steps(self) -> int:
+        return sum(action.n for action in self.original_actions)
+
     def _get_condensed_action_plan(self) -> list[UnitAction]:
         return ActionPlanCondenser(original_actions=self.original_actions).condense()
 
