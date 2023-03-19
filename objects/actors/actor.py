@@ -21,18 +21,8 @@ class Actor(metaclass=ABCMeta):
     cargo: UnitCargo
 
     # TODO should remove the action_queu_goal here and let it automatically be generated in generate goals
-    def get_best_goal(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        reserved_goals: Set[str] = set(),
-        action_queue_goal: Optional[ActionQueueGoal] = None,
-    ) -> Goal:
+    def get_best_goal(self, game_state: GameState, constraints: Constraints, reserved_goals: Set[str] = set()) -> Goal:
         goals = self.generate_goals(game_state)
-        if action_queue_goal:
-            goals.append(action_queue_goal)
-            goals = [action_queue_goal, goals[-2]]
-
         goals_priority_queue = PriorityQueue()
 
         for goal in goals:

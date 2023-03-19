@@ -31,7 +31,7 @@ class Agent:
         self.prev_steps_goals: dict[str, UnitGoal] = {}
 
     def early_setup(self, step: int, obs, remainingOverageTime: int = 60):
-        game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player)
+        game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_steps_goals)
 
         if step == 0:
             return dict(faction="AlphaStrike", bid=0)
@@ -51,7 +51,7 @@ class Agent:
         """
         # start = datetime.datetime.now()
 
-        game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player)
+        game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_steps_goals)
         actor_goals = self.resolve_goals(game_state)
 
         self._update_prev_step_goals(actor_goals)
@@ -71,17 +71,11 @@ class Agent:
         reserved_goals = set()
         importance_sorted_actors = self.get_sorted_actors(game_state)
         for actor in importance_sorted_actors:
-            if isinstance(actor, Unit) and actor.has_actions_in_queue:
-                action_queue_goal = self._get_action_queue_goal(unit=actor)
-                goal = actor.get_best_goal(game_state, constraints, reserved_goals, action_queue_goal)
-            else:
-                goal = actor.get_best_goal(game_state, constraints, reserved_goals)
-
+            goal = actor.get_best_goal(game_state, constraints, reserved_goals)
             constraints = constraints.add_negative_constraints(goal.action_plan.time_coordinates)
+            # TODO POWER constraints
             reserved_goals.add(goal.key)
             goals[actor] = goal
-
-        # TODO POWER GOALS
 
         return goals
 

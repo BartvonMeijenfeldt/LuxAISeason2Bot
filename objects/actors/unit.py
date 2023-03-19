@@ -4,10 +4,10 @@ from typing import List, Optional
 
 from objects.actors.actor import Actor
 from lux.config import UnitConfig
-from objects.coordinate import TimeCoordinate, CoordinateList
+from objects.coordinate import TimeCoordinate
 from objects.game_state import GameState
 from objects.actions.unit_action import UnitAction
-
+from objects.actions.unit_action_plan import UnitActionPlan
 from logic.goals.unit_goal import (
     UnitGoal,
     CollectIceGoal,
@@ -25,6 +25,7 @@ class Unit(Actor):
     tc: TimeCoordinate
     unit_cfg: UnitConfig
     action_queue: List[UnitAction]
+    prev_step_goal: Optional[UnitGoal]
     _is_under_threath: Optional[bool] = field(init=False, default=None)
 
     def __post_init__(self):
@@ -46,25 +47,34 @@ class Unit(Actor):
         return cost
 
     def generate_goals(self, game_state: GameState) -> List[UnitGoal]:
-        # TODO, readd FleeGoal
-        if game_state.env_steps <= 920 and self.unit_type == "HEAVY":
+        if self.action_queue:
+            if not self.prev_step_goal:
+                raise RuntimeError()
+
+            action_plan = UnitActionPlan(original_actions=self.action_queue, actor=self, is_set=True)
+            action_queue_goal = ActionQueueGoal(unit=self, action_plan=action_plan, goal=self.prev_step_goal)
+            goals = [action_queue_goal]
+
+            if self.is_under_threath(game_state) and self.next_step_is_stationary():
+                # TODO, this should be getting all threatening opponents and the flee goal should be adapted to
+                # take multiple opponents into account
+                neighboring_opponents = self._get_neighboring_opponents(game_state)
+                randomly_picked_neighboring_opponent = neighboring_opponents[0]
+                flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
+                goals.append(flee_goal)
+
+        elif game_state.env_steps <= 920 and self.unit_type == "HEAVY":
             target_ice_c = game_state.get_closest_ice_tile(c=self.tc)
             target_factory_c = game_state.get_closest_factory_c(c=target_ice_c)
             goals = [CollectIceGoal(unit=self, resource_c=target_ice_c, factory_c=target_factory_c)]
 
         elif game_state.env_steps > 920 and self.unit_type == "HEAVY":
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
-            goals = [
-                ClearRubbleGoal(unit=self, rubble_position=rubble_tile)
-                for rubble_tile in closest_rubble_tiles
-            ]
+            goals = [ClearRubbleGoal(unit=self, rubble_position=rubble_tile) for rubble_tile in closest_rubble_tiles]
 
         else:
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
-            goals = [
-                ClearRubbleGoal(unit=self, rubble_position=rubble_tile)
-                for rubble_tile in closest_rubble_tiles
-            ]
+            goals = [ClearRubbleGoal(unit=self, rubble_position=rubble_tile) for rubble_tile in closest_rubble_tiles]
 
             closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=1)
 
