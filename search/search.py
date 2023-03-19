@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Tuple, Generator, TYPE_CHECKING
+from typing import List, Tuple, Generator, Optional, TYPE_CHECKING
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 
@@ -32,10 +32,7 @@ class Graph(metaclass=ABCMeta):
     def get_valid_action_nodes(self, c: TimeCoordinate) -> Generator[Tuple[UnitAction, TimeCoordinate], None, None]:
         for action in self.potential_actions(c=c):
             to_c = c.add_action(action)
-            if (
-                not self._tc_violates_constraint(to_c)
-                and self.board.is_valid_c_for_player(c=to_c)
-            ):
+            if not self._tc_violates_constraint(to_c) and self.board.is_valid_c_for_player(c=to_c):
                 yield ((action, to_c))
 
     def _tc_violates_constraint(self, to_c: Coordinate) -> bool:
@@ -92,6 +89,7 @@ class MoveToGraph(Graph):
 @dataclass
 class PickupPowerGraph(Graph):
     power_pickup_goal: int
+    next_goal_c: Optional[Coordinate] = field(default=None)
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
 
     def __post_init__(self):
@@ -115,6 +113,16 @@ class PickupPowerGraph(Graph):
             for action in self._potential_move_actions:
                 yield (action)
 
+    def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
+        move_cost = super().cost(action, to_c)
+        if self.next_goal_c is None or not isinstance(action, PickupAction):
+            return move_cost
+
+        distance_to_goal = to_c.distance_to(self.next_goal_c)
+        min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
+        min_distance_cost = distance_to_goal * min_cost_per_step
+        return move_cost + min_distance_cost
+
     def heuristic(self, node: PowerTimeCoordinate) -> float:
         min_distance_cost = self._get_distance_heuristic(node=node)
         min_time_recharge_cost = self._get_time_recharge_heuristic(node=node)
@@ -123,7 +131,19 @@ class PickupPowerGraph(Graph):
     def _get_distance_heuristic(self, node: Coordinate) -> float:
         closest_factory_tile = self.board.get_closest_factory_tile(node)
         min_distance_to_factory = closest_factory_tile.distance_to(node)
-        return min_distance_to_factory
+
+        if self.next_goal_c:
+            # TODO, now it calculates from closest_factory_tile the heuristic, it could be that a tile at a different
+            # factory will have the min distance if you take into account the next goal
+            min_distance_factory_to_next_goal = self.next_goal_c.distance_to(closest_factory_tile)
+            total_distance = min_distance_to_factory + min_distance_factory_to_next_goal
+        else:
+            total_distance = min_distance_to_factory
+
+        min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
+        min_distance_cost = total_distance * min_cost_per_step
+
+        return min_distance_cost
 
     def _get_time_recharge_heuristic(self, node: PowerTimeCoordinate) -> float:
         if self.node_completes_goal(node=node):
