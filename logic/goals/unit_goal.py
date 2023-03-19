@@ -81,13 +81,16 @@ class UnitGoal(Goal):
 
         return graph
 
-    def _get_recharge_graph(self, board: Board, recharge_amount: int, constraints: Constraints) -> PickupPowerGraph:
+    def _get_recharge_graph(
+        self, board: Board, recharge_amount: int, constraints: Constraints, next_goal_c: Optional[Coordinate] = None
+    ) -> PickupPowerGraph:
         graph = PickupPowerGraph(
             board=board,
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,
             power_pickup_goal=recharge_amount,
             constraints=constraints,
+            next_goal_c=next_goal_c,
         )
 
         return graph
@@ -108,7 +111,9 @@ class UnitGoal(Goal):
         optimal_actions = search.get_actions_to_complete_goal(start=start)
         return optimal_actions
 
-    def _optional_add_power_pickup_action(self, game_state: GameState, constraints: Constraints) -> None:
+    def _optional_add_power_pickup_action(
+        self, game_state: GameState, constraints: Constraints, next_goal_c: Optional[Coordinate] = None,
+    ) -> None:
         if constraints.max_power_request is not None and constraints.max_power_request < 10:
             return
 
@@ -127,7 +132,7 @@ class UnitGoal(Goal):
             return
 
         graph = self._get_recharge_graph(
-            board=game_state.board, recharge_amount=power_to_pickup, constraints=constraints
+            board=game_state.board, recharge_amount=power_to_pickup, constraints=constraints, next_goal_c=next_goal_c
         )
 
         recharge_tc = PowerTimeCoordinate(*self.action_plan.final_tc, p=0)
@@ -262,7 +267,9 @@ class CollectGoal(UnitGoal):
 
         self._is_valid = True
         self._init_action_plan()
-        self._optional_add_power_pickup_action(game_state=game_state, constraints=constraints)
+        self._optional_add_power_pickup_action(
+            game_state=game_state, constraints=constraints, next_goal_c=self.resource_c
+        )
         self._add_dig_actions(game_state=game_state, constraints=constraints)
         self._add_ice_to_factory_actions(board=game_state.board, constraints=constraints)
         self._add_transfer_action()
@@ -369,9 +376,10 @@ class ClearRubbleGoal(UnitGoal):
 
     def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
         self._init_action_plan()
-        self._optional_add_power_pickup_action(game_state=game_state, constraints=constraints)
+        self._optional_add_power_pickup_action(
+            game_state=game_state, constraints=constraints, next_goal_c=self.rubble_position
+        )
         self._add_clear_initial_rubble_actions(game_state=game_state, constraints=constraints)
-        # self._add_additional_rubble_actions(game_state=game_state, constraints=constraints)
         self._optional_add_go_to_factory_actions(game_state=game_state, constraints=constraints)
         return self.action_plan
 
@@ -532,6 +540,7 @@ class UnitNoGoal(UnitGoal):
 
     def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
         self._init_action_plan()
+        # TODO, add evading negative constraints
         return self.action_plan
 
     def _get_best_value(self) -> float:

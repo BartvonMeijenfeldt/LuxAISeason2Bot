@@ -3,10 +3,17 @@ import unittest
 from typing import Optional, Sequence
 
 from logic.constraints import Constraints
-from objects.coordinate import Coordinate as C, DigCoordinate as DC, DigTimeCoordinate as DTC, TimeCoordinate as TC
-from objects.actions.unit_action import MoveAction as MA, UnitAction, DigAction as DA
+from objects.coordinate import (
+    Coordinate as C,
+    DigCoordinate as DC,
+    DigTimeCoordinate as DTC,
+    TimeCoordinate as TC,
+    PowerTimeCoordinate as PTC,
+)
+from objects.actions.unit_action import MoveAction as MA, UnitAction, DigAction as DA, PickupAction as PA
 from objects.direction import Direction as D
-from search.search import DigAtGraph, MoveToGraph, Search
+from objects.resource import Resource
+from search.search import PickupPowerGraph, DigAtGraph, MoveToGraph, Search
 from lux.kit import GameState
 from lux.config import EnvConfig
 from tests.generate_game_state import get_state, FactoryPositions, UnitPos, Tiles, RubbleTile as RT
@@ -422,6 +429,141 @@ class DigAtSearch(unittest.TestCase):
             unit_type=unit_type,
             expected_actions=expected_actions,
             time_to_power_cost=time_to_power_cost,
+        )
+
+
+class TestPowerPickupSearch(unittest.TestCase):
+    def _test_power_pickup_search(
+        self,
+        state: GameState,
+        start: TC,
+        power_pickup_goal: int,
+        expected_actions: Sequence[UnitAction],
+        next_goal_c: Optional[C] = None,
+        time_to_power_cost: float = 50,
+        unit_type: str = "LIGHT",
+        constraints: Optional[Constraints] = None,
+    ):
+        if constraints is None:
+            constraints = Constraints()
+
+        expected_actions = list(expected_actions)
+
+        start_ptc = PTC(*start, p=0)
+        unit_cfg = ENV_CFG.ROBOTS[unit_type]
+
+        move_to_graph = PickupPowerGraph(
+            board=state.board,
+            time_to_power_cost=time_to_power_cost,
+            unit_cfg=unit_cfg,
+            constraints=constraints,
+            power_pickup_goal=power_pickup_goal,
+            next_goal_c=next_goal_c,
+        )
+        search = Search(move_to_graph)
+        actions = search.get_actions_to_complete_goal(start=start_ptc)
+        self.assertEqual(actions, expected_actions)
+
+    def test_already_there_path(self):
+        start = TC(3, 3, 0)
+        power_pickup_goal = 100
+        factory_positions = FactoryPositions(player=[UnitPos(3, 3)])
+        state = get_state(board_width=9, factory_positions=factory_positions)
+        expected_actions = [PA(amount=power_pickup_goal, resource=Resource.Power)]
+
+        self._test_power_pickup_search(
+            state=state, start=start, power_pickup_goal=power_pickup_goal, expected_actions=expected_actions
+        )
+
+    def test_move_to_factory_path(self):
+        start = TC(1, 3, 0)
+        power_pickup_goal = 100
+        factory_positions = FactoryPositions(player=[UnitPos(3, 3)])
+        state = get_state(board_width=9, factory_positions=factory_positions)
+        expected_actions = [MA(D.RIGHT), PA(amount=power_pickup_goal, resource=Resource.Power)]
+
+        self._test_power_pickup_search(
+            state=state, start=start, power_pickup_goal=power_pickup_goal, expected_actions=expected_actions
+        )
+
+    def test_move_take_next_goal_into_account_right(self):
+        start = TC(3, 3, 0)
+        power_pickup_goal = 100
+        factory_positions = FactoryPositions(player=[UnitPos(3, 3)])
+        constraints = init_constraints(negative_constraints=[TC(3, 3, 1)])
+        next_goal_c = C(5, 3)
+
+        expected_actions = [MA(D.RIGHT), PA(amount=power_pickup_goal, resource=Resource.Power)]
+
+        state = get_state(board_width=9, factory_positions=factory_positions)
+
+        self._test_power_pickup_search(
+            state=state,
+            start=start,
+            power_pickup_goal=power_pickup_goal,
+            expected_actions=expected_actions,
+            constraints=constraints,
+            next_goal_c=next_goal_c,
+        )
+
+    def test_move_take_next_goal_into_account_up(self):
+        start = TC(3, 3, 0)
+        power_pickup_goal = 100
+        factory_positions = FactoryPositions(player=[UnitPos(3, 3)])
+        constraints = init_constraints(negative_constraints=[TC(3, 3, 1)])
+        next_goal_c = C(3, 1)
+
+        expected_actions = [MA(D.UP), PA(amount=power_pickup_goal, resource=Resource.Power)]
+
+        state = get_state(board_width=9, factory_positions=factory_positions)
+
+        self._test_power_pickup_search(
+            state=state,
+            start=start,
+            power_pickup_goal=power_pickup_goal,
+            expected_actions=expected_actions,
+            constraints=constraints,
+            next_goal_c=next_goal_c,
+        )
+
+    def test_move_take_next_goal_into_account_down(self):
+        start = TC(3, 3, 0)
+        power_pickup_goal = 100
+        factory_positions = FactoryPositions(player=[UnitPos(3, 3)])
+        constraints = init_constraints(negative_constraints=[TC(3, 3, 1)])
+        next_goal_c = C(3, 5)
+
+        expected_actions = [MA(D.DOWN), PA(amount=power_pickup_goal, resource=Resource.Power)]
+
+        state = get_state(board_width=9, factory_positions=factory_positions)
+
+        self._test_power_pickup_search(
+            state=state,
+            start=start,
+            power_pickup_goal=power_pickup_goal,
+            expected_actions=expected_actions,
+            constraints=constraints,
+            next_goal_c=next_goal_c,
+        )
+
+    def test_move_take_next_goal_into_account_left(self):
+        start = TC(3, 3, 0)
+        power_pickup_goal = 100
+        factory_positions = FactoryPositions(player=[UnitPos(3, 3)])
+        constraints = init_constraints(negative_constraints=[TC(3, 3, 1)])
+        next_goal_c = C(1, 3)
+
+        expected_actions = [MA(D.LEFT), PA(amount=power_pickup_goal, resource=Resource.Power)]
+
+        state = get_state(board_width=9, factory_positions=factory_positions)
+
+        self._test_power_pickup_search(
+            state=state,
+            start=start,
+            power_pickup_goal=power_pickup_goal,
+            expected_actions=expected_actions,
+            constraints=constraints,
+            next_goal_c=next_goal_c,
         )
 
 

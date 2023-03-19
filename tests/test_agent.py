@@ -29,6 +29,7 @@ class TestSortedActors(unittest.TestCase):
             tc=TC(5, 5, 0),
             unit_cfg=LIGHT_CFG,
             action_queue=[],
+            prev_step_goal=None
         )
 
         light_unit_with_action_queue = Unit(
@@ -40,6 +41,7 @@ class TestSortedActors(unittest.TestCase):
             tc=TC(5, 5, 0),
             unit_cfg=LIGHT_CFG,
             action_queue=[DigAction()],
+            prev_step_goal=None
         )
 
         heavy_unit = Unit(
@@ -51,6 +53,7 @@ class TestSortedActors(unittest.TestCase):
             tc=TC(5, 5, 0),
             unit_cfg=HEAVY_CFG,
             action_queue=[],
+            prev_step_goal=None
         )
 
         heavy_unit_with_action_queue = Unit(
@@ -62,6 +65,7 @@ class TestSortedActors(unittest.TestCase):
             tc=TC(5, 5, 0),
             unit_cfg=HEAVY_CFG,
             action_queue=[DigAction()],
+            prev_step_goal=None
         )
 
         unsorted_actors = [light_unit, factory, light_unit_with_action_queue, heavy_unit, heavy_unit_with_action_queue]

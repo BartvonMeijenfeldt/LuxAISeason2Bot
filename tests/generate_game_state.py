@@ -82,7 +82,14 @@ def _generate_unit(
     np_pos = np.array([pos.x, pos.y])
 
     return dict(
-        team_id=team_id, unit_id=unit_id_str, power=power, unit_type=unit_type, pos=np_pos, cargo=cargo, action_queue=[]
+        team_id=team_id,
+        unit_id=unit_id_str,
+        power=power,
+        unit_type=unit_type,
+        pos=np_pos,
+        cargo=cargo,
+        action_queue=[],
+        prev_step_goal=None,
     )
 
 
@@ -257,4 +264,4 @@ def get_state(
     env_cfg = EnvConfig()
     player = f"player_{PLAYER_TEAM_ID}"
     opp = f"player_{OPP_TEAM_ID}"
-    return obs_to_game_state(obs["real_env_steps"], env_cfg, obs, player, opp)
+    return obs_to_game_state(obs["real_env_steps"], env_cfg, obs, player, opp, {})
