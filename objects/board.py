@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Iterable
 
 import numpy as np
 
@@ -29,39 +29,50 @@ class Board:
 
     def __post_init__(self) -> None:
         self.player_factories_tiles_set = {(c.xy) for factory in self.player_factories for c in factory.coordinates}
-        self.opponent_factories_tiles_set = {(c.xy) for factory in self.opp_factories for c in factory.coordinates}
+        self.opp_factories_tiles_set = {(c.xy) for factory in self.opp_factories for c in factory.coordinates}
 
-        self.player_factory_tiles = CoordinateList(
-            [c for factory in self.player_factories for c in factory.coordinates]
-        )
-        self.opponent_factory_tiles = CoordinateList([c for factory in self.opp_factories for c in factory.coordinates])
-        self.ice_coordinates = self.get_ice_coordinates()
-        self.ore_coordinates = self.get_ore_coordinates()
-        self.rubble_coordinates = self.get_rubble_coordinates()
+        self.player_factory_tiles = self._get_factory_tiles(self.player_factories)
+        self.opp_factory_tiles = self._get_factory_tiles(self.opp_factories)
+        self.player_lichen_tiles = self._get_lichen_coordinates_from_factories(factories=self.player_factories)
+        self.opp_lichen_tiles = self._get_lichen_coordinates_from_factories(factories=self.opp_factories)
+        self.player_factories_or_lichen_tiles = self.player_factory_tiles + self.player_lichen_tiles
+        self.opp_factories_or_lichen_tiles = self.opp_factory_tiles + self.opp_lichen_tiles
 
-    @property
-    def length(self):
-        return self.rubble.shape[0]
+        self.ice_coordinates = self._get_ice_coordinates()
+        self.ore_coordinates = self._get_ore_coordinates()
+        self.rubble_coordinates = self._get_rubble_coordinates()
+        self.width = self.rubble.shape[0]
+        self.length = self.rubble.shape[1]
 
-    @property
-    def width(self):
-        return self.rubble.shape[1]
+    def _get_factory_tiles(self, factories: Iterable[Factory]) -> CoordinateList:
+        return CoordinateList([c for factory in factories for c in factory.coordinates])
 
-    def get_ice_coordinates(self) -> CoordinateList:
+    def _get_lichen_coordinates_from_factories(self, factories: Iterable[Factory]) -> CoordinateList:
+        strain_ids = [f.strain_id for f in factories]
+        lichen_coordinates = np.argwhere(np.isin(self.lichen_strains, strain_ids) & (self.lichen > 0))
+        return CoordinateList([Coordinate(*xy) for xy in lichen_coordinates])
+
+    def _get_ice_coordinates(self) -> CoordinateList:
         ice_locations = np.argwhere(self.ice == 1)
         return CoordinateList([Coordinate(*xy) for xy in ice_locations])
 
-    def get_ore_coordinates(self) -> CoordinateList:
+    def _get_ore_coordinates(self) -> CoordinateList:
         ore_locations = np.argwhere(self.ore == 1)
         return CoordinateList([Coordinate(*xy) for xy in ore_locations])
 
-    def get_rubble_coordinates(self) -> CoordinateList:
+    def _get_rubble_coordinates(self) -> CoordinateList:
         is_rubble = self.rubble > 0
         is_no_ice = self.ice == 0
         is_no_ore = self.ore == 0
 
         rubble_locations = np.argwhere(is_rubble & is_no_ice & is_no_ore)
         return CoordinateList([Coordinate(*xy) for xy in rubble_locations])
+
+    def get_min_distance_to_player_factory_or_lichen(self, c: Coordinate) -> int:
+        return self.player_factories_or_lichen_tiles.min_dis_to(c)
+
+    def get_min_distance_to_opp_factory_or_lichen(self, c: Coordinate) -> int:
+        return self.opp_factories_or_lichen_tiles.min_dis_to(c)
 
     def is_valid_c_for_player(self, c: Coordinate) -> bool:
         return not self.is_opponent_factory_tile(c=c) and self.is_on_the_board(c=c)
@@ -70,7 +81,7 @@ class Board:
         return c.xy in self.player_factories_tiles_set
 
     def is_opponent_factory_tile(self, c: Coordinate) -> bool:
-        return c.xy in self.opponent_factories_tiles_set
+        return c.xy in self.opp_factories_tiles_set
 
     def is_on_the_board(self, c: Coordinate) -> bool:
         return 0 <= c.x < self.width and 0 <= c.y < self.length

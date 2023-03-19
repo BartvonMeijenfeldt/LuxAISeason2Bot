@@ -247,7 +247,7 @@ class UnitGoal(Goal):
     def _init_action_plan(self) -> None:
         self.action_plan = UnitActionPlan(actor=self.unit)
 
-    def _get_cost_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+    def get_cost_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         number_of_steps = len(action_plan)
         power_cost = action_plan.get_power_used(board=game_state.board)
         total_cost = number_of_steps * self.unit.time_to_power_cost + power_cost
@@ -260,6 +260,7 @@ class CollectGoal(UnitGoal):
     factory_c: Coordinate
     quantity: Optional[int] = None
     resource: Resource = field(init=False)
+    benefit_resource: int = field(init=False)
 
     def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
         if constraints is None:
@@ -318,10 +319,10 @@ class CollectGoal(UnitGoal):
         transfer_action = TransferAction(direction=Direction.CENTER, amount=max_cargo, resource=self.resource)
         self.action_plan.append(transfer_action)
 
-    def get_value_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        number_of_digs = action_plan.nr_digs
-        total_cost = self._get_cost_plan(action_plan, game_state)
-        return 100 * number_of_digs / total_cost
+    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        # TODO make distinction between clearing the rubble and digging the resource, if clearing rubble make sure it
+        # is beneficial to you and not your opponent
+        return self.benefit_resource * action_plan.nr_digs * self.unit.resources_gained_per_dig
 
     def _get_best_value(self) -> float:
         # TODO smarter assumption than full capacity
@@ -341,6 +342,7 @@ class CollectGoal(UnitGoal):
 @dataclass
 class CollectIceGoal(CollectGoal):
     resource = Resource.Ice
+    benefit_resource = 10
 
     def __repr__(self) -> str:
         return f"collect_ice_[{self.resource_c}]"
@@ -353,6 +355,7 @@ class CollectIceGoal(CollectGoal):
 @dataclass
 class CollectOreGoal(CollectGoal):
     resource = Resource.Ore
+    benefit_resource = 20
 
     def __repr__(self) -> str:
         return f"collect_ore_[{self.resource_c}]"
@@ -410,7 +413,7 @@ class ClearRubbleGoal(UnitGoal):
     def _get_nr_required_digs(self, rubble_c: Coordinate, board: Board) -> int:
 
         rubble_at_pos = board.rubble[rubble_c.xy]
-        nr_required_digs = ceil(rubble_at_pos / self.unit.unit_cfg.DIG_RUBBLE_REMOVED)
+        nr_required_digs = ceil(rubble_at_pos / self.unit.rubble_removed_per_dig)
         return nr_required_digs
 
     def _get_best_value(self) -> float:
@@ -437,15 +440,23 @@ class ClearRubbleGoal(UnitGoal):
         if potential_action_plan.actor_can_carry_out_plan(game_state=game_state):
             self.action_plan.extend(potential_move_actions)
 
-    def get_value_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        number_of_steps = len(action_plan)
-        if number_of_steps == 0:
-            return -10000000000
+    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        distance_player_to_rubble = game_state.board.get_min_distance_to_player_factory_or_lichen(self.rubble_position)
+        distance_opp_to_rubble = game_state.board.get_min_distance_to_opp_factory_or_lichen(self.rubble_position)
+        delta_closer_to_player = min(distance_opp_to_rubble - distance_player_to_rubble, 5)
+        benefit_rubble_reduced = delta_closer_to_player * 1
+        bonus_clear_rubble = 20 * benefit_rubble_reduced
 
-        number_of_digs = action_plan.nr_digs
-        total_cost = self._get_cost_plan(action_plan, game_state)
+        max_rubble_removed = self.unit.rubble_removed_per_dig * action_plan.nr_digs
+        rubble_at_pos = game_state.board.rubble[self.rubble_position.xy]
+        rubble_removed = min(max_rubble_removed, rubble_at_pos)
 
-        return 100 * number_of_digs / total_cost
+        rubble_removed_benefit = benefit_rubble_reduced * rubble_removed
+
+        if rubble_removed == rubble_at_pos:
+            return rubble_removed_benefit + bonus_clear_rubble
+        else:
+            return rubble_removed_benefit
 
 
 @dataclass
@@ -493,7 +504,7 @@ class FleeGoal(UnitGoal):
     def _get_best_value(self) -> float:
         return 1000
 
-    def get_value_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return 1000
 
     def __repr__(self) -> str:
@@ -516,13 +527,11 @@ class ActionQueueGoal(UnitGoal):
         self.set_validity_plan(constraints)
         return self.action_plan
 
-    def get_value_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         if self.unit.is_under_threath(game_state) and action_plan.actions[0].is_stationary:
             return -1000
 
-        value_including_update_cost = self.goal.get_value_action_plan(self.action_plan, game_state)
-        return value_including_update_cost + 100_000
-        # return value_including_update_cost + self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
+        return self.goal.get_benefit_action_plan(self.action_plan, game_state)
 
     @property
     def key(self) -> str:
@@ -546,7 +555,7 @@ class UnitNoGoal(UnitGoal):
     def _get_best_value(self) -> float:
         return 0
 
-    def get_value_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return 0.0
 
     def __repr__(self) -> str:

@@ -9,9 +9,12 @@ ENV_CFG = EnvConfig()
 LIGHT_CFG = ENV_CFG.ROBOTS["LIGHT"]
 HEAVY_CFG = ENV_CFG.ROBOTS["HEAVY"]
 
+COST_WATER = 1
+COST_METAL = 1
+
 
 class FactoryAction(Action):
-    metal_cost: int
+    quantity_metal_cost: int
 
     @abstractmethod
     def to_lux_output(self) -> int:
@@ -19,18 +22,25 @@ class FactoryAction(Action):
 
     @staticmethod
     @abstractmethod
-    def get_water_cost(game_state: GameState, strain_id: int) -> int:
+    def get_water_cost_from_strain_id(game_state: GameState, strain_id: int) -> int:
+        ...
+
+    @abstractmethod
+    def get_resource_cost(self, game_state: GameState, strain_id: int) -> float:
         ...
 
 
 class BuildAction(FactoryAction):
     @staticmethod
-    def get_water_cost(game_state: GameState, strain_id: int) -> int:
+    def get_water_cost_from_strain_id(game_state: GameState, strain_id: int) -> int:
         return 0
+
+    def get_resource_cost(self, game_state: GameState, strain_id: int) -> float:
+        return self.quantity_metal_cost * COST_METAL
 
 
 class BuildLightAction(BuildAction):
-    metal_cost = LIGHT_CFG.METAL_COST
+    quantity_metal_cost = LIGHT_CFG.METAL_COST
 
     @property
     def requested_power(self) -> int:
@@ -42,7 +52,7 @@ class BuildLightAction(BuildAction):
 
 
 class BuildHeavyAction(BuildAction):
-    metal_cost = HEAVY_CFG.METAL_COST
+    quantity_metal_cost = HEAVY_CFG.METAL_COST
 
     @property
     def requested_power(self) -> int:
@@ -54,14 +64,17 @@ class BuildHeavyAction(BuildAction):
 
 
 class WaterAction(FactoryAction):
-    metal_cost = 0
+    quantity_metal_cost = 0
 
     @property
     def requested_power(self) -> int:
         return 0
 
+    def get_resource_cost(self, game_state: GameState, strain_id: int) -> float:
+        return self.get_water_cost_from_strain_id(game_state=game_state, strain_id=strain_id) * COST_WATER
+
     @staticmethod
-    def get_water_cost(game_state: GameState, strain_id: int) -> int:
+    def get_water_cost_from_strain_id(game_state: GameState, strain_id: int) -> int:
         # TODO, this underestimates the cost, does not take into account the new water tiles
         owned_lichen_tiles = (game_state.board.lichen_strains == strain_id).sum()
         return np.ceil(owned_lichen_tiles / ENV_CFG.LICHEN_WATERING_COST_FACTOR)

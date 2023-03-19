@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterator
 from dataclasses import dataclass, field
 
 # from objects.actors.factory import Factory
@@ -21,6 +21,13 @@ class FactoryActionPlan(ActionPlan):
         # TODO allow for multiple actions
         assert len(self.actions) <= 1
 
+    def __iter__(self) -> Iterator[FactoryAction]:
+        return iter(self.actions)
+
+    @property
+    def resource_cost_plan(self) -> float:
+        return sum(action.resource_cost for action in self.actions)
+
     def actor_can_carry_out_plan(self, game_state: GameState) -> bool:
         return self.actor_has_enough_resources(game_state)
 
@@ -34,11 +41,11 @@ class FactoryActionPlan(ActionPlan):
 
     @property
     def actor_has_enough_metal(self) -> bool:
-        metal_requested = sum(action.metal_cost for action in self.actions)
+        metal_requested = sum(action.quantity_metal_cost for action in self.actions)
         return metal_requested <= self.actor.cargo.metal
 
     def actor_has_enough_water(self, game_state: GameState) -> bool:
-        power_requested = sum(action.get_water_cost(game_state, self.actor.strain_id) for action in self.actions)
+        power_requested = sum(action.get_water_cost_from_strain_id(game_state, self.actor.strain_id) for action in self.actions)
         return power_requested <= self.actor.cargo.water
 
     @property
