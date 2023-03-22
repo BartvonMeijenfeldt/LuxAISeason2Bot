@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 from objects.actions.action_plan import ActionPlan
 from objects.actions.unit_action_plan import UnitActionPlan
