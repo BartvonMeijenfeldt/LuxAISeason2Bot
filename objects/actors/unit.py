@@ -74,7 +74,6 @@ class Unit(Actor):
             # collect_ore_goal = CollectOreGoal(unit=self, resource_c=target_ore_c, factory_c=target_factory_c)
             # goals.append(collect_ore_goal)
 
-
         elif game_state.env_steps > 920 and self.unit_type == "HEAVY":
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
             goals = [ClearRubbleGoal(unit=self, rubble_position=rubble_tile) for rubble_tile in closest_rubble_tiles]

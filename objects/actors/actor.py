@@ -1,10 +1,9 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
-from typing import List, Set, TYPE_CHECKING, Optional
+from typing import List, Set, TYPE_CHECKING
 from dataclasses import dataclass
 
 from objects.cargo import UnitCargo
-from logic.goals.unit_goal import ActionQueueGoal
 from utils import PriorityQueue
 
 if TYPE_CHECKING:

@@ -44,29 +44,25 @@ class UnitGoal(Goal):
         constraints: Constraints,
         factory_power_availability_tracker: PowerAvailabilityTracker,
     ) -> UnitActionPlan:
-        if constraints is None:
-            constraints = Constraints()
+        # if constraints is None:
+        #     constraints = Constraints()
 
-        if constraints.key in self.solution_hash:
-            return self.solution_hash[constraints.key]
+        # if constraints.key in self.solution_hash:
+        #     return self.solution_hash[constraints.key]
 
-        if constraints.parent in self.solution_hash:
-            parent_solution = self.solution_hash[constraints.parent]
-            if self._parent_solution_is_valid(parent_solution, constraints):
-                self.solution_hash[constraints.key] = parent_solution
-                return parent_solution
+        # if constraints.parent in self.solution_hash:
+        #     parent_solution = self.solution_hash[constraints.parent]
+        #     if self._parent_solution_is_valid(parent_solution, constraints):
+        #         self.solution_hash[constraints.key] = parent_solution
+        #         return parent_solution
 
         action_plan = self._generate_action_plan(game_state, constraints, factory_power_availability_tracker)
-        self.solution_hash[constraints.key] = action_plan
+        # self.solution_hash[constraints.key] = action_plan
         return action_plan
 
     def _parent_solution_is_valid(self, parent_solution: UnitActionPlan, constraints: Constraints) -> bool:
         for tc in parent_solution.time_coordinates:
             if constraints.tc_violates_constraint(tc):
-                return False
-
-        if constraints.max_power_request is not None:
-            if parent_solution.power_requested > constraints.max_power_request:
                 return False
 
         return True
@@ -140,9 +136,6 @@ class UnitGoal(Goal):
         next_goal_c: Optional[Coordinate] = None,
     ) -> None:
         unit = self.unit
-
-        # if constraints.max_power_request is not None and constraints.max_power_request < 10:
-        #     return
 
         power_space_left = self.unit.power_space_left
         if not power_space_left:
@@ -514,7 +507,12 @@ class FleeGoal(UnitGoal):
     opp_c: Coordinate
     _is_valid = True
 
-    def _generate_action_plan(self, game_state: GameState, constraints: Constraints, factory_power_availability_tracker: PowerAvailabilityTracker) -> UnitActionPlan:
+    def _generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> UnitActionPlan:
         self._init_action_plan()
         constraints = self._add_flee_constraints(constraints)
         self._go_to_factory_actions(game_state, constraints)
@@ -573,7 +571,12 @@ class ActionQueueGoal(UnitGoal):
     action_plan: UnitActionPlan
     _is_valid = True
 
-    def _generate_action_plan(self, game_state: GameState, constraints: Constraints, factory_power_availability_tracker: PowerAvailabilityTracker) -> UnitActionPlan:
+    def _generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> UnitActionPlan:
         self.set_validity_plan(constraints)
         return self.action_plan
 
@@ -597,7 +600,12 @@ class UnitNoGoal(UnitGoal):
     _value = None
     _is_valid = True
 
-    def _generate_action_plan(self, game_state: GameState, constraints: Constraints, factory_power_availability_tracker: PowerAvailabilityTracker) -> UnitActionPlan:
+    def _generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> UnitActionPlan:
         self._init_action_plan()
         # TODO, add evading negative constraints
         return self.action_plan
