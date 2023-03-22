@@ -1,9 +1,15 @@
 from __future__ import annotations
-from typing import Optional
-from dataclasses import dataclass
-from objects.actions.unit_action import UnitAction, DigAction, PickupAction
+
+from typing import Optional, TYPE_CHECKING
+from dataclasses import dataclass, field
+
 from objects.resource import Resource
 from objects.direction import Direction
+from objects.actions.unit_action import UnitAction, DigAction, PickupAction
+
+if TYPE_CHECKING:
+    from lux.config import UnitConfig
+    from lux.kit import GameState
 
 
 @dataclass(frozen=True)
@@ -92,9 +98,6 @@ class TimeCoordinate(Coordinate):
     def __repr__(self) -> str:
         return f"TC[x={self.x} y={self.y} t={self.t}]"
 
-    def __iter__(self):
-        return iter((self.x, self.y, self.t))
-
     def __lt__(self, other: TimeCoordinate) -> bool:
         return self.t < other.t
 
@@ -129,9 +132,6 @@ class DigCoordinate(Coordinate):
     def __eq__(self, other: DigCoordinate) -> bool:
         return self.x == other.x and self.y == other.y and self.d == other.d
 
-    def __iter__(self):
-        return iter((self.x, self.y, self.d))
-
     def __add__(self, other) -> DigCoordinate:
         x, y = self._add_get_new_xy(other)
         return DigCoordinate(x, y, self.d)
@@ -147,9 +147,6 @@ class DigCoordinate(Coordinate):
 
 @dataclass(eq=True, frozen=True)
 class DigTimeCoordinate(DigCoordinate, TimeCoordinate):
-    def __iter__(self):
-        return iter((self.x, self.y, self.t, self.d))
-
     def __add__(self, other) -> DigTimeCoordinate:
         x, y = super()._add_get_new_xy(other)
         t = super()._add_get_new_t()
@@ -166,57 +163,98 @@ class DigTimeCoordinate(DigCoordinate, TimeCoordinate):
 
 
 @dataclass(eq=True, frozen=True)
-class PowerCoordinate(Coordinate):
+class PowerTimeCoordinate(TimeCoordinate):
     p: int
+    # TODO consider adding game state and maybe unit_cfg to add_action
+    unit_cfg: UnitConfig
+    game_state: GameState
 
-    def __iter__(self):
-        return iter((self.x, self.y, self.p))
+    def __hash__(self) -> int:
+        return hash((self.x, self.y, self.t, self.p))
 
-    def __add__(self, other) -> PowerCoordinate:
-        x, y = super()._add_get_new_xy(other)
-        p = self._add_get_p_recharged()
-        return PowerCoordinate(x, y, p)
-
-    def __eq__(self, other: PowerCoordinate) -> bool:
-        return self.x == other.x and self.y == other.y and self.p == other.p
-
-    def _add_get_p_recharged(self) -> int:
-        return self.p
-
-    def add_action(self, action: UnitAction) -> PowerCoordinate:
-        x, y = self._add_get_new_xy_action(action)
-        p = self._add_get_new_p_action(action)
-
-        return PowerCoordinate(x, y, p)
-
-    def _add_get_new_p_action(self, other) -> int:
-        if isinstance(other, PickupAction) and other.resource == Resource.Power:
-            added_power_recharged = other.n * other.amount
-        else:
-            added_power_recharged = 0
-        return self.p + added_power_recharged
-
-
-@dataclass(eq=True, frozen=True)
-class PowerTimeCoordinate(PowerCoordinate, TimeCoordinate):
-    def __iter__(self):
-        return iter((self.x, self.y, self.t, self.p))
+    def __eq__(self, other: PowerTimeCoordinate) -> bool:
+        return self.x == other.x and self.y == other.y and self.t == other.t and self.p == other.p
 
     def __add__(self, other) -> PowerTimeCoordinate:
         x, y = super()._add_get_new_xy(other)
         t = super()._add_get_new_t()
-        p = self._add_get_p_recharged()
-        return PowerTimeCoordinate(x, y, t, p)
+        p = self._add_get_p()
+        return PowerTimeCoordinate(x, y, t, p, self.unit_cfg, self.game_state)
+
+    def _add_get_p(self) -> int:
+        return self.p
 
     def add_action(self, action: UnitAction) -> PowerTimeCoordinate:
         x, y = self._add_get_new_xy_action(action)
         t = self._add_get_new_t_action(action)
         p = self._add_get_new_p_action(action)
 
-        return PowerTimeCoordinate(x, y, t, p)
+        return PowerTimeCoordinate(x, y, t, p, self.unit_cfg, self.game_state)
 
-    def to_timeless_coordinate(self) -> PowerCoordinate:
-        return PowerCoordinate(self.x, self.y, self.p)
+    def _add_get_new_p_action(self, action: UnitAction) -> int:
+        try:
+            p = self.p + action.get_power_change(self.unit_cfg, self, self.game_state.board)
+        except IndexError:
+            return -1
+        # consider adding raising error if it's negative here
+        if self.game_state.is_day(self.t):
+            p += self.unit_cfg.CHARGE
+
+        return p
+
+
+@dataclass(eq=True, frozen=True)
+class PickupResourceCoordinate(Coordinate):
+    q: int
+    resource: Resource
+
+    def __eq__(self, other: PickupResourceCoordinate) -> bool:
+        return self.x == other.x and self.y == other.y and self.q == other.q and self.resource == other.resource
+
+    def __add__(self, other) -> PickupResourceCoordinate:
+        x, y = super()._add_get_new_xy(other)
+        q = self._add_get_q()
+        return PickupResourceCoordinate(x, y, q, self.resource)
+
+    def _add_get_q(self) -> int:
+        return self.q
+
+    def add_action(self, action: UnitAction) -> PickupResourceCoordinate:
+        x, y = self._add_get_new_xy_action(action)
+        q = self._add_get_new_q_action(action)
+
+        return PickupResourceCoordinate(x, y, q, self.resource)
+
+    def _add_get_new_q_action(self, action: UnitAction) -> int:
+        if isinstance(action, PickupAction) and action.resource == self.resource:
+            return self.q + action.n * action.amount
+        else:
+            return self.q
+
+
+@dataclass(eq=True, frozen=True)
+class PickupPowerCoordinate(PickupResourceCoordinate):
+    resource: Resource = field(init=False, default=Resource.Power)
+
+
+@dataclass(eq=True, frozen=True)
+class PowerPickupPowerTimeCoordinate(PickupPowerCoordinate, PowerTimeCoordinate):
+    def __hash__(self) -> int:
+        return hash((self.x, self.y, self.t, self.p, self.q, self.resource))
+
+    def __add__(self, other) -> PowerPickupPowerTimeCoordinate:
+        x, y = super()._add_get_new_xy(other)
+        t = super()._add_get_new_t()
+        p = self._add_get_p()
+        return PowerPickupPowerTimeCoordinate(x, y, t, p, self.unit_cfg, self.game_state, self.q)
+
+    def add_action(self, action: UnitAction) -> PowerPickupPowerTimeCoordinate:
+        x, y = self._add_get_new_xy_action(action)
+        t = self._add_get_new_t_action(action)
+        p = self._add_get_new_p_action(action)
+        q = self._add_get_new_q_action(action)
+
+        return PowerPickupPowerTimeCoordinate(x, y, t, p, self.unit_cfg, self.game_state, q)
 
 
 @dataclass

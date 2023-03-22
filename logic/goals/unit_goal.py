@@ -11,7 +11,13 @@ from objects.actions.unit_action import DigAction, TransferAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.direction import Direction
 from objects.resource import Resource
-from objects.coordinate import PowerTimeCoordinate, DigCoordinate, DigTimeCoordinate, TimeCoordinate, Coordinate
+from objects.coordinate import (
+    PowerPickupPowerTimeCoordinate,
+    DigCoordinate,
+    DigTimeCoordinate,
+    TimeCoordinate,
+    Coordinate,
+)
 from logic.constraints import Constraints
 from logic.goals.goal import Goal
 
@@ -21,6 +27,7 @@ if TYPE_CHECKING:
     from objects.game_state import GameState
     from objects.board import Board
     from objects.actions.unit_action import UnitAction
+    from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
 
 
 @dataclass
@@ -31,7 +38,12 @@ class UnitGoal(Goal):
     _is_valid: Optional[bool] = field(init=False, default=None)
     solution_hash: dict[str, UnitActionPlan] = field(init=False, default_factory=dict)
 
-    def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
+    def generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> UnitActionPlan:
         if constraints is None:
             constraints = Constraints()
 
@@ -44,7 +56,7 @@ class UnitGoal(Goal):
                 self.solution_hash[constraints.key] = parent_solution
                 return parent_solution
 
-        action_plan = self._generate_action_plan(game_state, constraints=constraints)
+        action_plan = self._generate_action_plan(game_state, constraints, factory_power_availability_tracker)
         self.solution_hash[constraints.key] = action_plan
         return action_plan
 
@@ -60,7 +72,12 @@ class UnitGoal(Goal):
         return True
 
     @abstractmethod
-    def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
+    def _generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> UnitActionPlan:
         ...
 
     @property
@@ -82,15 +99,19 @@ class UnitGoal(Goal):
         return graph
 
     def _get_recharge_graph(
-        self, board: Board, recharge_amount: int, constraints: Constraints, next_goal_c: Optional[Coordinate] = None
+        self,
+        board: Board,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+        constraints: Constraints,
+        next_goal_c: Optional[Coordinate] = None,
     ) -> PickupPowerGraph:
         graph = PickupPowerGraph(
             board=board,
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,
-            power_pickup_goal=recharge_amount,
             constraints=constraints,
             next_goal_c=next_goal_c,
+            factory_power_availability_tracker=factory_power_availability_tracker,
         )
 
         return graph
@@ -112,30 +133,42 @@ class UnitGoal(Goal):
         return optimal_actions
 
     def _optional_add_power_pickup_action(
-        self, game_state: GameState, constraints: Constraints, next_goal_c: Optional[Coordinate] = None,
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+        next_goal_c: Optional[Coordinate] = None,
     ) -> None:
-        if constraints.max_power_request is not None and constraints.max_power_request < 10:
-            return
+        unit = self.unit
+
+        # if constraints.max_power_request is not None and constraints.max_power_request < 10:
+        #     return
 
         power_space_left = self.unit.power_space_left
         if not power_space_left:
             return
 
-        closest_factory = game_state.get_closest_factory(c=self.unit.tc)
+        closest_factory = game_state.get_closest_player_factory(c=self.unit.tc)
+        # TODO allow pickups not on factory as well
         if not closest_factory.is_on_factory(c=self.unit.tc):
             return
 
-        power_in_factory = closest_factory.power
-        power_to_pickup = min(power_space_left, power_in_factory)
+        power_available_in_factory = factory_power_availability_tracker.get_power_available(closest_factory, unit.tc.t)
+        power_to_pickup = min(power_space_left, power_available_in_factory)
 
-        if self.unit.power and power_to_pickup / self.unit.power < 0.1:
+        if power_to_pickup / unit.battery_capacity < 0.1:
             return
 
         graph = self._get_recharge_graph(
-            board=game_state.board, recharge_amount=power_to_pickup, constraints=constraints, next_goal_c=next_goal_c
+            board=game_state.board,
+            factory_power_availability_tracker=factory_power_availability_tracker,
+            constraints=constraints,
+            next_goal_c=next_goal_c,
         )
 
-        recharge_tc = PowerTimeCoordinate(*self.action_plan.final_tc, p=0)
+        recharge_tc = PowerPickupPowerTimeCoordinate(
+            *self.action_plan.final_tc.xyt, p=self.unit.power, unit_cfg=self.unit.unit_cfg, game_state=game_state, q=0
+        )
         new_actions = self._search_graph(graph=graph, start=recharge_tc)
         potential_action_plan = self.action_plan + new_actions
         if potential_action_plan.unit_has_enough_power(game_state):
@@ -161,7 +194,7 @@ class UnitGoal(Goal):
         self, start_tc: TimeCoordinate, dig_c: Coordinate, nr_digs: int, constraints: Constraints, board: Board
     ) -> list[UnitAction]:
 
-        start_dtc = DigTimeCoordinate(*start_tc, d=0)
+        start_dtc = DigTimeCoordinate(*start_tc.xyt, d=0)
         dig_coordinate = DigCoordinate(x=dig_c.x, y=dig_c.y, d=nr_digs)
 
         graph = self._get_dig_graph(board=board, goal=dig_coordinate, constraints=constraints)
@@ -246,6 +279,7 @@ class UnitGoal(Goal):
 
     def _init_action_plan(self) -> None:
         self.action_plan = UnitActionPlan(actor=self.unit)
+        # TODO remove power due to updating action plan?
 
     def get_cost_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         number_of_steps = len(action_plan)
@@ -262,14 +296,22 @@ class CollectGoal(UnitGoal):
     resource: Resource = field(init=False)
     benefit_resource: int = field(init=False)
 
-    def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
+    def _generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> UnitActionPlan:
         if constraints is None:
             constraints = Constraints()
 
         self._is_valid = True
         self._init_action_plan()
         self._optional_add_power_pickup_action(
-            game_state=game_state, constraints=constraints, next_goal_c=self.resource_c
+            game_state=game_state,
+            constraints=constraints,
+            next_goal_c=self.resource_c,
+            factory_power_availability_tracker=factory_power_availability_tracker,
         )
         self._add_dig_actions(game_state=game_state, constraints=constraints)
         self._add_ice_to_factory_actions(board=game_state.board, constraints=constraints)
@@ -377,10 +419,18 @@ class ClearRubbleGoal(UnitGoal):
     def key(self) -> str:
         return str(self)
 
-    def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
+    def _generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> UnitActionPlan:
         self._init_action_plan()
         self._optional_add_power_pickup_action(
-            game_state=game_state, constraints=constraints, next_goal_c=self.rubble_position
+            game_state=game_state,
+            constraints=constraints,
+            next_goal_c=self.rubble_position,
+            factory_power_availability_tracker=factory_power_availability_tracker,
         )
         self._add_clear_initial_rubble_actions(game_state=game_state, constraints=constraints)
         self._optional_add_go_to_factory_actions(game_state=game_state, constraints=constraints)
@@ -464,7 +514,7 @@ class FleeGoal(UnitGoal):
     opp_c: Coordinate
     _is_valid = True
 
-    def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
+    def _generate_action_plan(self, game_state: GameState, constraints: Constraints, factory_power_availability_tracker: PowerAvailabilityTracker) -> UnitActionPlan:
         self._init_action_plan()
         constraints = self._add_flee_constraints(constraints)
         self._go_to_factory_actions(game_state, constraints)
@@ -523,7 +573,7 @@ class ActionQueueGoal(UnitGoal):
     action_plan: UnitActionPlan
     _is_valid = True
 
-    def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
+    def _generate_action_plan(self, game_state: GameState, constraints: Constraints, factory_power_availability_tracker: PowerAvailabilityTracker) -> UnitActionPlan:
         self.set_validity_plan(constraints)
         return self.action_plan
 
@@ -547,7 +597,7 @@ class UnitNoGoal(UnitGoal):
     _value = None
     _is_valid = True
 
-    def _generate_action_plan(self, game_state: GameState, constraints: Constraints) -> UnitActionPlan:
+    def _generate_action_plan(self, game_state: GameState, constraints: Constraints, factory_power_availability_tracker: PowerAvailabilityTracker) -> UnitActionPlan:
         self._init_action_plan()
         # TODO, add evading negative constraints
         return self.action_plan

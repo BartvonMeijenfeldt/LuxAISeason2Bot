@@ -1,6 +1,9 @@
 from __future__ import annotations
+
+import numpy as np
+
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Optional, Sequence, List, Dict
 from collections import defaultdict
 from copy import copy
 from itertools import count
@@ -8,14 +11,14 @@ from itertools import count
 from search.search import PriorityQueue
 from objects.actors.actor import Actor
 from objects.actors.unit import Unit
+from objects.actors.factory import Factory
 from objects.coordinate import TimeCoordinate
-from objects.actions.action_plan import ActionPlan
+from objects.actions.action_plan import ActionPlan, PowerRequest
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.game_state import GameState
 from logic.constraints import Constraints
-from logic.goals.goal import GoalCollection
 from logic.goals.goal import Goal
-from logic.goal_resolution import resolve_goal_conflicts
+# from logic.goal_resolution import resolve_goal_conflicts
 
 
 @dataclass
@@ -286,7 +289,7 @@ def get_power_collision(actor_action_plans: dict[Actor, ActionPlan], game_state:
         if not unit_power_requested:
             continue
 
-        factory = game_state.get_closest_factory(unit.tc)
+        factory = game_state.get_closest_player_factory(unit.tc)
         factories_requested_by_units[factory].append(unit)
 
         if unit_power_requested > factories_power_available[factory]:
@@ -302,7 +305,7 @@ def get_unit_collision(unit_action_plans: dict[Actor, ActionPlan]) -> Optional[A
     all_time_coordinates = set()
 
     for action_plan in unit_action_plans.values():
-        time_coordinates = action_plan.time_coordinates
+        time_coordinates = set(action_plan.time_coordinates)
 
         collisions = all_time_coordinates & time_coordinates
         if collisions:

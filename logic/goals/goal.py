@@ -12,12 +12,18 @@ from logic.constraints import Constraints
 
 if TYPE_CHECKING:
     from objects.game_state import GameState
+    from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
 
 
 @dataclass
 class Goal(metaclass=ABCMeta):
-    def generate_and_evaluate_action_plan(self, game_state: GameState, constraints: Constraints) -> ActionPlan:
-        self.action_plan = self.generate_action_plan(game_state=game_state, constraints=constraints)
+    def generate_and_evaluate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> ActionPlan:
+        self.action_plan = self.generate_action_plan(game_state, constraints, factory_power_availability_tracker)
         if isinstance(self.action_plan, UnitActionPlan) and not self.action_plan.is_valid_size:
             self._is_valid = False
 
@@ -25,7 +31,12 @@ class Goal(metaclass=ABCMeta):
         return self.action_plan
 
     @abstractmethod
-    def generate_action_plan(self, game_state: GameState, constraints: Optional[Constraints] = None) -> ActionPlan:
+    def generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> ActionPlan:
         ...
 
     def get_value_per_step_of_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:

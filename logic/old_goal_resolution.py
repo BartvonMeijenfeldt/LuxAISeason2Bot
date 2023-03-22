@@ -7,7 +7,7 @@ from collections import defaultdict
 
 from objects.actors.actor import Actor
 from objects.game_state import GameState
-from logic.goals.goal import Goal, GoalCollection
+from logic.goals.goal import Goal#, GoalCollection
 from logic.constraints import Constraints
 
 

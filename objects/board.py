@@ -96,7 +96,7 @@ class Board:
 
         return None
 
-    def get_closest_factory(self, c: Coordinate) -> Factory:
+    def get_closest_player_factory(self, c: Coordinate) -> Factory:
         return min(self.player_factories, key=lambda x: x.min_dis_to(c))
 
     def get_closest_factory_tile(self, c: Coordinate) -> Coordinate:

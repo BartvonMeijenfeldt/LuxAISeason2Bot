@@ -8,6 +8,7 @@ from logic.goals.unit_goal import ActionQueueGoal
 from utils import PriorityQueue
 
 if TYPE_CHECKING:
+    from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
     from logic.goals.goal import Goal
     from logic.constraints import Constraints
     from lux.kit import GameState
@@ -21,7 +22,13 @@ class Actor(metaclass=ABCMeta):
     cargo: UnitCargo
 
     # TODO should remove the action_queu_goal here and let it automatically be generated in generate goals
-    def get_best_goal(self, game_state: GameState, constraints: Constraints, reserved_goals: Set[str] = set()) -> Goal:
+    def get_best_goal(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+        reserved_goals: Set[str] = set(),
+    ) -> Goal:
         goals = self.generate_goals(game_state)
         goals_priority_queue = PriorityQueue()
 
@@ -33,9 +40,9 @@ class Actor(metaclass=ABCMeta):
             goals_priority_queue.put(goal, priority)
 
         while not goals_priority_queue.is_empty():
-            goal = goals_priority_queue.pop()
+            goal: Goal = goals_priority_queue.pop()
 
-            goal.generate_and_evaluate_action_plan(game_state, constraints)
+            goal.generate_and_evaluate_action_plan(game_state, constraints, factory_power_availability_tracker)
             if not goal.is_valid:
                 continue
 

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING, Optional, Sequence, List
 
 from dataclasses import dataclass, replace, field
 from search.search import Search
@@ -7,7 +7,7 @@ from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
 from objects.direction import Direction
 from search.search import MoveToGraph
 from objects.actions.unit_action import DigAction
-from objects.actions.action_plan import ActionPlan
+from objects.actions.action_plan import ActionPlan, PowerRequest
 
 if TYPE_CHECKING:
     from objects.actors.unit import Unit
@@ -76,6 +76,18 @@ class UnitActionPlan(ActionPlan):
     def nr_primitive_actions(self) -> int:
         return len(self.primitive_actions)
 
+    def get_power_requests(self, game_state: GameState) -> List[PowerRequest]:
+        return [
+            self._create_power_request(action, tc, game_state)
+            for action, tc in zip(self.primitive_actions, [self.actor.tc] + self.time_coordinates)
+            if action.requested_power
+        ]
+
+    @staticmethod
+    def _create_power_request(action: UnitAction, tc: TimeCoordinate, game_state: GameState) -> PowerRequest:
+        factory = game_state.get_closest_player_factory(tc)
+        return PowerRequest(factory=factory, t=tc.t, p=action.requested_power)
+
     @property
     def nr_digs(self) -> int:
         return sum(dig_action.n for dig_action in self.actions if isinstance(dig_action, DigAction))
@@ -94,9 +106,9 @@ class UnitActionPlan(ActionPlan):
         return self._final_ptc
 
     @property
-    def time_coordinates(self) -> set[TimeCoordinate]:
+    def time_coordinates(self) -> List[TimeCoordinate]:
         if len(self.actions) == 0:
-            return {self.actor.tc + Direction.CENTER}
+            return [self.actor.tc + Direction.CENTER]
 
         simulator = ActionPlanSimulator(self, unit=self.actor)
         return simulator.get_time_coordinates()
@@ -262,7 +274,7 @@ class ActionPlanSimulator:
         self._optional_update_action_queue()
         self._simulate_primitive_actions(actions=self.action_plan.primitive_actions, game_state=game_state)
 
-    def get_time_coordinates(self) -> set[TimeCoordinate]:
+    def get_time_coordinates(self) -> List[TimeCoordinate]:
         self._init_start()
         self._simulate_actions_for_tc(actions=self.action_plan.primitive_actions)
         return self.time_coordinates
@@ -271,7 +283,7 @@ class ActionPlanSimulator:
         self.cur_power = self.unit.power
         self.t = self.unit.tc.t
         self.cur_tc = TimeCoordinate(x=self.unit.tc.x, y=self.unit.tc.y, t=self.t)
-        self.time_coordinates = set()
+        self.time_coordinates = []
 
     def _optional_update_action_queue(self) -> None:
         if not self.action_plan.is_set and self.action_plan.original_actions:
@@ -324,7 +336,7 @@ class ActionPlanSimulator:
 
     def _update_tc(self, action: UnitAction) -> None:
         self.cur_tc = action.get_final_c(start_c=self.cur_tc)
-        self.time_coordinates.add(self.cur_tc)
+        self.time_coordinates.append(self.cur_tc)
 
     def _simul_charge(self, game_state: GameState) -> None:
         if game_state.is_day(self.t):
@@ -341,7 +353,9 @@ class ActionPlanSimulator:
 
     def get_final_ptc(self, game_state: GameState) -> PowerTimeCoordinate:
         self.simulate_action_plan(game_state)
-        return PowerTimeCoordinate(*self.cur_tc, p=self.cur_power)
+        return PowerTimeCoordinate(
+            self.cur_tc.x, self.cur_tc.y, self.cur_tc.t, self.cur_power, self.unit.unit_cfg, game_state
+        )
 
     def can_update_action_queue(self) -> bool:
         return self.cur_power >= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
