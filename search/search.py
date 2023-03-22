@@ -39,14 +39,8 @@ class Graph(metaclass=ABCMeta):
     def get_valid_action_nodes(self, c: TimeCoordinate) -> Generator[Tuple[UnitAction, TimeCoordinate], None, None]:
         for action in self.potential_actions(c=c):
             to_c = c.add_action(action)
-            if not self._tc_violates_constraint(to_c) and self.board.is_valid_c_for_player(c=to_c):
+            if not self.constraints.tc_violates_constraint(to_c) and self.board.is_valid_c_for_player(c=to_c):
                 yield ((action, to_c))
-
-    def _tc_violates_constraint(self, to_c: Coordinate) -> bool:
-        if self.constraints.has_time_constraints:
-            return self.constraints.tc_violates_constraint(to_c)
-        else:
-            return self.constraints._is_power_constraint_violated(to_c)
 
     def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
         action_power_cost = self.get_power_cost(action=action, to_c=to_c)
@@ -78,7 +72,7 @@ class MoveToGraph(Graph):
     _potential_actions = [MoveAction(direction) for direction in Direction]
 
     def __post_init__(self):
-        if not self.constraints.has_time_constraints:
+        if not self.constraints:
             self._potential_actions = [
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
@@ -162,14 +156,14 @@ class DigAtGraph(Graph):
     _potential_dig_action = DigAction()
 
     def __post_init__(self):
-        if not self.constraints.has_time_constraints:
+        if not self.constraints:
             self._potential_move_actions = [
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
 
     def potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
         if self.goal.x == c.x and self.goal.y == c.y:
-            if self.constraints.has_time_constraints and self.constraints.max_t <= c.t:
+            if self.constraints and self.constraints.max_t <= c.t:
                 yield (self._potential_dig_action)
             else:
                 for action in self._potential_move_actions:

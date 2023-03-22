@@ -92,11 +92,6 @@ class Goal(metaclass=ABCMeta):
                 self._is_valid = False
                 return
 
-        power_requested = self.action_plan.power_requested
-        if constraints.max_power_request and power_requested > constraints.max_power_request:
-            self._is_valid = False
-            return
-
         self._is_valid = True
 
 
