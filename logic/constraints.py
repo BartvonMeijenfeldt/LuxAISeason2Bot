@@ -62,9 +62,7 @@ class Constraints:
         return self.tc_in_negative_constraints(tc=tc)
 
     def tc_in_negative_constraints(self, tc: TimeCoordinate) -> bool:
-        # TODO, this is probably not a speed improvement anymore, check if I can remove first part of check
-        # Maybe I can remove self.negative_t in its entirety
-        return tc.t in self.negative_t and tc.xyt in self.negative
+        return tc.xyt in self.negative
 
     def can_not_add_negative_constraint(self, tc: TimeCoordinate) -> bool:
         return self.tc_in_negative_constraints(tc)

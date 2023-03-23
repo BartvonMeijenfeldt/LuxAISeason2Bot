@@ -256,6 +256,9 @@ class PowerPickupPowerTimeCoordinate(PickupPowerCoordinate, PowerTimeCoordinate)
 
         return PowerPickupPowerTimeCoordinate(x, y, t, p, self.unit_cfg, self.game_state, q)
 
+    def __repr__(self) -> str:
+        return f"PPPTC[x={self.x} y={self.y}, t={self.t}, p={self.p}, q={self.q}"
+
 
 @dataclass
 class CoordinateList:

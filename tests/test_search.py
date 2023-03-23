@@ -528,7 +528,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
     def test_move_take_next_goal_into_account_right(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        constraints = init_constraints(negative_constraints=[TC(3, 3, 1)])
+        constraints = init_constraints(negative_constraints=[TC(3, 3, 2)])
         state = get_state(board_width=9, factory_positions=factory_positions)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
@@ -547,7 +547,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
     def test_move_take_next_goal_into_account_up(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        constraints = init_constraints(negative_constraints=[TC(3, 3, 1)])
+        constraints = init_constraints(negative_constraints=[TC(3, 3, 2)])
         state = get_state(board_width=9, factory_positions=factory_positions)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
@@ -566,7 +566,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
     def test_move_take_next_goal_into_account_down(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        constraints = init_constraints(negative_constraints=[TC(3, 3, 1)])
+        constraints = init_constraints(negative_constraints=[TC(3, 3, 2)])
         state = get_state(board_width=9, factory_positions=factory_positions)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
@@ -585,7 +585,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
     def test_move_take_next_goal_into_account_left(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        constraints = init_constraints(negative_constraints=[TC(3, 3, 1)])
+        constraints = init_constraints(negative_constraints=[TC(3, 3, 2)])
         state = get_state(board_width=9, factory_positions=factory_positions)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)

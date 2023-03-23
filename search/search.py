@@ -118,21 +118,24 @@ class PickupPowerGraph(Graph):
         return move_cost + min_distance_cost
 
     def heuristic(self, node: PowerPickupPowerTimeCoordinate) -> float:
+        if self.node_completes_goal(node):
+            return 0
+
         min_distance_cost = self._get_distance_heuristic(node=node)
         min_time_recharge_cost = self._get_time_recharge_heuristic(node=node)
         return min_distance_cost + min_time_recharge_cost
 
     def _get_distance_heuristic(self, node: Coordinate) -> float:
         closest_factory_tile = self.board.get_closest_player_factory_tile(node)
-        min_distance_to_factory = self.board.get_min_distance_to_player_factory(node)
+        distance_to_closest_factory_tiles = node.distance_to(closest_factory_tile)
 
         if self.next_goal_c:
             # TODO, now it calculates from closest_factory_tile the heuristic, it could be that a tile at a different
             # factory will have the min distance if you take into account the next goal
             min_distance_factory_to_next_goal = self.next_goal_c.distance_to(closest_factory_tile)
-            total_distance = min_distance_to_factory + min_distance_factory_to_next_goal
+            total_distance = distance_to_closest_factory_tiles + min_distance_factory_to_next_goal
         else:
-            total_distance = min_distance_to_factory
+            total_distance = distance_to_closest_factory_tiles
 
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
         min_distance_cost = total_distance * min_cost_per_step
@@ -233,9 +236,11 @@ class Search:
         self, node: TimeCoordinate, action: UnitAction, current_node: TimeCoordinate, node_cost: float
     ) -> None:
         self.cost_so_far[node] = node_cost
+        self.came_from[node] = (action, current_node)
+
         priority = node_cost + self.graph.heuristic(node)
         self.frontier.put(node, priority)
-        self.came_from[node] = (action, current_node)
+        
 
     def _get_solution_actions(self) -> List[UnitAction]:
         solution = []
