@@ -180,78 +180,72 @@ class TestMinDistancesPlayerFactory(unittest.TestCase):
         self.assertEqual(expected_distance, distance)
 
 
-class TestMinDistancesPlayerFactory(unittest.TestCase):
+class TestClosestPlayerFactoryTile(unittest.TestCase):
     def test_one_factory(self):
         c = C(3, 6)
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        expected_distance = 2
+        expected_tile = C(3, 4)
 
         state = get_state(board_width=9, factory_positions=factory_positions)
         board = state.board
 
-        distance = board.get_min_distance_to_player_factory(c)
-
-        self.assertEqual(expected_distance, distance)
+        closest_tile = board.get_closest_player_factory_tile(c)
+        self.assertEqual(expected_tile, closest_tile)
 
     def test_multiple_factories(self):
         c = C(5, 9)
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3, id=1), FactoryPos(3, 9)])
-        expected_distance = 1
+        expected_tile = C(4, 9)
 
         state = get_state(board_width=12, factory_positions=factory_positions)
         board = state.board
 
-        distance = board.get_min_distance_to_player_factory(c)
-
-        self.assertEqual(expected_distance, distance)
+        closest_tile = board.get_closest_player_factory_tile(c)
+        self.assertEqual(expected_tile, closest_tile)
 
     def test_both_player_factory(self):
         c = C(3, 8)
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)], opp=[FactoryPos(3, 10)])
-        expected_distance = 4
+        expected_tile = C(3, 4)
 
         state = get_state(board_width=12, factory_positions=factory_positions)
         board = state.board
 
-        distance = board.get_min_distance_to_player_factory(c)
-
-        self.assertEqual(expected_distance, distance)
+        closest_tile = board.get_closest_player_factory_tile(c)
+        self.assertEqual(expected_tile, closest_tile)
 
     def test_factory_on_edge_tile(self):
         c = C(3, 6)
         factory_positions = FactoryPositions(player=[FactoryPos(3, 5)])
-        expected_distance = 0
+        expected_tile = c
 
         state = get_state(board_width=12, factory_positions=factory_positions)
         board = state.board
 
-        distance = board.get_min_distance_to_player_factory(c)
-
-        self.assertEqual(expected_distance, distance)
+        closest_tile = board.get_closest_player_factory_tile(c)
+        self.assertEqual(expected_tile, closest_tile)
 
     def test_factory_on_center_tile(self):
         c = C(3, 6)
         factory_positions = FactoryPositions(player=[FactoryPos(3, 6)])
-        expected_distance = 0
+        expected_tile = c
 
         state = get_state(board_width=12, factory_positions=factory_positions)
         board = state.board
 
-        distance = board.get_min_distance_to_player_factory(c)
-
-        self.assertEqual(expected_distance, distance)
+        closest_tile = board.get_closest_player_factory_tile(c)
+        self.assertEqual(expected_tile, closest_tile)
 
     def test_factory_on_corner_tile(self):
         c = C(4, 5)
         factory_positions = FactoryPositions(player=[FactoryPos(3, 6)])
-        expected_distance = 0
+        expected_tile = c
 
         state = get_state(board_width=12, factory_positions=factory_positions)
         board = state.board
 
-        distance = board.get_min_distance_to_player_factory(c)
-
-        self.assertEqual(expected_distance, distance)
+        closest_tile = board.get_closest_player_factory_tile(c)
+        self.assertEqual(expected_tile, closest_tile)
 
 
 if __name__ == "__main__":
