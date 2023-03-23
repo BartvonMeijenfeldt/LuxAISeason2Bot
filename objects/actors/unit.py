@@ -65,7 +65,7 @@ class Unit(Actor):
 
         elif game_state.env_steps <= 920 and self.unit_type == "HEAVY":
             target_ice_c = game_state.get_closest_ice_tile(c=self.tc)
-            target_factory_c = game_state.get_closest_factory_c(c=target_ice_c)
+            target_factory_c = game_state.get_closest_player_factory_c(c=target_ice_c)
             goals = [CollectIceGoal(unit=self, resource_c=target_ice_c, factory_c=target_factory_c)]
 
             # target_ore_c = game_state.get_closest_ore_tile(c=self.tc)
@@ -73,7 +73,6 @@ class Unit(Actor):
 
             # collect_ore_goal = CollectOreGoal(unit=self, resource_c=target_ore_c, factory_c=target_factory_c)
             # goals.append(collect_ore_goal)
-
 
         elif game_state.env_steps > 920 and self.unit_type == "HEAVY":
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
@@ -86,14 +85,14 @@ class Unit(Actor):
             closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=1)
 
             ice_goals = [
-                CollectIceGoal(unit=self, resource_c=ice_tile, factory_c=game_state.get_closest_factory_c(c=ice_tile))
+                CollectIceGoal(unit=self, resource_c=ice_tile, factory_c=game_state.get_closest_player_factory_c(c=ice_tile))
                 for ice_tile in closest_ice_tiles
             ]
 
             goals.extend(ice_goals)
 
             target_ore_c = game_state.get_closest_ore_tile(c=self.tc)
-            target_factory_c = game_state.get_closest_factory_c(c=target_ore_c)
+            target_factory_c = game_state.get_closest_player_factory_c(c=target_ore_c)
 
             collect_ore_goal = CollectOreGoal(unit=self, resource_c=target_ore_c, factory_c=target_factory_c)
             goals.append(collect_ore_goal)

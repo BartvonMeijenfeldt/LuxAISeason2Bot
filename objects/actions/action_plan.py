@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 from abc import abstractmethod, ABCMeta
 from dataclasses import dataclass, field
@@ -9,8 +9,16 @@ from objects.coordinate import TimeCoordinate
 
 if TYPE_CHECKING:
     from objects.actors.actor import Actor
+    from objects.actors.factory import Factory
     from objects.actions.action import Action
     from objects.game_state import GameState
+
+
+@dataclass
+class PowerRequest:
+    factory: Factory
+    t: int
+    p: int
 
 
 @dataclass
@@ -24,11 +32,15 @@ class ActionPlan(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def time_coordinates(self) -> set[TimeCoordinate]:
+    def time_coordinates(self) -> List[TimeCoordinate]:
         ...
 
     @abstractmethod
     def to_lux_output(self):
+        ...
+
+    @abstractmethod
+    def get_power_requests(self, game_state: GameState) -> List[PowerRequest]:
         ...
 
     @property

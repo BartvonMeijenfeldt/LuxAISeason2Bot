@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import numpy as np
+
 from dataclasses import dataclass
 
 from typing import Tuple, List
@@ -8,7 +10,6 @@ from objects.actions.factory_action import WaterAction, LIGHT_CFG, HEAVY_CFG
 from objects.actors.actor import Actor
 from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
 from objects.game_state import GameState
-from logic.constraints import Constraints
 from logic.goals.factory_goal import FactoryGoal, BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal
 
 
@@ -43,6 +44,15 @@ class Factory(Actor):
 
         goals.append(FactoryNoGoal(self))
         return goals
+
+    def get_expected_power_available(self, n=50) -> np.ndarray:
+        # TODO add the expected effect of Lichen
+        expected_increase_power = np.arange(n) * 50
+        return expected_increase_power + self.power
+
+    @property
+    def daily_charge(self) -> int:
+        return self.env_cfg.FACTORY_CHARGE
 
     @property
     def can_build_heavy(self) -> bool:
@@ -98,4 +108,4 @@ class Factory(Actor):
         return self.coordinates.get_closest_tile(c)
 
     def __repr__(self) -> str:
-        return f"Factory[id={self.unit_id}]"
+        return f"Factory[id={self.unit_id}, center={self.center_tc.xy}]"

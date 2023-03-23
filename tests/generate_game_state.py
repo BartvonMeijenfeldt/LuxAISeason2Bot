@@ -21,6 +21,11 @@ class UnitPos:
 
 
 @dataclass
+class FactoryPos(UnitPos):
+    p: int = field(default=500)
+
+
+@dataclass
 class UnitPositions:
     player_lights: Sequence[UnitPos] = field(default_factory=list)
     player_heavies: Sequence[UnitPos] = field(default_factory=list)
@@ -30,8 +35,8 @@ class UnitPositions:
 
 @dataclass
 class FactoryPositions:
-    player: Sequence[UnitPos] = field(default_factory=list)
-    opp: Sequence[UnitPos] = field(default_factory=list)
+    player: Sequence[FactoryPos] = field(default_factory=list)
+    opp: Sequence[FactoryPos] = field(default_factory=list)
 
 
 def _get_units(unit_positions: UnitPositions) -> Dict[str, dict]:
@@ -184,7 +189,7 @@ def _get_board(board_width: int, tiles: Tiles) -> dict:
     )
 
 
-def _get_factories(factory_positions: FactoryPositions) -> Dict[str, dict]:
+def get_factories(factory_positions: FactoryPositions) -> Dict[str, dict]:
 
     player_factories = {
         f"factory_{pos.id}": _generate_factory(PLAYER_TEAM_ID, pos=pos) for pos in factory_positions.player
@@ -195,14 +200,14 @@ def _get_factories(factory_positions: FactoryPositions) -> Dict[str, dict]:
     return {f"player_{PLAYER_TEAM_ID}": player_factories, f"player_{OPP_TEAM_ID}": opp_factories}
 
 
-def _generate_factory(team_id: int, pos: UnitPos, power: int = 500, cargo: Optional[dict] = None) -> dict:
+def _generate_factory(team_id: int, pos: FactoryPos, cargo: Optional[dict] = None) -> dict:
 
     if cargo is None:
         cargo = dict(ice=0, ore=0, water=0, metal=0)
 
     np_pos = np.array([pos.x, pos.y])
 
-    return dict(pos=np_pos, power=power, cargo=cargo, unit_id=f"factory_{pos.id}", strain_id=pos.id, team_id=team_id,)
+    return dict(pos=np_pos, power=pos.p, cargo=cargo, unit_id=f"factory_{pos.id}", strain_id=pos.id, team_id=team_id,)
 
 
 def _get_obs(
@@ -214,7 +219,7 @@ def _get_obs(
 ) -> dict:
 
     units = _get_units(unit_positions)
-    factories = _get_factories(factory_positions)
+    factories = get_factories(factory_positions)
 
     player_factory_strains = [factory["strain_id"] for factory in factories[f"player_{PLAYER_TEAM_ID}"].values()]
     opp_factory_strains = [factory["strain_id"] for factory in factories[f"player_{OPP_TEAM_ID}"].values()]

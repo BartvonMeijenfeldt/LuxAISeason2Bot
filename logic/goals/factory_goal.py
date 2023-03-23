@@ -11,6 +11,7 @@ from objects.actions.factory_action_plan import FactoryActionPlan
 
 if TYPE_CHECKING:
     from objects.actors.factory import Factory
+    from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
 
 
 @dataclass
@@ -22,7 +23,12 @@ class FactoryGoal(Goal):
     _is_valid: Optional[bool] = field(init=False, default=None)
 
     @abstractmethod
-    def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> FactoryActionPlan:
+    def generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> FactoryActionPlan:
         ...
 
     def get_value_per_step_of_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
@@ -40,7 +46,12 @@ class FactoryGoal(Goal):
 
 
 class BuildHeavyGoal(FactoryGoal):
-    def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> FactoryActionPlan:
+    def generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> FactoryActionPlan:
         self.action_plan = FactoryActionPlan(self.factory, [BuildHeavyAction()])
         self.set_validity_plan(constraints)
         return self.action_plan
@@ -57,7 +68,12 @@ class BuildHeavyGoal(FactoryGoal):
 
 
 class BuildLightGoal(FactoryGoal):
-    def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> FactoryActionPlan:
+    def generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> FactoryActionPlan:
         self.action_plan = FactoryActionPlan(self.factory, [BuildLightAction()])
         self.set_validity_plan(constraints)
         return self.action_plan
@@ -78,7 +94,12 @@ class WaterGoal(FactoryGoal):
     # TODO, should not be valid if can not water, or if it is too risky, next step factory will explode
     _is_valid: Optional[bool] = field(init=False, default=True)
 
-    def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> FactoryActionPlan:
+    def generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> FactoryActionPlan:
         self.action_plan = FactoryActionPlan(self.factory, [WaterAction()])
         self.set_validity_plan(constraints)
         return self.action_plan
@@ -98,7 +119,12 @@ class FactoryNoGoal(FactoryGoal):
     _value = None
     _is_valid = True
 
-    def generate_action_plan(self, game_state: GameState, constraints: Constraints) -> FactoryActionPlan:
+    def generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> FactoryActionPlan:
         return FactoryActionPlan(self.factory)
 
     def _get_best_value(self) -> float:

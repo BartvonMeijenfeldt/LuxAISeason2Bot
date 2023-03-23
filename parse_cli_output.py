@@ -159,8 +159,8 @@ if __name__ == "__main__":
 
     cli_output_name = cli_output_path.split(".")[0].split(r"/")[1]
     collision_df = (
-        pd.DataFrame(collision_rows).explode("lost_unit").to_csv(f"data/collisions_{cli_output_name}.csv", index=False)
+        pd.DataFrame(collision_rows).explode("lost_unit").to_csv(f"data/{cli_output_name}_collisions.csv", index=False)
     )
     invalid_actions_df = pd.DataFrame(invalid_action_rows).to_csv(
-        f"data/invalid_actions_{cli_output_name}.csv", index=False
+        f"data/{cli_output_name}_invalid_actions.csv", index=False
     )

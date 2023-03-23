@@ -1,10 +1,10 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING, Iterator, List
 from dataclasses import dataclass, field
 
 # from objects.actors.factory import Factory
 from objects.coordinate import TimeCoordinate
-from objects.actions.action_plan import ActionPlan
+from objects.actions.action_plan import ActionPlan, PowerRequest
 from objects.actions.factory_action import FactoryAction, BuildAction
 
 if TYPE_CHECKING:
@@ -24,9 +24,8 @@ class FactoryActionPlan(ActionPlan):
     def __iter__(self) -> Iterator[FactoryAction]:
         return iter(self.actions)
 
-    @property
-    def resource_cost_plan(self) -> float:
-        return sum(action.resource_cost for action in self.actions)
+    def get_resource_cost(self, game_state: GameState, strain_id: int) -> float:
+        return sum(action.get_resource_cost(game_state, strain_id) for action in self.actions)
 
     def actor_can_carry_out_plan(self, game_state: GameState) -> bool:
         return self.actor_has_enough_resources(game_state)
@@ -45,16 +44,24 @@ class FactoryActionPlan(ActionPlan):
         return metal_requested <= self.actor.cargo.metal
 
     def actor_has_enough_water(self, game_state: GameState) -> bool:
-        power_requested = sum(action.get_water_cost_from_strain_id(game_state, self.actor.strain_id) for action in self.actions)
+        power_requested = sum(
+            action.get_water_cost_from_strain_id(game_state, self.actor.strain_id) for action in self.actions
+        )
         return power_requested <= self.actor.cargo.water
 
     @property
-    def time_coordinates(self) -> set[TimeCoordinate]:
-        return {
+    def time_coordinates(self) -> List[TimeCoordinate]:
+        return [
             TimeCoordinate(*self.actor.center_tc.xy, t)
             for t, action in enumerate(self.actions, start=self.actor.center_tc.t + 1)
             if isinstance(action, BuildAction)
-        }
+        ]
+
+    def get_power_requests(self, game_state: GameState) -> List[PowerRequest]:
+        return [
+            PowerRequest(self.actor, t=t, p=action.requested_power)
+            for t, action in enumerate(self.actions, start=self.actor.center_tc.t)
+        ]
 
     def to_lux_output(self):
         if not self.actions:

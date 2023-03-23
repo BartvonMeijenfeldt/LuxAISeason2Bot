@@ -9,14 +9,17 @@ from lux.utils import is_my_turn_to_place_factory
 from objects.game_state import GameState
 from objects.actors.factory import Factory
 from objects.actors.unit import Unit
-from objects.actions.unit_action_plan import ActionPlan, UnitActionPlan
+from objects.actions.action_plan import ActionPlan
+from objects.actions.unit_action_plan import UnitActionPlan
 from logic.early_setup import get_factory_spawn_loc
 from logic.goals.goal import Goal
 from logic.goals.unit_goal import ActionQueueGoal, UnitGoal
+from logic.goals.factory_goal import BuildLightGoal
 from logic.constraints import Constraints
+from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
 
 # from logic.action_plan_resolution import ConflichtBasedPlanResolver
-import datetime
+
 
 if TYPE_CHECKING:
     from objects.actors.actor import Actor
@@ -70,12 +73,29 @@ class Agent:
         goals: Dict[Actor, Goal] = {}
         reserved_goals = set()
         importance_sorted_actors = self.get_sorted_actors(game_state)
+
+        power_tracker = self.get_power_tracker(importance_sorted_actors)
         for actor in importance_sorted_actors:
-            goal = actor.get_best_goal(game_state, constraints, reserved_goals)
+            goal = actor.get_best_goal(game_state, constraints, power_tracker, reserved_goals)
             constraints = constraints.add_negative_constraints(goal.action_plan.time_coordinates)
-            # TODO POWER constraints
+            power_tracker.update_power_available(
+                power_requests=goal.action_plan.get_power_requests(game_state)
+            )
+
             reserved_goals.add(goal.key)
             goals[actor] = goal
+
+            # TODO, make units add future plans as well
+            if game_state.real_env_steps < 6 and isinstance(actor, Factory):
+                for t in range(game_state.real_env_steps + 1, 7):
+                    goal = BuildLightGoal(actor)
+                    goal.generate_and_evaluate_action_plan(game_state, constraints, power_tracker)
+                    power_requests = goal.action_plan.get_power_requests(game_state)
+                    for power_request in power_requests:
+                        power_request.t = t
+                    power_tracker.update_power_available(
+                        power_requests=power_requests
+                    )
 
         return goals
 
@@ -85,6 +105,11 @@ class Agent:
 
     def _get_sorted_actors(self, actors: Sequence[Actor]) -> List[Actor]:
         return sorted(actors, key=self._actor_importance_key)
+
+    @staticmethod
+    def get_power_tracker(actors: List[Actor]) -> PowerAvailabilityTracker:
+        factories = [factory for factory in actors if isinstance(factory, Factory)]
+        return PowerAvailabilityTracker(factories)
 
     @staticmethod
     def _actor_importance_key(actor: Actor) -> int:
