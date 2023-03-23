@@ -474,7 +474,7 @@ class ClearRubbleGoal(UnitGoal):
         return best_value
 
     def _optional_add_go_to_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        closest_factory_c = game_state.get_closest_factory_c(c=self.action_plan.final_tc)
+        closest_factory_c = game_state.get_closest_player_factory_c(c=self.action_plan.final_tc)
         graph = self._get_move_graph(board=game_state.board, goal=closest_factory_c, constraints=constraints)
         potential_move_actions = self._search_graph(graph=graph, start=self.action_plan.final_tc)
 
@@ -530,7 +530,7 @@ class FleeGoal(UnitGoal):
         return constraints
 
     def _go_to_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        closest_factory_c = game_state.get_closest_factory_c(c=self.action_plan.final_tc)
+        closest_factory_c = game_state.get_closest_player_factory_c(c=self.action_plan.final_tc)
         potential_move_actions = self._get_move_to_plan(
             start_tc=self.unit.tc, goal=closest_factory_c, constraints=constraints, board=game_state.board
         )

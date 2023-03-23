@@ -1,0 +1,12 @@
+import argparse
+import pandas as pd
+import numpy as np
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--json_path", type=str)
+args = parser.parse_args()
+
+df = pd.read_json(args.json_path)
+duration = df.apply(lambda x: x[0]['duration'], axis=1)
+duration = np.clip(duration - 3, a_min=0, a_max=np.inf)
+print(duration.sum())

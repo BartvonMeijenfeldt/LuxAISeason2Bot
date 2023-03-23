@@ -123,8 +123,8 @@ class PickupPowerGraph(Graph):
         return min_distance_cost + min_time_recharge_cost
 
     def _get_distance_heuristic(self, node: Coordinate) -> float:
-        closest_factory_tile = self.board.get_closest_factory_tile(node)
-        min_distance_to_factory = closest_factory_tile.distance_to(node)
+        closest_factory_tile = self.board.get_closest_player_factory_tile(node)
+        min_distance_to_factory = self.board.get_min_distance_to_player_factory(node)
 
         if self.next_goal_c:
             # TODO, now it calculates from closest_factory_tile the heuristic, it could be that a tile at a different
@@ -204,7 +204,7 @@ class Search:
         return self._get_solution_actions()
 
     def _init_search(self, start_tc: TimeCoordinate) -> None:
-        # if self.graph.constraints.has_time_constraints:
+        # if self.graph.constraints:
         #     start = start_tc
         # else:
         #     start = start_tc.to_timeless_coordinate()
