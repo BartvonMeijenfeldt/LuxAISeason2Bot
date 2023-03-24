@@ -65,9 +65,11 @@ class Unit(Actor):
                 goals.append(flee_goal)
 
         elif game_state.env_steps <= 920 and self.unit_type == "HEAVY":
-            target_ice_c = game_state.get_closest_ice_tile(c=self.tc)
-            target_factory_c = game_state.get_closest_player_factory_c(c=target_ice_c)
-            goals = [CollectIceGoal(unit=self, resource_c=target_ice_c, factory_c=target_factory_c)]
+            targets_ice_c = game_state.get_n_closest_ice_tiles(c=self.tc, n=2)
+            goals = []
+            for target_ice_c in targets_ice_c:
+                target_factory_c = game_state.get_closest_player_factory_c(c=target_ice_c)
+                goals.append(CollectIceGoal(unit=self, resource_c=target_ice_c, factory_c=target_factory_c))
 
             # target_ore_c = game_state.get_closest_ore_tile(c=self.tc)
             # target_factory_c = game_state.get_closest_factory_c(c=target_ore_c)
