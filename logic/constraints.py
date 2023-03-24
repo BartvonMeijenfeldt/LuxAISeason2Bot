@@ -55,6 +55,12 @@ class Constraints:
 
         return max(self.negative_t)
 
+    def any_tc_violates_constraint(self, tcs: Iterable[TimeCoordinate]) -> bool:
+        if not self:
+            return False
+
+        return any(self.tc_in_negative_constraints(tc) for tc in tcs)
+
     def tc_violates_constraint(self, tc: TimeCoordinate) -> bool:
         if not self:
             return False
