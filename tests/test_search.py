@@ -480,12 +480,23 @@ class TestPowerPickupSearch(unittest.TestCase):
             state=state, start=start, expected_actions=expected_actions
         )
 
-    def test_already_there_no_power_available(self):
+    def test_already_there_no_power_available_day(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3, p=0)])
         state = get_state(board_width=9, factory_positions=factory_positions, real_env_steps=1)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         expected_actions = [MA(D.CENTER), PA(amount=49, resource=Resource.Power)]
+
+        self._test_power_pickup_search(
+            state=state, start=start, expected_actions=expected_actions
+        )
+
+    def test_already_there_no_power_available_night(self):
+        factory_positions = FactoryPositions(player=[FactoryPos(3, 3, p=0)])
+        state = get_state(board_width=9, factory_positions=factory_positions, real_env_steps=31)
+
+        start = PTC(x=3, y=3, t=31, p=100, unit_cfg=LIGHT_CFG, game_state=state)
+        expected_actions = [MA(D.CENTER), PA(amount=50, resource=Resource.Power)]
 
         self._test_power_pickup_search(
             state=state, start=start, expected_actions=expected_actions

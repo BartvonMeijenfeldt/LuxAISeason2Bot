@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from math import ceil
 
-from search.search import Search, MoveToGraph, DigAtGraph, PickupPowerGraph, Graph
+from search.search import Search, EvadeConstraintsGraph, MoveToGraph, DigAtGraph, PickupPowerGraph, Graph
 from objects.actions.unit_action import DigAction, TransferAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.direction import Direction
@@ -60,12 +60,12 @@ class UnitGoal(Goal):
         # self.solution_hash[constraints.key] = action_plan
         return action_plan
 
-    def _parent_solution_is_valid(self, parent_solution: UnitActionPlan, constraints: Constraints) -> bool:
-        for tc in parent_solution.time_coordinates:
-            if constraints.tc_violates_constraint(tc):
-                return False
+    # def _parent_solution_is_valid(self, parent_solution: UnitActionPlan, constraints: Constraints) -> bool:
+    #     for tc in parent_solution.time_coordinates:
+    #         if constraints.tc_violates_constraint(tc):
+    #             return False
 
-        return True
+    #     return True
 
     @abstractmethod
     def _generate_action_plan(
@@ -83,12 +83,22 @@ class UnitGoal(Goal):
 
         return self._is_valid
 
-    def _get_move_graph(self, board: Board, goal: Coordinate, constraints: Constraints) -> MoveToGraph:
+    def _get_move_to_graph(self, board: Board, goal: Coordinate, constraints: Constraints) -> MoveToGraph:
         graph = MoveToGraph(
             board=board,
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,
             goal=goal,
+            constraints=constraints,
+        )
+
+        return graph
+
+    def _get_evade_constraints_graph(self, board: Board, constraints: Constraints) -> EvadeConstraintsGraph:
+        graph = EvadeConstraintsGraph(
+            board=board,
+            time_to_power_cost=self.unit.time_to_power_cost,
+            unit_cfg=self.unit.unit_cfg,
             constraints=constraints,
         )
 
@@ -171,7 +181,7 @@ class UnitGoal(Goal):
         self, start_tc: TimeCoordinate, goal: Coordinate, constraints: Constraints, board: Board,
     ) -> list[UnitAction]:
 
-        graph = self._get_move_graph(board=board, goal=goal, constraints=constraints)
+        graph = self._get_move_to_graph(board=board, goal=goal, constraints=constraints)
         actions = self._search_graph(graph=graph, start=start_tc)
         return actions
 
@@ -475,7 +485,7 @@ class ClearRubbleGoal(UnitGoal):
 
     def _optional_add_go_to_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
         closest_factory_c = game_state.get_closest_player_factory_c(c=self.action_plan.final_tc)
-        graph = self._get_move_graph(board=game_state.board, goal=closest_factory_c, constraints=constraints)
+        graph = self._get_move_to_graph(board=game_state.board, goal=closest_factory_c, constraints=constraints)
         potential_move_actions = self._search_graph(graph=graph, start=self.action_plan.final_tc)
 
         potential_action_plan = self.action_plan + potential_move_actions
@@ -598,6 +608,38 @@ class ActionQueueGoal(UnitGoal):
 
 class UnitNoGoal(UnitGoal):
     _value = None
+    # Always valid even if a constraint is invalidated, but with a negative score then
+    _is_valid = True
+    # TODO, what should be the value of losing a unit?
+    PENALTY_VIOLATING_CONSTRAINT = -10_000
+
+    def _generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> UnitActionPlan:
+        self._init_action_plan()
+        self._invalidates_constraint = constraints.any_tc_violates_constraint(self.action_plan.time_coordinates)
+        return self.action_plan
+
+    def _get_best_value(self) -> float:
+        return 0
+
+    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        return 0.0 if not self._invalidates_constraint else self.PENALTY_VIOLATING_CONSTRAINT
+
+    def __repr__(self) -> str:
+        return f"No_Goal_Unit_{self.unit.unit_id}"
+
+    @property
+    def key(self) -> str:
+        return str(self)
+
+
+class EvadeConstraintsGoal(UnitGoal):
+    _value = None
+    # Always valid even if a constraint is invalidated, but with a negative score then
     _is_valid = True
 
     def _generate_action_plan(
@@ -607,17 +649,33 @@ class UnitNoGoal(UnitGoal):
         factory_power_availability_tracker: PowerAvailabilityTracker,
     ) -> UnitActionPlan:
         self._init_action_plan()
-        # TODO, add evading negative constraints
+        if constraints.any_tc_violates_constraint(self.action_plan.time_coordinates):
+            self._add_evade_actions(game_state, constraints)
         return self.action_plan
 
     def _get_best_value(self) -> float:
-        return 0
+        return -(self.unit.move_power_cost + self.unit.time_to_power_cost)
+
+    def _add_evade_actions(self, game_state: GameState, constraints: Constraints):
+        potential_move_actions = self._get_evade_plan(
+            start_tc=self.unit.tc, constraints=constraints, board=game_state.board
+        )
+        self.action_plan.extend(potential_move_actions)
+
+        if not self.action_plan.actor_can_carry_out_plan(game_state):
+            self._is_valid = False
+
+    def _get_evade_plan(self, start_tc: TimeCoordinate, constraints: Constraints, board: Board,) -> list[UnitAction]:
+
+        graph = self._get_evade_constraints_graph(board=board, constraints=constraints)
+        actions = self._search_graph(graph=graph, start=start_tc)
+        return actions
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return 0.0
 
     def __repr__(self) -> str:
-        return f"No_Goal_Unit_{self.unit.unit_id}"
+        return f"Evade_Constraints_Unit_{self.unit.unit_id}"
 
     @property
     def key(self) -> str:

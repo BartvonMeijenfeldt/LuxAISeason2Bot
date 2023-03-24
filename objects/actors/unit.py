@@ -16,6 +16,7 @@ from logic.goals.unit_goal import (
     UnitNoGoal,
     ActionQueueGoal,
     FleeGoal,
+    EvadeConstraintsGoal
 )
 
 
@@ -98,6 +99,7 @@ class Unit(Actor):
             goals.append(collect_ore_goal)
 
         goals += [UnitNoGoal(unit=self)]
+        goals += [EvadeConstraintsGoal(unit=self)]
 
         return goals
 

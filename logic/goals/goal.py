@@ -86,12 +86,7 @@ class Goal(metaclass=ABCMeta):
         return self._value
 
     def set_validity_plan(self, constraints: Constraints) -> None:
-        for tc in self.action_plan.time_coordinates:
-            if constraints.tc_violates_constraint(tc):
-                self._is_valid = False
-                return
-
-        self._is_valid = True
+        self._is_valid = not constraints.any_tc_violates_constraint(self.action_plan.time_coordinates)
 
 
 # class GoalCollection:

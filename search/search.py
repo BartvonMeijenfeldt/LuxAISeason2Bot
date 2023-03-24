@@ -87,6 +87,21 @@ class MoveToGraph(Graph):
         return self.goal == node
 
 
+class EvadeConstraintsGraph(Graph):
+    _potential_actions = [MoveAction(direction) for direction in Direction]
+    _move_center_action = MoveAction(Direction.CENTER)
+
+    def potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
+        return self._potential_actions
+
+    def heuristic(self, node: Coordinate) -> float:
+        return 0
+
+    def node_completes_goal(self, node: TimeCoordinate) -> bool:
+        to_c = node.add_action(self._move_center_action)
+        return not self.constraints.tc_violates_constraint(to_c)
+
+
 @dataclass
 class PickupPowerGraph(Graph):
     factory_power_availability_tracker: PowerAvailabilityTracker
@@ -240,7 +255,6 @@ class Search:
 
         priority = node_cost + self.graph.heuristic(node)
         self.frontier.put(node, priority)
-        
 
     def _get_solution_actions(self) -> List[UnitAction]:
         solution = []
