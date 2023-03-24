@@ -63,8 +63,7 @@ class Graph(metaclass=ABCMeta):
         min_nr_steps = node.distance_to(self.goal)
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
         min_distance_cost = min_nr_steps * min_cost_per_step
-        tiebreak_cost = min_nr_steps / 100_000
-        return min_distance_cost + tiebreak_cost
+        return min_distance_cost
 
 
 @dataclass
@@ -155,9 +154,8 @@ class PickupPowerGraph(Graph):
 
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
         min_distance_cost = total_distance * min_cost_per_step
-        tiebreak_cost = distance_to_closest_factory_tiles / 100_000
 
-        return min_distance_cost + tiebreak_cost
+        return min_distance_cost
 
     def _get_time_recharge_heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
         if self.node_completes_goal(node=node):
@@ -197,8 +195,7 @@ class TransferResourceGraph(Graph):
         min_nr_steps_next_to_factory = max(min_nr_steps_to_factory - 1, 0)
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
         min_distance_cost = min_nr_steps_next_to_factory * min_cost_per_step
-        tiebreak_cost = min_nr_steps_to_factory / 100_000
-        return min_distance_cost + tiebreak_cost
+        return min_distance_cost
 
     def _get_transfer_heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
         if self.node_completes_goal(node=node):
