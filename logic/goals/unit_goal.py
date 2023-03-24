@@ -6,17 +6,26 @@ from dataclasses import dataclass, field
 from typing import Optional
 from math import ceil
 
-from search.search import Search, EvadeConstraintsGraph, MoveToGraph, DigAtGraph, PickupPowerGraph, Graph
-from objects.actions.unit_action import DigAction, TransferAction
+from search.search import (
+    Search,
+    EvadeConstraintsGraph,
+    MoveToGraph,
+    DigAtGraph,
+    PickupPowerGraph,
+    Graph,
+    TransferResourceGraph,
+)
+from objects.actions.unit_action import DigAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.direction import Direction
 from objects.resource import Resource
 from objects.coordinate import (
-    PowerPickupPowerTimeCoordinate,
+    ResourcePowerTimeCoordinate,
     DigCoordinate,
     DigTimeCoordinate,
     TimeCoordinate,
     Coordinate,
+    ResourceTimeCoordinate
 )
 from logic.constraints import Constraints
 from logic.goals.goal import Goal
@@ -124,8 +133,13 @@ class UnitGoal(Goal):
             next_goal_c=next_goal_c,
         )
 
-        recharge_tc = PowerPickupPowerTimeCoordinate(
-            *self.action_plan.final_tc.xyt, p=self.unit.power, unit_cfg=self.unit.unit_cfg, game_state=game_state, q=0
+        recharge_tc = ResourcePowerTimeCoordinate(
+            *self.action_plan.final_tc.xyt,
+            p=self.unit.power,
+            unit_cfg=self.unit.unit_cfg,
+            game_state=game_state,
+            q=0,
+            resource=Resource.POWER,
         )
         new_actions = self._search_graph(graph=graph, start=recharge_tc)
         self.action_plan.extend(new_actions)
@@ -283,13 +297,8 @@ class CollectGoal(UnitGoal):
                 return self.action_plan
 
         self._add_dig_actions(game_state=game_state, constraints=constraints)
-        self._add_resource_to_factory_actions(board=game_state.board, constraints=constraints)
-        self._add_transfer_action()
+        self._add_transfer_resources_to_factory_actions(board=game_state.board, constraints=constraints)
         return self.action_plan
-
-    def _get_transfer_action(self) -> TransferAction:
-        max_cargo = self.unit.unit_cfg.CARGO_SPACE
-        return TransferAction(direction=Direction.CENTER, amount=max_cargo, resource=Resource.Ice)
 
     def _add_dig_actions(self, game_state: GameState, constraints: Constraints) -> None:
         max_nr_digs = self._get_max_nr_digs_current_ptc(game_state)
@@ -315,22 +324,29 @@ class CollectGoal(UnitGoal):
         cur_power = self.action_plan.get_final_ptc(game_state).p
         return self._get_max_nr_digs(cur_power=cur_power)
 
-    def _add_resource_to_factory_actions(self, board: Board, constraints: Constraints) -> None:
-        # TODO allow return resources not on factory tile, leads to earlier resources at factory and less time spent
-        # on factory
-        actions = self._get_move_to_factory_actions(board=board, constraints=constraints)
+    def _add_transfer_resources_to_factory_actions(self, board: Board, constraints: Constraints) -> None:
+        actions = self._get_transfer_resources_to_factory_actions(board=board, constraints=constraints)
         self.action_plan.extend(actions=actions)
 
-    def _get_move_to_factory_actions(self, board: Board, constraints: Constraints) -> list[UnitAction]:
-        # TODO, this should move to any Factory tile not a specific tile
-        return self._get_move_to_plan(
-            start_tc=self.action_plan.final_tc, goal=self.factory_c, constraints=constraints, board=board
+    def _get_transfer_resources_to_factory_actions(self, board: Board, constraints: Constraints) -> list[UnitAction]:
+        return self._get_transfer_plan(start_tc=self.action_plan.final_tc, constraints=constraints, board=board)
+
+    def _get_transfer_plan(self, start_tc: TimeCoordinate, constraints: Constraints, board: Board,) -> list[UnitAction]:
+        start = ResourceTimeCoordinate(start_tc.x, start_tc.y, start_tc.t, q=0, resource=self.resource)
+        graph = self._get_transfer_graph(board=board, constraints=constraints)
+        actions = self._search_graph(graph=graph, start=start)
+        return actions
+
+    def _get_transfer_graph(self, board: Board, constraints: Constraints) -> TransferResourceGraph:
+        graph = TransferResourceGraph(
+            board=board,
+            time_to_power_cost=self.unit.time_to_power_cost,
+            unit_cfg=self.unit.unit_cfg,
+            constraints=constraints,
+            resource=self.resource
         )
 
-    def _add_transfer_action(self) -> None:
-        max_cargo = self.unit.unit_cfg.CARGO_SPACE
-        transfer_action = TransferAction(direction=Direction.CENTER, amount=max_cargo, resource=self.resource)
-        self.action_plan.append(transfer_action)
+        return graph
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         # TODO make distinction between clearing the rubble and digging the resource, if clearing rubble make sure it
@@ -354,7 +370,7 @@ class CollectGoal(UnitGoal):
 
 @dataclass
 class CollectIceGoal(CollectGoal):
-    resource = Resource.Ice
+    resource = Resource.ICE
     benefit_resource = 10
 
     def __repr__(self) -> str:
@@ -367,7 +383,7 @@ class CollectIceGoal(CollectGoal):
 
 @dataclass
 class CollectOreGoal(CollectGoal):
-    resource = Resource.Ore
+    resource = Resource.ORE
     benefit_resource = 40
 
     def __repr__(self) -> str:
