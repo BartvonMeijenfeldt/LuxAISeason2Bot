@@ -16,7 +16,7 @@ from logic.goals.unit_goal import (
     UnitNoGoal,
     ActionQueueGoal,
     FleeGoal,
-    EvadeConstraintsGoal
+    EvadeConstraintsGoal,
 )
 
 
@@ -68,37 +68,55 @@ class Unit(Actor):
             targets_ice_c = game_state.get_n_closest_ice_tiles(c=self.tc, n=2)
             goals = []
             for target_ice_c in targets_ice_c:
-                target_factory_c = game_state.get_closest_player_factory_c(c=target_ice_c)
-                goals.append(CollectIceGoal(unit=self, resource_c=target_ice_c, factory_c=target_factory_c))
-
-            # target_ore_c = game_state.get_closest_ore_tile(c=self.tc)
-            # target_factory_c = game_state.get_closest_factory_c(c=target_ore_c)
-
-            # collect_ore_goal = CollectOreGoal(unit=self, resource_c=target_ore_c, factory_c=target_factory_c)
-            # goals.append(collect_ore_goal)
+                for pickup_power in [False, True]:
+                    target_factory_c = game_state.get_closest_player_factory_c(c=target_ice_c)
+                    goals.append(
+                        CollectIceGoal(
+                            unit=self, pickup_power=pickup_power, resource_c=target_ice_c, factory_c=target_factory_c
+                        )
+                    )
 
         elif game_state.env_steps > 920 and self.unit_type == "HEAVY":
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
-            goals = [ClearRubbleGoal(unit=self, rubble_position=rubble_tile) for rubble_tile in closest_rubble_tiles]
+            goals = []
+            for pickup_power in [False, True]:
+                goals.extend(
+                    ClearRubbleGoal(unit=self, pickup_power=pickup_power, rubble_position=rubble_tile)
+                    for rubble_tile in closest_rubble_tiles)
 
         else:
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
-            goals = [ClearRubbleGoal(unit=self, rubble_position=rubble_tile) for rubble_tile in closest_rubble_tiles]
+            goals = []
+            for pickup_power in [False, True]:
+                goals.extend(
+                    ClearRubbleGoal(unit=self, pickup_power=pickup_power, rubble_position=rubble_tile)
+                    for rubble_tile in closest_rubble_tiles
+                )
 
             closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=1)
 
-            ice_goals = [
-                CollectIceGoal(unit=self, resource_c=ice_tile, factory_c=game_state.get_closest_player_factory_c(c=ice_tile))
-                for ice_tile in closest_ice_tiles
-            ]
+            for pickup_power in [False, True]:
+
+                ice_goals = [
+                    CollectIceGoal(
+                        unit=self,
+                        pickup_power=pickup_power,
+                        resource_c=ice_tile,
+                        factory_c=game_state.get_closest_player_factory_c(c=ice_tile),
+                    )
+                    for ice_tile in closest_ice_tiles
+                ]
 
             goals.extend(ice_goals)
 
             target_ore_c = game_state.get_closest_ore_tile(c=self.tc)
             target_factory_c = game_state.get_closest_player_factory_c(c=target_ore_c)
 
-            collect_ore_goal = CollectOreGoal(unit=self, resource_c=target_ore_c, factory_c=target_factory_c)
-            goals.append(collect_ore_goal)
+            for pickup_power in [False, True]:
+                collect_ore_goal = CollectOreGoal(
+                    unit=self, pickup_power=pickup_power, resource_c=target_ore_c, factory_c=target_factory_c
+                )
+                goals.append(collect_ore_goal)
 
         goals += [UnitNoGoal(unit=self)]
         goals += [EvadeConstraintsGoal(unit=self)]
