@@ -25,7 +25,7 @@ from objects.coordinate import (
     DigTimeCoordinate,
     TimeCoordinate,
     Coordinate,
-    ResourceTimeCoordinate
+    ResourceTimeCoordinate,
 )
 from logic.constraints import Constraints
 from logic.goals.goal import Goal
@@ -129,6 +129,8 @@ class UnitGoal(Goal):
         factory_power_availability_tracker: PowerAvailabilityTracker,
         next_goal_c: Optional[Coordinate] = None,
     ) -> None:
+        if self.unit.power == self.unit.battery_capacity:
+            return
 
         graph = self._get_recharge_graph(
             board=game_state.board,
@@ -159,10 +161,11 @@ class UnitGoal(Goal):
     def _get_dig_plan(
         self, start_tc: TimeCoordinate, dig_c: Coordinate, nr_digs: int, constraints: Constraints, board: Board,
     ) -> list[UnitAction]:
-        if constraints.max_t and constraints.max_t > start_tc.t:
-            return self._get_dig_plan_with_constraints(start_tc, dig_c, nr_digs, constraints, board)
+        # if constraints.max_t and constraints.max_t > start_tc.t:
+        #     return self._get_dig_plan_with_constraints(start_tc, dig_c, nr_digs, constraints, board)
 
-        return self._get_dig_plan_wihout_constraints(start_tc, dig_c, nr_digs, board)
+        # return self._get_dig_plan_wihout_constraints(start_tc, dig_c, nr_digs, board)
+        return self._get_dig_plan_with_constraints(start_tc, dig_c, nr_digs, constraints, board)
 
     def _get_nr_digs_required_for_clear_rubble(self, rubble_c: Coordinate, board: Board) -> int:
 
@@ -173,12 +176,18 @@ class UnitGoal(Goal):
     def _get_dig_plan_with_constraints(
         self, start_tc: TimeCoordinate, dig_c: Coordinate, nr_digs: int, constraints: Constraints, board: Board
     ) -> list[UnitAction]:
+        actions = []
 
-        start_dtc = DigTimeCoordinate(*start_tc.xyt, d=0)
-        dig_coordinate = DigCoordinate(x=dig_c.x, y=dig_c.y, d=nr_digs)
+        for _ in range(nr_digs):
+            start_dtc = DigTimeCoordinate(*start_tc.xyt, d=0)
+            dig_coordinate = DigCoordinate(x=dig_c.x, y=dig_c.y, d=1)
+            graph = self._get_dig_graph(board=board, goal=dig_coordinate, constraints=constraints)
+            new_actions = self._search_graph(graph=graph, start=start_dtc)
+            actions.extend(new_actions)
 
-        graph = self._get_dig_graph(board=board, goal=dig_coordinate, constraints=constraints)
-        actions = self._search_graph(graph=graph, start=start_dtc)
+            for action in new_actions:
+                start_tc = start_tc.add_action(action)
+
         return actions
 
     def _get_dig_plan_wihout_constraints(
@@ -343,7 +352,7 @@ class CollectGoal(UnitGoal):
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,
             constraints=constraints,
-            resource=self.resource
+            resource=self.resource,
         )
 
         return graph
