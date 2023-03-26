@@ -30,7 +30,6 @@ class Graph(metaclass=ABCMeta):
     time_to_power_cost: float
     unit_cfg: UnitConfig
     constraints: Constraints
-    goal: Coordinate = field(init=False)
 
     @abstractmethod
     def potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
@@ -59,19 +58,32 @@ class Graph(metaclass=ABCMeta):
     def node_completes_goal(self, node: Coordinate) -> bool:
         ...
 
+
+@dataclass
+class GoalGraph(Graph):
+    goal: Coordinate
+
+    def __post_init__(self) -> None:
+        self.last_action_cost = self.time_to_power_cost + MoveAction.get_move_onto_cost(
+            self.unit_cfg, self.goal, self.board
+        )
+
     def _get_distance_heuristic(self, node: Coordinate) -> float:
         min_nr_steps = node.distance_to(self.goal)
+        if min_nr_steps == 0:
+            return 0
+
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
-        min_distance_cost = min_nr_steps * min_cost_per_step
+        min_distance_cost = (min_nr_steps - 1) * min_cost_per_step + self.last_action_cost
         return min_distance_cost
 
 
 @dataclass
-class MoveToGraph(Graph):
-    goal: Coordinate
+class MoveToGraph(GoalGraph):
     _potential_actions = [MoveAction(direction) for direction in Direction]
 
     def __post_init__(self):
+        super().__post_init__()
         if not self.constraints:
             self._potential_actions = [
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
@@ -208,12 +220,13 @@ class TransferResourceGraph(Graph):
 
 
 @dataclass
-class DigAtGraph(Graph):
+class DigAtGraph(GoalGraph):
     goal: DigCoordinate
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
     _potential_dig_action = DigAction()
 
     def __post_init__(self):
+        super().__post_init__()
         if not self.constraints:
             self._potential_move_actions = [
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
