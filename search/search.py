@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List, Tuple, Generator, Optional, TYPE_CHECKING
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
+import itertools
 
 from objects.coordinate import (
     ResourcePowerTimeCoordinate,
@@ -285,7 +286,11 @@ class Search:
         self.frontier.put(start, 0)
 
     def _find_optimal_solution(self) -> None:
-        while not self.frontier.is_empty():
+        for i in itertools.count():
+            if self.frontier.is_empty() or i > 200:
+                # TODO return error and handle the error upstream
+                break
+
             current_node: TimeCoordinate = self.frontier.pop()
 
             if self.graph.node_completes_goal(node=current_node):
