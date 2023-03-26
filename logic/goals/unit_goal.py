@@ -113,6 +113,10 @@ class UnitGoal(Goal):
 
         return graph
 
+    def _get_max_nr_digs_current_ptc(self, game_state: GameState) -> int:
+        cur_power = self.action_plan.get_final_ptc(game_state).p
+        return self._get_max_nr_digs(cur_power=cur_power)
+
     def _search_graph(self, graph: Graph, start: TimeCoordinate) -> list[UnitAction]:
         search = Search(graph=graph)
         optimal_actions = search.get_actions_to_complete_goal(start=start)
@@ -320,10 +324,6 @@ class CollectGoal(UnitGoal):
         else:
             self.action_plan.extend(max_valid_digs_actions)
 
-    def _get_max_nr_digs_current_ptc(self, game_state: GameState) -> int:
-        cur_power = self.action_plan.get_final_ptc(game_state).p
-        return self._get_max_nr_digs(cur_power=cur_power)
-
     def _add_transfer_resources_to_factory_actions(self, board: Board, constraints: Constraints) -> None:
         actions = self._get_transfer_resources_to_factory_actions(board=board, constraints=constraints)
         self.action_plan.extend(actions=actions)
@@ -439,11 +439,13 @@ class ClearRubbleGoal(UnitGoal):
         nr_required_digs = self._get_nr_digs_required_for_clear_rubble(
             rubble_c=self.rubble_position, board=game_state.board
         )
+        max_digs_possible = self._get_max_nr_digs_current_ptc(game_state)
+        max_nr_digs = min(nr_required_digs, max_digs_possible)
 
         potential_dig_actions = self._get_dig_plan(
             start_tc=self.action_plan.final_tc,
             dig_c=self.rubble_position,
-            nr_digs=nr_required_digs,
+            nr_digs=max_nr_digs,
             constraints=constraints,
             board=game_state.board,
         )
