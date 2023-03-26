@@ -10,12 +10,19 @@ from objects.coordinate import (
     DigTimeCoordinate as DTC,
     TimeCoordinate as TC,
     PowerTimeCoordinate as PTC,
-    PowerPickupPowerTimeCoordinate as PPPTC,
+    ResourceTimeCoordinate as RTC,
+    ResourcePowerTimeCoordinate as RPTC,
 )
-from objects.actions.unit_action import MoveAction as MA, UnitAction, DigAction as DA, PickupAction as PA
+from objects.actions.unit_action import (
+    MoveAction as MA,
+    UnitAction,
+    DigAction as DA,
+    PickupAction as PA,
+    TransferAction as TA,
+)
 from objects.direction import Direction as D
 from objects.resource import Resource
-from search.search import PickupPowerGraph, DigAtGraph, MoveToGraph, Search
+from search.search import PickupPowerGraph, TransferResourceGraph, DigAtGraph, MoveToGraph, Search
 from lux.kit import GameState
 from lux.config import EnvConfig
 from tests.generate_game_state import get_state, FactoryPositions, FactoryPos, Tiles, RubbleTile as RT
@@ -234,14 +241,14 @@ class DigAtSearch(unittest.TestCase):
 
         unit_cfg = ENV_CFG.ROBOTS[unit_type]
 
-        move_to_graph = DigAtGraph(
+        dig_at_graph = DigAtGraph(
             board=state.board,
             time_to_power_cost=time_to_power_cost,
             unit_cfg=unit_cfg,
             constraints=constraints,
             goal=goal,
         )
-        search = Search(move_to_graph)
+        search = Search(dig_at_graph)
         actions = search.get_actions_to_complete_goal(start=start)
         self.assertEqual(actions, expected_actions)
 
@@ -452,20 +459,22 @@ class TestPowerPickupSearch(unittest.TestCase):
 
         expected_actions = list(expected_actions)
 
-        start_ptc = PPPTC(start.x, start.y, start.t, start.p, start.unit_cfg, start.game_state, q=0)
+        start_ptc = RPTC(
+            start.x, start.y, start.t, start.p, start.unit_cfg, start.game_state, q=0, resource=Resource.POWER
+        )
         unit_cfg = ENV_CFG.ROBOTS[unit_type]
 
         power_availability_tracker = PowerAvailabilityTracker(state.board.player_factories)
 
-        move_to_graph = PickupPowerGraph(
+        pick_up_power_graph = PickupPowerGraph(
             board=state.board,
             time_to_power_cost=time_to_power_cost,
             unit_cfg=unit_cfg,
             constraints=constraints,
             next_goal_c=next_goal_c,
-            factory_power_availability_tracker=power_availability_tracker
+            factory_power_availability_tracker=power_availability_tracker,
         )
-        search = Search(move_to_graph)
+        search = Search(pick_up_power_graph)
         actions = search.get_actions_to_complete_goal(start=start_ptc)
         self.assertEqual(actions, expected_actions)
 
@@ -474,33 +483,27 @@ class TestPowerPickupSearch(unittest.TestCase):
         state = get_state(board_width=9, factory_positions=factory_positions)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
-        expected_actions = [PA(amount=50, resource=Resource.Power)]
+        expected_actions = [PA(amount=50, resource=Resource.POWER)]
 
-        self._test_power_pickup_search(
-            state=state, start=start, expected_actions=expected_actions
-        )
+        self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
 
     def test_already_there_no_power_available_day(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3, p=0)])
         state = get_state(board_width=9, factory_positions=factory_positions, real_env_steps=1)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
-        expected_actions = [MA(D.CENTER), PA(amount=49, resource=Resource.Power)]
+        expected_actions = [MA(D.CENTER), PA(amount=49, resource=Resource.POWER)]
 
-        self._test_power_pickup_search(
-            state=state, start=start, expected_actions=expected_actions
-        )
+        self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
 
     def test_already_there_no_power_available_night(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3, p=0)])
         state = get_state(board_width=9, factory_positions=factory_positions, real_env_steps=31)
 
         start = PTC(x=3, y=3, t=31, p=100, unit_cfg=LIGHT_CFG, game_state=state)
-        expected_actions = [MA(D.CENTER), PA(amount=50, resource=Resource.Power)]
+        expected_actions = [MA(D.CENTER), PA(amount=50, resource=Resource.POWER)]
 
-        self._test_power_pickup_search(
-            state=state, start=start, expected_actions=expected_actions
-        )
+        self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
 
     def test_move_through_rubble_pickup_more_power(self):
         rubble_tiles = [RT(1, 0, 100), RT(2, 0, 100), RT(0, 1, 100), RT(1, 1, 100), RT(0, 2, 100)]
@@ -509,33 +512,27 @@ class TestPowerPickupSearch(unittest.TestCase):
         state = get_state(board_width=9, factory_positions=factory_positions, tiles=tiles)
 
         start = PTC(x=0, y=0, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
-        expected_actions = [MA(D.RIGHT), MA(D.RIGHT), PA(amount=60, resource=Resource.Power)]
+        expected_actions = [MA(D.RIGHT), MA(D.RIGHT), PA(amount=60, resource=Resource.POWER)]
 
-        self._test_power_pickup_search(
-            state=state, start=start, expected_actions=expected_actions
-        )
+        self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
 
     def test_move_to_factory_day(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
         state = get_state(board_width=9, factory_positions=factory_positions)
 
         start = PTC(x=1, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
-        expected_actions = [MA(D.RIGHT), PA(amount=50, resource=Resource.Power)]
+        expected_actions = [MA(D.RIGHT), PA(amount=50, resource=Resource.POWER)]
 
-        self._test_power_pickup_search(
-            state=state, start=start, expected_actions=expected_actions
-        )
+        self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
 
     def test_move_to_factory_night(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
         state = get_state(board_width=9, factory_positions=factory_positions)
 
         start = PTC(x=1, y=3, t=31, p=100, unit_cfg=LIGHT_CFG, game_state=state)
-        expected_actions = [MA(D.RIGHT), PA(amount=51, resource=Resource.Power)]
+        expected_actions = [MA(D.RIGHT), PA(amount=51, resource=Resource.POWER)]
 
-        self._test_power_pickup_search(
-            state=state, start=start, expected_actions=expected_actions
-        )
+        self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
 
     def test_move_take_next_goal_into_account_right(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
@@ -544,7 +541,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         next_goal_c = C(5, 3)
-        expected_actions = [MA(D.RIGHT), PA(amount=50, resource=Resource.Power)]
+        expected_actions = [MA(D.RIGHT), PA(amount=50, resource=Resource.POWER)]
 
         state = get_state(board_width=9, factory_positions=factory_positions)
 
@@ -563,7 +560,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         next_goal_c = C(3, 1)
-        expected_actions = [MA(D.UP), PA(amount=50, resource=Resource.Power)]
+        expected_actions = [MA(D.UP), PA(amount=50, resource=Resource.POWER)]
 
         state = get_state(board_width=9, factory_positions=factory_positions)
 
@@ -582,7 +579,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         next_goal_c = C(3, 5)
-        expected_actions = [MA(D.DOWN), PA(amount=50, resource=Resource.Power)]
+        expected_actions = [MA(D.DOWN), PA(amount=50, resource=Resource.POWER)]
 
         state = get_state(board_width=9, factory_positions=factory_positions)
 
@@ -601,7 +598,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         next_goal_c = C(1, 3)
-        expected_actions = [MA(D.LEFT), PA(amount=50, resource=Resource.Power)]
+        expected_actions = [MA(D.LEFT), PA(amount=50, resource=Resource.POWER)]
 
         state = get_state(board_width=9, factory_positions=factory_positions)
 
@@ -611,6 +608,115 @@ class TestPowerPickupSearch(unittest.TestCase):
             expected_actions=expected_actions,
             constraints=constraints,
             next_goal_c=next_goal_c,
+        )
+
+
+class TestTransferResearchesSearch(unittest.TestCase):
+    def _test_power_pickup_search(
+        self,
+        state: GameState,
+        start: TC,
+        expected_actions: Sequence[UnitAction],
+        time_to_power_cost: float = 50,
+        unit_type: str = "LIGHT",
+        resource: Resource = Resource.ICE,
+        constraints: Optional[Constraints] = None,
+    ):
+        if constraints is None:
+            constraints = Constraints()
+
+        expected_actions = list(expected_actions)
+
+        start_ptc = RTC(start.x, start.y, start.t, q=0, resource=resource)
+        unit_cfg = ENV_CFG.ROBOTS[unit_type]
+
+        move_to_graph = TransferResourceGraph(
+            board=state.board,
+            time_to_power_cost=time_to_power_cost,
+            unit_cfg=unit_cfg,
+            constraints=constraints,
+            resource=resource,
+        )
+        search = Search(move_to_graph)
+        actions = search.get_actions_to_complete_goal(start=start_ptc)
+        self.assertEqual(actions, expected_actions)
+
+    def test_already_there_path(self):
+        factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
+        state = get_state(board_width=9, factory_positions=factory_positions)
+
+        start = TC(x=3, y=3, t=1)
+        expected_actions = [TA(direction=D.CENTER, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
+
+        self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
+
+    def test_next_to_factory_left(self):
+        factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
+        state = get_state(board_width=9, factory_positions=factory_positions)
+
+        start = TC(x=1, y=3, t=1)
+        expected_actions = [TA(direction=D.RIGHT, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
+
+        self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
+
+    def test_next_to_factory_right(self):
+        factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
+        state = get_state(board_width=9, factory_positions=factory_positions)
+
+        start = TC(x=5, y=3, t=1)
+        expected_actions = [TA(direction=D.LEFT, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
+
+        self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
+
+    def test_next_to_factory_up(self):
+        factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
+        state = get_state(board_width=9, factory_positions=factory_positions)
+
+        start = TC(x=3, y=1, t=1)
+        expected_actions = [TA(direction=D.DOWN, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
+
+        self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
+
+    def test_next_to_factory_down(self):
+        factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
+        state = get_state(board_width=9, factory_positions=factory_positions)
+
+        start = TC(x=3, y=5, t=1)
+        expected_actions = [TA(direction=D.UP, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
+
+        self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
+
+    def test_move_to_factory(self):
+        factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
+        state = get_state(board_width=9, factory_positions=factory_positions)
+
+        start = TC(x=0, y=3, t=1)
+        expected_actions = [MA(D.RIGHT), TA(direction=D.RIGHT, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
+
+        self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
+
+    def test_move_on_factory_and_transfer(self):
+        factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
+        state = get_state(board_width=9, factory_positions=factory_positions)
+        constraints = init_constraints(negative_constraints=[TC(2, 2, 2), TC(2, 3, 2), TC(2, 4, 2), TC(1, 3, 2)])
+
+        start = TC(x=2, y=3, t=1)
+        expected_actions = [MA(D.RIGHT), TA(direction=D.CENTER, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
+
+        self._test_power_pickup_search(
+            state=state, start=start, expected_actions=expected_actions, constraints=constraints
+        )
+
+    def test_move_away_from_factory_and_transfer(self):
+        factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
+        state = get_state(board_width=9, factory_positions=factory_positions)
+        constraints = init_constraints(negative_constraints=[TC(2, 2, 2), TC(2, 3, 2), TC(2, 4, 2), TC(3, 3, 2)])
+
+        start = TC(x=2, y=3, t=1)
+        expected_actions = [MA(D.LEFT), TA(direction=D.RIGHT, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
+
+        self._test_power_pickup_search(
+            state=state, start=start, expected_actions=expected_actions, constraints=constraints
         )
 
 

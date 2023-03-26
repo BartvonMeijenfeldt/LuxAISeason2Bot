@@ -1,5 +1,7 @@
 from __future__ import annotations
 import numpy as np
+import logging
+import time
 
 from typing import TYPE_CHECKING, Dict, List, Any, Sequence
 
@@ -18,7 +20,7 @@ from logic.goals.factory_goal import BuildLightGoal
 from logic.constraints import Constraints
 from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
 
-# from logic.action_plan_resolution import ConflichtBasedPlanResolver
+logging.basicConfig(level=logging.INFO)
 
 
 if TYPE_CHECKING:
@@ -52,7 +54,7 @@ class Agent:
         forward_obs = forward_sim(obs, self.env_cfg, n=2)
         forward_game_states = [obs_to_game_state(step + i, self.env_cfg, f_obs) for i, f_obs in enumerate(forward_obs)]
         """
-        # start = datetime.datetime.now()
+        start_time = time.time()
 
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_steps_goals)
         actor_goals = self.resolve_goals(game_state)
@@ -60,11 +62,12 @@ class Agent:
         self._update_prev_step_goals(actor_goals)
         actions = self.get_actions(actor_goals)
 
-        # end = datetime.datetime.now()
-
-        # time_taken = (end - start) / datetime.timedelta(seconds=1)
-        # if time_taken > 3:
-        #     print(f"{game_state.real_env_steps}: {self.player} {time_taken: .1f}")
+        end_time = time.time()
+        time_taken = end_time - start_time
+        if time_taken < 1:
+            logging.info(f"{game_state.real_env_steps}: player {game_state.player_team.team_id} {time_taken: 0.1f}")
+        else:
+            logging.warning(f"{game_state.real_env_steps}: player {game_state.player_team.team_id} {time_taken: 0.1f}")
 
         return actions
 

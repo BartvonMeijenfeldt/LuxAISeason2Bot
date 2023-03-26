@@ -6,5 +6,6 @@ matches
 data
 *.json
 *.prof
+*.gz
 
 prof

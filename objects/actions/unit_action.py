@@ -104,14 +104,21 @@ class MoveAction(UnitAction):
         return power_change
 
     def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
+        return -self.get_power_cost_by_end_c(unit_cfg, end_c, board)
+
+    def get_power_cost_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
         assert self.n == 1
 
         if self.direction == Direction.CENTER:
             return 0
 
+        return self.get_move_onto_cost(unit_cfg, end_c, board)
+
+    @classmethod
+    def get_move_onto_cost(cls, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
         rubble_at_target = board.rubble[end_c.xy]
-        power_cost = self.get_power_cost(rubble_at_target, unit_cfg)
-        return - power_cost
+        power_cost = cls.get_power_cost(rubble_at_target, unit_cfg)
+        return power_cost
 
     @staticmethod
     def get_power_cost(rubble_to: int, unit_cfg: UnitConfig) -> int:
@@ -149,7 +156,7 @@ class TransferAction(UnitAction):
         )
 
     def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
-        if self.resource == Resource.Power:
+        if self.resource == Resource.POWER:
             return -self.amount * self.n
         else:
             return 0
@@ -157,7 +164,7 @@ class TransferAction(UnitAction):
     def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
         assert self.n == 1
 
-        if self.resource == Resource.Power:
+        if self.resource == Resource.POWER:
             return -self.amount
         else:
             return 0
@@ -176,7 +183,7 @@ class PickupAction(UnitAction):
 
     @property
     def requested_power(self) -> int:
-        if self.resource == Resource.Power:
+        if self.resource == Resource.POWER:
             return self.amount * self.n
 
         return 0
@@ -187,7 +194,7 @@ class PickupAction(UnitAction):
         return np.array([action_identifier, direction, self.resource.value, self.amount, self.repeat, self.n])
 
     def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
-        if self.resource == Resource.Power:
+        if self.resource == Resource.POWER:
             return self.amount * self.n
         else:
             return 0
@@ -195,7 +202,7 @@ class PickupAction(UnitAction):
     def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
         assert self.n == 1
 
-        if self.resource == Resource.Power:
+        if self.resource == Resource.POWER:
             return self.amount
         else:
             return 0

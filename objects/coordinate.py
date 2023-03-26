@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from objects.resource import Resource
 from objects.direction import Direction
-from objects.actions.unit_action import UnitAction, DigAction, PickupAction
+from objects.actions.unit_action import UnitAction, DigAction, PickupAction, TransferAction
 
 if TYPE_CHECKING:
     from lux.config import UnitConfig
@@ -78,7 +78,7 @@ class Coordinate:
         return CoordinateList(neighbors)
 
     def distance_to(self, c: Coordinate) -> int:
-        """Manhattan distance to point
+        """Manhattan distance to coordinate
 
         Args:
             coordinate: Other coordinate to get the distance to
@@ -89,6 +89,18 @@ class Coordinate:
         dis_x = abs(self.x - c.x)
         dis_y = abs(self.y - c.y)
         return dis_x + dis_y
+
+    def direction_to(self, c: Coordinate) -> Direction:
+        if self.x < c.x:
+            return Direction.RIGHT
+        elif self.x > c.x:
+            return Direction.LEFT
+        elif self.y < c.y:
+            return Direction.DOWN
+        elif self.y > c.y:
+            return Direction.UP
+        else:
+            return Direction.CENTER
 
 
 @dataclass(eq=True, frozen=True)
@@ -204,60 +216,78 @@ class PowerTimeCoordinate(TimeCoordinate):
 
 
 @dataclass(eq=True, frozen=True)
-class PickupResourceCoordinate(Coordinate):
+class ResourceCoordinate(Coordinate):
     q: int
     resource: Resource
 
-    def __eq__(self, other: PickupResourceCoordinate) -> bool:
+    def __eq__(self, other: ResourceCoordinate) -> bool:
         return self.x == other.x and self.y == other.y and self.q == other.q and self.resource == other.resource
 
-    def __add__(self, other) -> PickupResourceCoordinate:
+    def __add__(self, other) -> ResourceCoordinate:
         x, y = super()._add_get_new_xy(other)
         q = self._add_get_q()
-        return PickupResourceCoordinate(x, y, q, self.resource)
+        return ResourceCoordinate(x, y, q, self.resource)
 
     def _add_get_q(self) -> int:
         return self.q
 
-    def add_action(self, action: UnitAction) -> PickupResourceCoordinate:
+    def add_action(self, action: UnitAction) -> ResourceCoordinate:
         x, y = self._add_get_new_xy_action(action)
         q = self._add_get_new_q_action(action)
 
-        return PickupResourceCoordinate(x, y, q, self.resource)
+        return ResourceCoordinate(x, y, q, self.resource)
 
     def _add_get_new_q_action(self, action: UnitAction) -> int:
         if isinstance(action, PickupAction) and action.resource == self.resource:
             return self.q + action.n * action.amount
+        elif isinstance(action, TransferAction) and action.resource == self.resource:
+            return self.q - action.n * action.amount
         else:
             return self.q
 
 
 @dataclass(eq=True, frozen=True)
-class PickupPowerCoordinate(PickupResourceCoordinate):
-    resource: Resource = field(init=False, default=Resource.Power)
-
-
-@dataclass(eq=True, frozen=True)
-class PowerPickupPowerTimeCoordinate(PickupPowerCoordinate, PowerTimeCoordinate):
+class ResourcePowerTimeCoordinate(ResourceCoordinate, PowerTimeCoordinate):
     def __hash__(self) -> int:
         return hash((self.x, self.y, self.t, self.p, self.q, self.resource))
 
-    def __add__(self, other) -> PowerPickupPowerTimeCoordinate:
+    def __add__(self, other) -> ResourcePowerTimeCoordinate:
         x, y = super()._add_get_new_xy(other)
         t = super()._add_get_new_t()
         p = self._add_get_p()
-        return PowerPickupPowerTimeCoordinate(x, y, t, p, self.unit_cfg, self.game_state, self.q)
+        return ResourcePowerTimeCoordinate(x, y, t, p, self.unit_cfg, self.game_state, self.q, self.resource)
 
-    def add_action(self, action: UnitAction) -> PowerPickupPowerTimeCoordinate:
+    def add_action(self, action: UnitAction) -> ResourcePowerTimeCoordinate:
         x, y = self._add_get_new_xy_action(action)
         t = self._add_get_new_t_action(action)
         p = self._add_get_new_p_action(action)
         q = self._add_get_new_q_action(action)
 
-        return PowerPickupPowerTimeCoordinate(x, y, t, p, self.unit_cfg, self.game_state, q)
+        return ResourcePowerTimeCoordinate(x, y, t, p, self.unit_cfg, self.game_state, q, self.resource)
 
     def __repr__(self) -> str:
-        return f"PPPTC[x={self.x} y={self.y}, t={self.t}, p={self.p}, q={self.q}"
+        return f"RPTC[x={self.x} y={self.y}, t={self.t}, p={self.p}, q={self.q}"
+
+
+@dataclass(eq=True, frozen=True)
+class ResourceTimeCoordinate(ResourceCoordinate, TimeCoordinate):
+    def __hash__(self) -> int:
+        return hash((self.x, self.y, self.t, self.q, self.resource))
+
+    def __add__(self, other) -> ResourceTimeCoordinate:
+        x, y = super()._add_get_new_xy(other)
+        t = super()._add_get_new_t()
+        return ResourceTimeCoordinate(x, y, t, self.q, self.resource)
+
+    def add_action(self, action: UnitAction) -> ResourceTimeCoordinate:
+        x, y = self._add_get_new_xy_action(action)
+        t = self._add_get_new_t_action(action)
+        q = self._add_get_new_q_action(action)
+
+        return ResourceTimeCoordinate(x, y, t, q, self.resource)
+
+    def __repr__(self) -> str:
+        return f"PPPTC[x={self.x} y={self.y}, t={self.t}, q={self.q}"
 
 
 @dataclass

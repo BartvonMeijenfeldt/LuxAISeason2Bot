@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import List, Tuple, Generator, Optional, TYPE_CHECKING
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
+import itertools
 
 from objects.coordinate import (
-    PowerPickupPowerTimeCoordinate,
+    ResourcePowerTimeCoordinate,
     DigTimeCoordinate,
     TimeCoordinate,
     DigCoordinate,
@@ -13,7 +14,7 @@ from objects.coordinate import (
 )
 from objects.direction import Direction
 from objects.board import Board
-from objects.actions.unit_action import UnitAction, MoveAction, DigAction, PickupAction
+from objects.actions.unit_action import UnitAction, MoveAction, DigAction, PickupAction, TransferAction
 from objects.resource import Resource
 
 from logic.constraints import Constraints
@@ -30,7 +31,6 @@ class Graph(metaclass=ABCMeta):
     time_to_power_cost: float
     unit_cfg: UnitConfig
     constraints: Constraints
-    goal: Coordinate = field(init=False)
 
     @abstractmethod
     def potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
@@ -59,19 +59,32 @@ class Graph(metaclass=ABCMeta):
     def node_completes_goal(self, node: Coordinate) -> bool:
         ...
 
+
+@dataclass
+class GoalGraph(Graph):
+    goal: Coordinate
+
+    def __post_init__(self) -> None:
+        self.last_action_cost = self.time_to_power_cost + MoveAction.get_move_onto_cost(
+            self.unit_cfg, self.goal, self.board
+        )
+
     def _get_distance_heuristic(self, node: Coordinate) -> float:
         min_nr_steps = node.distance_to(self.goal)
+        if min_nr_steps == 0:
+            return 0
+
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
-        min_distance_cost = min_nr_steps * min_cost_per_step
+        min_distance_cost = (min_nr_steps - 1) * min_cost_per_step + self.last_action_cost
         return min_distance_cost
 
 
 @dataclass
-class MoveToGraph(Graph):
-    goal: Coordinate
+class MoveToGraph(GoalGraph):
     _potential_actions = [MoveAction(direction) for direction in Direction]
 
     def __post_init__(self):
+        super().__post_init__()
         if not self.constraints:
             self._potential_actions = [
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
@@ -94,8 +107,8 @@ class EvadeConstraintsGraph(Graph):
     def potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
         return self._potential_actions
 
-    def heuristic(self, node: Coordinate) -> float:
-        return 0
+    def heuristic(self, node: TimeCoordinate) -> float:
+        return -node.t
 
     def node_completes_goal(self, node: TimeCoordinate) -> bool:
         to_c = node.add_action(self._move_center_action)
@@ -108,7 +121,7 @@ class PickupPowerGraph(Graph):
     next_goal_c: Optional[Coordinate] = field(default=None)
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
 
-    def potential_actions(self, c: PowerPickupPowerTimeCoordinate) -> Generator[UnitAction, None, None]:
+    def potential_actions(self, c: ResourcePowerTimeCoordinate) -> Generator[UnitAction, None, None]:
         if self.board.is_player_factory_tile(c=c):
             factory = self.board.get_closest_player_factory(c=c)
             power_available_in_factory = self.factory_power_availability_tracker.get_power_available(factory, c.t)
@@ -116,7 +129,7 @@ class PickupPowerGraph(Graph):
             power_pickup_amount = min(battery_space_left, power_available_in_factory)
 
             if power_pickup_amount:
-                potential_recharge_action = PickupAction(amount=power_pickup_amount, resource=Resource.Power)
+                potential_recharge_action = PickupAction(amount=power_pickup_amount, resource=Resource.POWER)
                 yield (potential_recharge_action)
 
         for action in self._potential_move_actions:
@@ -132,7 +145,7 @@ class PickupPowerGraph(Graph):
         min_distance_cost = distance_to_goal * min_cost_per_step
         return move_cost + min_distance_cost
 
-    def heuristic(self, node: PowerPickupPowerTimeCoordinate) -> float:
+    def heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
         if self.node_completes_goal(node):
             return 0
 
@@ -157,23 +170,64 @@ class PickupPowerGraph(Graph):
 
         return min_distance_cost
 
-    def _get_time_recharge_heuristic(self, node: PowerPickupPowerTimeCoordinate) -> float:
+    def _get_time_recharge_heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
         if self.node_completes_goal(node=node):
             return 0
         else:
             return self.time_to_power_cost
 
-    def node_completes_goal(self, node: PowerPickupPowerTimeCoordinate) -> bool:
+    def node_completes_goal(self, node: ResourcePowerTimeCoordinate) -> bool:
         return node.q > 0
 
 
 @dataclass
-class DigAtGraph(Graph):
+class TransferResourceGraph(Graph):
+    _potential_move_actions = [MoveAction(direction) for direction in Direction]
+    resource: Resource
+
+    def potential_actions(self, c: ResourcePowerTimeCoordinate) -> Generator[UnitAction, None, None]:
+        if self.board.get_min_distance_to_player_factory(c=c) <= 1:
+            factory_tile = self.board.get_closest_player_factory_tile(c=c)
+            dir = c.direction_to(factory_tile)
+            transfer_action = TransferAction(direction=dir, amount=self.unit_cfg.CARGO_SPACE, resource=self.resource)
+            yield (transfer_action)
+
+        for action in self._potential_move_actions:
+            yield (action)
+
+    def heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
+        if self.node_completes_goal(node):
+            return 0
+
+        min_distance_cost = self._get_distance_heuristic(node=node)
+        min_time_recharge_cost = self._get_transfer_heuristic(node=node)
+        return min_distance_cost + min_time_recharge_cost
+
+    def _get_distance_heuristic(self, node: Coordinate) -> float:
+        min_nr_steps_to_factory = self.board.get_min_distance_to_player_factory(c=node)
+        min_nr_steps_next_to_factory = max(min_nr_steps_to_factory - 1, 0)
+        min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
+        min_distance_cost = min_nr_steps_next_to_factory * min_cost_per_step
+        return min_distance_cost
+
+    def _get_transfer_heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
+        if self.node_completes_goal(node=node):
+            return 0
+        else:
+            return self.time_to_power_cost
+
+    def node_completes_goal(self, node: ResourcePowerTimeCoordinate) -> bool:
+        return node.q < 0
+
+
+@dataclass
+class DigAtGraph(GoalGraph):
     goal: DigCoordinate
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
     _potential_dig_action = DigAction()
 
     def __post_init__(self):
+        super().__post_init__()
         if not self.constraints:
             self._potential_move_actions = [
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
@@ -232,7 +286,11 @@ class Search:
         self.frontier.put(start, 0)
 
     def _find_optimal_solution(self) -> None:
-        while not self.frontier.is_empty():
+        for i in itertools.count():
+            if self.frontier.is_empty() or i > 200:
+                # TODO return error and handle the error upstream
+                break
+
             current_node: TimeCoordinate = self.frontier.pop()
 
             if self.graph.node_completes_goal(node=current_node):
