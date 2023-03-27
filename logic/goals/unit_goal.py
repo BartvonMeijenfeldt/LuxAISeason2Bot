@@ -182,7 +182,15 @@ class UnitGoal(Goal):
             start_dtc = DigTimeCoordinate(*start_tc.xyt, d=0)
             dig_coordinate = DigCoordinate(x=dig_c.x, y=dig_c.y, d=1)
             graph = self._get_dig_graph(board=board, goal=dig_coordinate, constraints=constraints)
-            new_actions = self._search_graph(graph=graph, start=start_dtc)
+
+            try:
+                new_actions = self._search_graph(graph=graph, start=start_dtc)
+            except Exception:
+                if actions:
+                    return actions
+
+                raise
+
             actions.extend(new_actions)
 
             for action in new_actions:
