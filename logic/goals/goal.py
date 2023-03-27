@@ -22,11 +22,16 @@ class Goal(metaclass=ABCMeta):
         constraints: Constraints,
         factory_power_availability_tracker: PowerAvailabilityTracker,
     ) -> ActionPlan:
-        self.action_plan = self.generate_action_plan(game_state, constraints, factory_power_availability_tracker)
+        try:
+            self.action_plan = self.generate_action_plan(game_state, constraints, factory_power_availability_tracker)
+        except Exception:
+            self._is_valid = False
+
         if isinstance(self.action_plan, UnitActionPlan) and not self.action_plan.is_valid_size:
             self._is_valid = False
 
-        self._value = self.get_value_per_step_of_action_plan(action_plan=self.action_plan, game_state=game_state)
+        if self.is_valid:
+            self._value = self.get_value_per_step_of_action_plan(action_plan=self.action_plan, game_state=game_state)
         return self.action_plan
 
     @abstractmethod

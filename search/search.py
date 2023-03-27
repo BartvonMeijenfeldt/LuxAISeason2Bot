@@ -235,7 +235,8 @@ class DigAtGraph(GoalGraph):
 
     def potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
         if self.goal.x == c.x and self.goal.y == c.y:
-            if self.constraints and self.constraints.max_t <= c.t:
+            max_t = self.constraints.max_t
+            if max_t and max_t <= c.t:
                 yield (self._potential_dig_action)
             else:
                 for action in self._potential_move_actions:
@@ -260,6 +261,14 @@ class DigAtGraph(GoalGraph):
 
     def node_completes_goal(self, node: DigTimeCoordinate) -> bool:
         return self.goal == node
+
+
+class NoSolutionError(Exception):
+    "No solution to search"
+
+
+class SolutionNotFoundWithinBudgetError(Exception):
+    "Solution not found within budget"
 
 
 class Search:
@@ -287,9 +296,10 @@ class Search:
 
     def _find_optimal_solution(self) -> None:
         for i in itertools.count():
-            if self.frontier.is_empty() or i > 200:
-                # TODO return error and handle the error upstream
-                break
+            if self.frontier.is_empty():
+                raise NoSolutionError
+            if i > 100:
+                raise SolutionNotFoundWithinBudgetError
 
             current_node: TimeCoordinate = self.frontier.pop()
 

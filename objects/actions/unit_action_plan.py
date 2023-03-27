@@ -156,9 +156,13 @@ class UnitActionPlan(ActionPlan):
         return simulator.can_update_action_queue()
 
     def unit_can_add_reach_factory_to_plan(self, game_state: GameState, constraints: Constraints) -> bool:
-        new_action_plan = self._get_action_plan_with_go_to_closest_factory(
-            game_state=game_state, constraints=constraints
-        )
+        try:
+            new_action_plan = self._get_action_plan_with_go_to_closest_factory(
+                game_state=game_state, constraints=constraints
+            )
+        except Exception:
+            return False
+
         simulator = ActionPlanSimulator(action_plan=new_action_plan, unit=self.actor)
 
         try:
@@ -198,7 +202,7 @@ class UnitActionPlan(ActionPlan):
         try:
             simulator.simulate_action_plan(game_state=game_state)
             simulator.simulate_action_plan_go_to_closest_factory(game_state=game_state, constraints=constraints)
-        except ValueError:
+        except Exception:
             return False
 
         return simulator.can_update_action_queue()
