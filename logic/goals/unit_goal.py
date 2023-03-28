@@ -94,17 +94,7 @@ class UnitGoal(Goal):
 
         return graph
 
-    def _get_evade_constraints_graph(self, board: Board, constraints: Constraints) -> EvadeConstraintsGraph:
-        graph = EvadeConstraintsGraph(
-            board=board,
-            time_to_power_cost=self.unit.time_to_power_cost,
-            unit_cfg=self.unit.unit_cfg,
-            constraints=constraints,
-        )
-
-        return graph
-
-    def _get_recharge_graph(
+    def _get_pickup_power_graph(
         self,
         board: Board,
         factory_power_availability_tracker: PowerAvailabilityTracker,
@@ -148,7 +138,7 @@ class UnitGoal(Goal):
         if self.unit.power == self.unit.battery_capacity:
             return
 
-        graph = self._get_recharge_graph(
+        graph = self._get_pickup_power_graph(
             board=game_state.board,
             factory_power_availability_tracker=factory_power_availability_tracker,
             constraints=constraints,
@@ -207,22 +197,12 @@ class DigGoal(UnitGoal):
     def _get_benefit_n_digs(self, n_digs: int, game_state: GameState) -> float:
         ...
 
+    def _get_nr_digs_to_clear_rubble(self, board: Board) -> int:
+        rubble_at_pos = board.rubble[self.dig_c.xy]
+        nr_digs = ceil(rubble_at_pos / self.unit.rubble_removed_per_dig)
+        return nr_digs
+
     def _get_dig_plan(
-        self, start_tc: TimeCoordinate, dig_c: Coordinate, nr_digs: int, constraints: Constraints, board: Board,
-    ) -> list[UnitAction]:
-        # if constraints.max_t and constraints.max_t > start_tc.t:
-        #     return self._get_dig_plan_with_constraints(start_tc, dig_c, nr_digs, constraints, board)
-
-        # return self._get_dig_plan_wihout_constraints(start_tc, dig_c, nr_digs, board)
-        return self._get_dig_plan_with_constraints(start_tc, dig_c, nr_digs, constraints, board)
-
-    def _get_nr_digs_required_for_clear_rubble(self, rubble_c: Coordinate, board: Board) -> int:
-
-        rubble_at_pos = board.rubble[rubble_c.xy]
-        nr_required_digs = ceil(rubble_at_pos / self.unit.rubble_removed_per_dig)
-        return nr_required_digs
-
-    def _get_dig_plan_with_constraints(
         self, start_tc: TimeCoordinate, dig_c: Coordinate, nr_digs: int, constraints: Constraints, board: Board
     ) -> list[UnitAction]:
         actions = []
@@ -246,13 +226,6 @@ class DigGoal(UnitGoal):
                 start_tc = start_tc.add_action(action)
 
         return actions
-
-    def _get_dig_plan_wihout_constraints(
-        self, start_tc: TimeCoordinate, dig_c: Coordinate, nr_digs: int, board: Board
-    ) -> list[UnitAction]:
-        move_to_actions = self._get_move_to_plan(start_tc, goal=dig_c, constraints=Constraints(), board=board)
-        dig_actions = [DigAction(n=1)] * nr_digs
-        return move_to_actions + dig_actions
 
     def find_max_dig_actions_can_still_reach_factory(
         self, actions: Sequence[UnitAction], game_state: GameState, constraints: Constraints
@@ -394,7 +367,10 @@ class CollectGoal(DigGoal):
         return self.action_plan
 
     def _add_dig_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        max_nr_digs = self._get_max_nr_digs_current_ptc(game_state)
+        max_nr_digs_possible = self._get_max_nr_digs_current_ptc(game_state)
+        nr_digs_to_fill_cargo = self._get_total_nr_digs_to_fill_cargo(game_state)
+        max_nr_digs = min(max_nr_digs_possible, nr_digs_to_fill_cargo)
+
         actions_max_nr_digs = self._get_dig_plan(
             start_tc=self.action_plan.final_tc,
             dig_c=self.dig_c,
@@ -436,6 +412,17 @@ class CollectGoal(DigGoal):
         )
 
         return graph
+
+    def _get_total_nr_digs_to_fill_cargo(self, game_state: GameState) -> int:
+        nr_digs_to_clear_rubble = self._get_nr_digs_to_clear_rubble(game_state.board)
+        nr_digs_to_fill_cargo = self.unit.get_nr_digs_to_fill_cargo()
+        total_nr_digs_to_fill_cargo = nr_digs_to_clear_rubble + nr_digs_to_fill_cargo
+        return total_nr_digs_to_fill_cargo
+
+    def _get_resources_collected_by_n_digs(self, n_digs, game_state: GameState) -> int:
+        nr_digs_required_to_clear_rubble = self._get_nr_digs_to_clear_rubble(game_state.board)
+        nr_digs_for_collecting_resources = max(n_digs - nr_digs_required_to_clear_rubble, 0)
+        return nr_digs_for_collecting_resources * self.unit.resources_gained_per_dig
 
     def _get_benefit_n_digs(self, n_digs: int, game_state: GameState) -> float:
         nr_resources_digged = self.benefit_resource * n_digs
@@ -531,7 +518,7 @@ class ClearRubbleGoal(DigGoal):
         return self.action_plan
 
     def _add_clear_rubble_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        nr_required_digs = self._get_nr_digs_required_for_clear_rubble(rubble_c=self.dig_c, board=game_state.board)
+        nr_required_digs = self._get_nr_digs_to_clear_rubble(board=game_state.board)
         max_digs_possible = self._get_max_nr_digs_current_ptc(game_state)
         max_nr_digs = min(nr_required_digs, max_digs_possible)
 
@@ -761,10 +748,19 @@ class EvadeConstraintsGoal(UnitGoal):
             self._is_valid = False
 
     def _get_evade_plan(self, start_tc: TimeCoordinate, constraints: Constraints, board: Board,) -> list[UnitAction]:
-
         graph = self._get_evade_constraints_graph(board=board, constraints=constraints)
         actions = self._search_graph(graph=graph, start=start_tc)
         return actions
+
+    def _get_evade_constraints_graph(self, board: Board, constraints: Constraints) -> EvadeConstraintsGraph:
+        graph = EvadeConstraintsGraph(
+            board=board,
+            time_to_power_cost=self.unit.time_to_power_cost,
+            unit_cfg=self.unit.unit_cfg,
+            constraints=constraints,
+        )
+
+        return graph
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return 0.0
