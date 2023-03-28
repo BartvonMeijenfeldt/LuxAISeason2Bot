@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
-from typing import List, Set, TYPE_CHECKING
+from typing import List, Set, Sequence, TYPE_CHECKING
 from dataclasses import dataclass
 
 from objects.cargo import UnitCargo
@@ -29,29 +29,36 @@ class Actor(metaclass=ABCMeta):
         reserved_goals: Set[str] = set(),
     ) -> Goal:
         goals = self.generate_goals(game_state)
+        priority_queue = self._init_priority_queue(goals, reserved_goals, game_state)
+
+        while not priority_queue.is_empty():
+            goal: Goal = priority_queue.pop()
+
+            goal.generate_and_evaluate_action_plan(game_state, constraints, factory_power_availability_tracker)
+            if not goal.is_valid:
+                continue
+
+            priority = -1 * goal.value
+            priority_queue.put(goal, priority)
+
+            if goal == priority_queue[0]:
+                return goal
+
+        raise RuntimeError("No best goal was found")
+
+    def _init_priority_queue(self, goals: Sequence[Goal], reserved_goals: Set[str], game_state: GameState
+                             ) -> PriorityQueue:
         goals_priority_queue = PriorityQueue()
 
         for goal in goals:
             if goal.key in reserved_goals:
                 continue
 
-            priority = -1 * goal.best_value
+            best_value = goal.get_best_value_per_step(game_state)
+            priority = -1 * best_value
             goals_priority_queue.put(goal, priority)
 
-        while not goals_priority_queue.is_empty():
-            goal: Goal = goals_priority_queue.pop()
-
-            goal.generate_and_evaluate_action_plan(game_state, constraints, factory_power_availability_tracker)
-            if not goal.is_valid:
-                continue
-
-            if goals_priority_queue.is_empty() or goal.value >= goals_priority_queue[0].best_value:
-                return goal
-
-            priority = -1 * goal.best_value
-            goals_priority_queue.put(goal, priority)
-
-        raise RuntimeError("No best goal was found")
+        return goals_priority_queue
 
     @abstractmethod
     def generate_goals(self, game_state: GameState) -> List[Goal]:

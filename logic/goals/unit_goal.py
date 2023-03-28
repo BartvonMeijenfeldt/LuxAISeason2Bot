@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Sequence
 from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional
-from math import ceil
+from math import ceil, inf
 
 from search.search import (
     Search,
@@ -54,6 +54,26 @@ class UnitGoal(Goal):
         constraints: Constraints,
         factory_power_availability_tracker: PowerAvailabilityTracker,
     ) -> UnitActionPlan:
+        ...
+
+    def get_best_value_per_step(self, game_state: GameState) -> float:
+        benefit = self._get_max_benefit(game_state)
+        cost, min_nr_steps = self._get_min_cost_and_steps(game_state)
+
+        if min_nr_steps == 0:
+            return -inf
+
+        value = benefit - cost
+        value_per_step = value / min_nr_steps
+
+        return value_per_step
+
+    @abstractmethod
+    def _get_max_benefit(self, game_state: GameState) -> float:
+        ...
+
+    @abstractmethod
+    def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         ...
 
     @property
@@ -113,10 +133,6 @@ class UnitGoal(Goal):
 
         return graph
 
-    def _get_max_nr_digs_current_ptc(self, game_state: GameState) -> int:
-        cur_power = self.action_plan.get_final_ptc(game_state).p
-        return self._get_max_nr_digs(cur_power=cur_power)
-
     def _search_graph(self, graph: Graph, start: TimeCoordinate) -> list[UnitAction]:
         search = Search(graph=graph)
         optimal_actions = search.get_actions_to_complete_goal(start=start)
@@ -158,6 +174,39 @@ class UnitGoal(Goal):
         actions = self._search_graph(graph=graph, start=start_tc)
         return actions
 
+    def _unit_can_still_reach_factory(
+        self, action_plan: UnitActionPlan, game_state: GameState, constraints: Constraints
+    ) -> bool:
+        return action_plan.unit_can_add_reach_factory_to_plan(
+            game_state=game_state, constraints=constraints
+        ) or action_plan.unit_can_reach_factory_after_action_plan(game_state=game_state, constraints=constraints)
+
+    def _init_action_plan(self) -> None:
+        self.action_plan = UnitActionPlan(actor=self.unit)
+        # TODO remove power due to updating action plan?
+
+    def get_cost_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        number_of_steps = len(action_plan)
+        power_cost = action_plan.get_power_used(board=game_state.board)
+        total_cost = number_of_steps * self.unit.time_to_power_cost + power_cost
+        return total_cost
+
+    def _get_valid_actions(self, actions: list[UnitAction], game_state: GameState) -> list[UnitAction]:
+        potential_action_plan = self.action_plan + actions
+        nr_valid_primitive_actions = potential_action_plan.get_nr_valid_primitive_actions(game_state)
+        nr_original_primitive_actions = len(self.action_plan.primitive_actions)
+        return potential_action_plan.primitive_actions[nr_original_primitive_actions:nr_valid_primitive_actions]
+
+
+@dataclass
+class DigGoal(UnitGoal):
+    pickup_power: bool
+    dig_c: Coordinate
+
+    @abstractmethod
+    def _get_benefit_n_digs(self, n_digs: int, game_state: GameState) -> float:
+        ...
+
     def _get_dig_plan(
         self, start_tc: TimeCoordinate, dig_c: Coordinate, nr_digs: int, constraints: Constraints, board: Board,
     ) -> list[UnitAction]:
@@ -196,12 +245,6 @@ class UnitGoal(Goal):
         move_to_actions = self._get_move_to_plan(start_tc, goal=dig_c, constraints=Constraints(), board=board)
         dig_actions = [DigAction(n=1)] * nr_digs
         return move_to_actions + dig_actions
-
-    def _get_valid_actions(self, actions: list[UnitAction], game_state: GameState) -> list[UnitAction]:
-        potential_action_plan = self.action_plan + actions
-        nr_valid_primitive_actions = potential_action_plan.get_nr_valid_primitive_actions(game_state)
-        nr_original_primitive_actions = len(self.action_plan.primitive_actions)
-        return potential_action_plan.primitive_actions[nr_original_primitive_actions:nr_valid_primitive_actions]
 
     def find_max_dig_actions_can_still_reach_factory(
         self, actions: Sequence[UnitAction], game_state: GameState, constraints: Constraints
@@ -246,12 +289,9 @@ class UnitGoal(Goal):
 
         raise ValueError(f"Only found {nr_added_actions}, of the required {n} actions")
 
-    def _unit_can_still_reach_factory(
-        self, action_plan: UnitActionPlan, game_state: GameState, constraints: Constraints
-    ) -> bool:
-        return action_plan.unit_can_add_reach_factory_to_plan(
-            game_state=game_state, constraints=constraints
-        ) or action_plan.unit_can_reach_factory_after_action_plan(game_state=game_state, constraints=constraints)
+    def _get_max_nr_digs_current_ptc(self, game_state: GameState) -> int:
+        cur_power = self.action_plan.get_final_ptc(game_state).p
+        return self._get_max_nr_digs(cur_power=cur_power)
 
     def _get_max_nr_digs(self, cur_power: int) -> int:
         dig_power_cost = self.unit.dig_power_cost
@@ -266,21 +306,53 @@ class UnitGoal(Goal):
 
         return max_nr_digs
 
-    def _init_action_plan(self) -> None:
-        self.action_plan = UnitActionPlan(actor=self.unit)
-        # TODO remove power due to updating action plan?
+    def _get_max_benefit(self, game_state: GameState) -> float:
+        max_nr_digs = self._get_best_max_nr_digs()
+        max_benefit = self._get_benefit_n_digs(max_nr_digs, game_state)
+        return max_benefit
 
-    def get_cost_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        number_of_steps = len(action_plan)
-        power_cost = action_plan.get_power_used(board=game_state.board)
-        total_cost = number_of_steps * self.unit.time_to_power_cost + power_cost
-        return total_cost
+    def _get_best_max_nr_digs(self) -> int:
+        power_available = self.unit.battery_capacity if self.pickup_power else self.unit.power
+        return self._get_max_nr_digs(power_available)
+
+    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        return self._get_benefit_n_digs(action_plan.nr_digs, game_state)
+
+    def _get_min_cost_and_steps_go_to_dig_c(self, game_state: GameState) -> tuple[float, int]:
+        if self.pickup_power:
+            return self._get_min_cost_and_steps_go_to_dig_c_with_pickup_power(game_state)
+        else:
+            return self._get_min_cost_and_steps_go_to_dig_c_without_pickup_power()
+
+    def _get_min_cost_and_steps_go_to_dig_c_with_pickup_power(self, game_state: GameState) -> tuple[float, int]:
+        closest_factory_tile = game_state.board.get_closest_player_factory_tile(self.unit.tc)
+        nr_steps_to_factory_tile = self.unit.tc.distance_to(closest_factory_tile)
+        nr_steps_to_resource_c = closest_factory_tile.distance_to(self.dig_c)
+        nr_steps_moving = nr_steps_to_factory_tile + nr_steps_to_resource_c
+
+        nr_steps_power_pickup = 1
+        min_nr_steps = nr_steps_moving + nr_steps_power_pickup
+
+        min_cost_moving = nr_steps_moving * self.unit.move_time_and_power_cost
+        min_cost_power_pickup = self.unit.time_to_power_cost
+        min_cost = min_cost_moving + min_cost_power_pickup
+
+        return min_cost, min_nr_steps
+
+    def _get_min_cost_and_steps_go_to_dig_c_without_pickup_power(self) -> tuple[float, int]:
+        nr_steps_moving = self.unit.tc.distance_to(self.dig_c)
+        min_cost_moving = nr_steps_moving * self.unit.move_time_and_power_cost
+        return min_cost_moving, nr_steps_moving
+
+    def _get_min_cost_and_steps_max_nr_digs(self) -> tuple[float, int]:
+        max_nr_digs = self._get_best_max_nr_digs()
+        min_cost_digging = max_nr_digs * self.unit.dig_time_and_power_cost
+
+        return min_cost_digging, max_nr_digs
 
 
 @dataclass
-class CollectGoal(UnitGoal):
-    pickup_power: bool
-    resource_c: Coordinate
+class CollectGoal(DigGoal):
     factory_c: Coordinate
     quantity: Optional[int] = None
     resource: Resource = field(init=False)
@@ -301,7 +373,7 @@ class CollectGoal(UnitGoal):
             self._add_power_pickup_actions(
                 game_state=game_state,
                 constraints=constraints,
-                next_goal_c=self.resource_c,
+                next_goal_c=self.dig_c,
                 factory_power_availability_tracker=factory_power_availability_tracker,
             )
 
@@ -317,7 +389,7 @@ class CollectGoal(UnitGoal):
         max_nr_digs = self._get_max_nr_digs_current_ptc(game_state)
         actions_max_nr_digs = self._get_dig_plan(
             start_tc=self.action_plan.final_tc,
-            dig_c=self.resource_c,
+            dig_c=self.dig_c,
             nr_digs=max_nr_digs,
             constraints=constraints,
             board=game_state.board,
@@ -357,24 +429,34 @@ class CollectGoal(UnitGoal):
 
         return graph
 
-    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        # TODO make distinction between clearing the rubble and digging the resource, if clearing rubble make sure it
-        # is beneficial to you and not your opponent
-        return self.benefit_resource * action_plan.nr_digs * self.unit.resources_gained_per_dig
+    def _get_benefit_n_digs(self, n_digs: int, game_state: GameState) -> float:
+        nr_resources_digged = self.benefit_resource * n_digs
+        nr_resources_unit = self.unit.get_quantity_resource_in_cargo(self.resource)
+        nr_resources_to_return = nr_resources_digged + nr_resources_unit
 
-    def _get_best_value(self) -> float:
-        # TODO smarter assumption than full capacity
-        max_nr_digs = self._get_max_nr_digs(self.unit.battery_capacity)
-        max_revenue_per_dig = 1000
-        max_revenue = max_nr_digs * max_revenue_per_dig
+        return self.benefit_resource * nr_resources_to_return
 
-        min_cost_digging = max_nr_digs * (self.unit.time_to_power_cost + self.unit.dig_power_cost)
-        distance_to_resource = self.unit.tc.distance_to(self.resource_c)
-        min_cost_moving = distance_to_resource * (self.unit.time_to_power_cost + self.unit.move_power_cost)
-        min_cost = min_cost_digging + min_cost_moving
+    def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+        min_cost_digging, max_nr_digs = self._get_min_cost_and_steps_max_nr_digs()
+        min_cost_go_to_c, min_steps_go_to_c = self._get_min_cost_and_steps_go_to_dig_c(game_state)
+        min_cost_transfer, min_steps_transfer = self._get_min_cost_and_steps_transfer_resource(game_state)
 
-        best_value = max_revenue - min_cost
-        return best_value
+        min_cost = min_cost_digging + min_cost_go_to_c + min_cost_transfer
+        min_steps = max_nr_digs + min_steps_go_to_c + min_steps_transfer
+
+        return min_cost, min_steps
+
+    def _get_min_cost_and_steps_transfer_resource(self, game_state: GameState) -> tuple[float, int]:
+        nr_steps_to_closest_factory = game_state.board.get_min_distance_to_player_factory(self.dig_c)
+        nr_steps_next_to_closest_factory = nr_steps_to_closest_factory - 1
+        nr_steps_transfer = 1
+        nr_steps = nr_steps_next_to_closest_factory + nr_steps_transfer
+
+        move_cost = nr_steps_next_to_closest_factory * self.unit.move_time_and_power_cost
+        transfer_cost = self.unit.time_to_power_cost
+        cost = move_cost + transfer_cost
+
+        return cost, nr_steps
 
 
 @dataclass
@@ -383,7 +465,7 @@ class CollectIceGoal(CollectGoal):
     benefit_resource = 10
 
     def __repr__(self) -> str:
-        return f"collect_ice_[{self.resource_c}]"
+        return f"collect_ice_[{self.dig_c}]"
 
     @property
     def key(self) -> str:
@@ -396,7 +478,7 @@ class CollectOreGoal(CollectGoal):
     benefit_resource = 40
 
     def __repr__(self) -> str:
-        return f"collect_ore_[{self.resource_c}]"
+        return f"collect_ore_[{self.dig_c}]"
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         benefit_action_plan = super().get_benefit_action_plan(action_plan, game_state)
@@ -408,13 +490,9 @@ class CollectOreGoal(CollectGoal):
         return str(self)
 
 
-@dataclass
-class ClearRubbleGoal(UnitGoal):
-    pickup_power: bool
-    rubble_position: Coordinate
-
+class ClearRubbleGoal(DigGoal):
     def __repr__(self) -> str:
-        first_rubble_c = self.rubble_position
+        first_rubble_c = self.dig_c
         return f"clear_rubble_[{first_rubble_c}]"
 
     @property
@@ -433,7 +511,7 @@ class ClearRubbleGoal(UnitGoal):
             self._add_power_pickup_actions(
                 game_state=game_state,
                 constraints=constraints,
-                next_goal_c=self.rubble_position,
+                next_goal_c=self.dig_c,
                 factory_power_availability_tracker=factory_power_availability_tracker,
             )
 
@@ -445,15 +523,13 @@ class ClearRubbleGoal(UnitGoal):
         return self.action_plan
 
     def _add_clear_rubble_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        nr_required_digs = self._get_nr_digs_required_for_clear_rubble(
-            rubble_c=self.rubble_position, board=game_state.board
-        )
+        nr_required_digs = self._get_nr_digs_required_for_clear_rubble(rubble_c=self.dig_c, board=game_state.board)
         max_digs_possible = self._get_max_nr_digs_current_ptc(game_state)
         max_nr_digs = min(nr_required_digs, max_digs_possible)
 
         potential_dig_actions = self._get_dig_plan(
             start_tc=self.action_plan.final_tc,
-            dig_c=self.rubble_position,
+            dig_c=self.dig_c,
             nr_digs=max_nr_digs,
             constraints=constraints,
             board=game_state.board,
@@ -472,43 +548,50 @@ class ClearRubbleGoal(UnitGoal):
         self.action_plan.extend(max_valid_digs_actions)
         self._is_valid = True
 
-    def _get_best_value(self) -> float:
-        # TODO smarter assumption than full capacity
-        max_nr_digs = self._get_max_nr_digs(self.unit.battery_capacity)
-        max_revenue_per_dig = 100
-        max_revenue = max_nr_digs * max_revenue_per_dig
-
-        min_cost_digging = max_nr_digs * (self.unit.time_to_power_cost + self.unit.dig_power_cost)
-        distance_to_resource = self.unit.tc.distance_to(self.rubble_position)
-        min_cost_moving = distance_to_resource * (self.unit.time_to_power_cost + self.unit.move_power_cost)
-        min_cost = min_cost_digging + min_cost_moving
-
-        best_value = max_revenue - min_cost
-        return best_value
-
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        distance_player_to_rubble = game_state.board.get_min_distance_to_player_factory_or_lichen(self.rubble_position)
-        distance_opp_to_rubble = game_state.board.get_min_distance_to_opp_factory_or_lichen(self.rubble_position)
+        return self._get_benefit_n_digs(action_plan.nr_digs, game_state)
+
+    def _get_benefit_n_digs(self, n_digs: int, game_state: GameState) -> float:
+        rubble_removed = self._get_rubble_removed(n_digs, game_state)
+        benefit_rubble_removed = self._get_benefit_removing_rubble(rubble_removed, game_state)
+        return benefit_rubble_removed
+
+    def _get_rubble_removed(self, n_digs: int, game_state: GameState) -> int:
+        max_rubble_removed = self.unit.rubble_removed_per_dig * n_digs
+        rubble_at_pos = game_state.board.rubble[self.dig_c.xy]
+        rubble_removed = min(max_rubble_removed, rubble_at_pos)
+        return rubble_removed
+
+    def _get_benefit_removing_rubble(self, rubble_removed: int, game_state: GameState) -> float:
+        distance_player_to_rubble = game_state.board.get_min_distance_to_player_factory_or_lichen(self.dig_c)
+        distance_opp_to_rubble = game_state.board.get_min_distance_to_opp_factory_or_lichen(self.dig_c)
         delta_closer_to_player = min(distance_opp_to_rubble - distance_player_to_rubble, 5)
         benefit_rubble_reduced = delta_closer_to_player * 1
         bonus_clear_rubble = 20 * benefit_rubble_reduced
 
-        max_rubble_removed = self.unit.rubble_removed_per_dig * action_plan.nr_digs
-        rubble_at_pos = game_state.board.rubble[self.rubble_position.xy]
-        rubble_removed = min(max_rubble_removed, rubble_at_pos)
-
         rubble_removed_benefit = benefit_rubble_reduced * rubble_removed
 
+        rubble_at_pos = game_state.board.rubble[self.dig_c.xy]
         if rubble_removed == rubble_at_pos:
             return rubble_removed_benefit + bonus_clear_rubble
         else:
             return rubble_removed_benefit
+
+    def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+        min_cost_digging, max_nr_digs = self._get_min_cost_and_steps_max_nr_digs()
+        min_cost_go_to_c, min_steps_go_to_c = self._get_min_cost_and_steps_go_to_dig_c(game_state)
+
+        min_cost = min_cost_digging + min_cost_go_to_c
+        min_steps = max_nr_digs + min_steps_go_to_c
+
+        return min_cost, min_steps
 
 
 @dataclass
 class FleeGoal(UnitGoal):
     opp_c: Coordinate
     _is_valid = True
+    benefit_fleeing = 1000
 
     def generate_action_plan(
         self,
@@ -552,11 +635,8 @@ class FleeGoal(UnitGoal):
             self._is_valid = False
             return
 
-    def _get_best_value(self) -> float:
-        return 1000
-
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        return 1000
+        return self.benefit_fleeing
 
     def __repr__(self) -> str:
         return f"Flee_Goal_{self.unit.unit_id}"
@@ -564,6 +644,15 @@ class FleeGoal(UnitGoal):
     @property
     def key(self) -> str:
         return str(self)
+
+    def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+        min_steps = game_state.board.get_min_distance_to_player_factory(self.unit.tc)
+        min_cost = min_steps * self.unit.move_time_and_power_cost
+
+        return min_cost, min_steps
+
+    def _get_max_benefit(self, game_state: GameState) -> float:
+        return self.benefit_fleeing
 
 
 @dataclass
@@ -595,8 +684,13 @@ class ActionQueueGoal(UnitGoal):
         # Can probably be solved by just picking the highest one / returning highest one by the goal collection
         return self.goal.key
 
-    def _get_best_value(self) -> float:
-        return self.goal._get_best_value()
+    def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+        cost = self.get_cost_action_plan(self.action_plan, game_state)
+        min_steps = self.action_plan.nr_time_steps
+        return cost, min_steps
+
+    def _get_max_benefit(self, game_state: GameState) -> float:
+        return self.goal.get_benefit_action_plan(self.action_plan, game_state)
 
 
 class UnitNoGoal(UnitGoal):
@@ -616,14 +710,17 @@ class UnitNoGoal(UnitGoal):
         self._invalidates_constraint = constraints.any_tc_violates_constraint(self.action_plan.time_coordinates)
         return self.action_plan
 
-    def _get_best_value(self) -> float:
-        return 0
-
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return 0.0 if not self._invalidates_constraint else self.PENALTY_VIOLATING_CONSTRAINT
 
     def __repr__(self) -> str:
         return f"No_Goal_Unit_{self.unit.unit_id}"
+
+    def _get_max_benefit(self, game_state: GameState) -> float:
+        return 0
+
+    def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+        return self.unit.time_to_power_cost, 1
 
     @property
     def key(self) -> str:
@@ -646,9 +743,6 @@ class EvadeConstraintsGoal(UnitGoal):
             self._add_evade_actions(game_state, constraints)
         return self.action_plan
 
-    def _get_best_value(self) -> float:
-        return -(self.unit.move_power_cost + self.unit.time_to_power_cost)
-
     def _add_evade_actions(self, game_state: GameState, constraints: Constraints):
         potential_move_actions = self._get_evade_plan(
             start_tc=self.unit.tc, constraints=constraints, board=game_state.board
@@ -669,6 +763,12 @@ class EvadeConstraintsGoal(UnitGoal):
 
     def __repr__(self) -> str:
         return f"Evade_Constraints_Unit_{self.unit.unit_id}"
+
+    def _get_max_benefit(self, game_state: GameState) -> float:
+        return 0
+
+    def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+        return self.unit.time_to_power_cost, 1
 
     @property
     def key(self) -> str:
