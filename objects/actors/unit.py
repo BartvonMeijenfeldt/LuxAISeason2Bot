@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional
+from math import ceil
 
 from objects.actors.actor import Actor
 from lux.config import UnitConfig
@@ -155,6 +156,9 @@ class Unit(Actor):
             return self.cargo.metal
         else:
             raise ValueError("Unexpexcted resoruce")
+
+    def get_nr_digs_to_fill_cargo(self) -> int:
+        return ceil(self.cargo_space_left / self.resources_gained_per_dig)
 
     def _get_neighboring_opponents(self, game_state: GameState) -> list[Unit]:
         neighboring_opponents = []
