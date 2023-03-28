@@ -45,12 +45,12 @@ class Board:
         self.length = self.rubble.shape[1]
 
         if self.player_factory_tiles:
-            self.distance_to_player_factory_tiles = self._get_dis_to_player_factory_tiles_array()
-            self.min_distance_to_all_player_factories = np.min(self.distance_to_player_factory_tiles, axis=2)
-            self.min_distance_to_player_factory = np.min(self.min_distance_to_all_player_factories, axis=2)
-            self.closest_player_factory = np.argmin(self.min_distance_to_all_player_factories, axis=2)
-            self.closest_player_factory_tile = np.argmin(
-                self.distance_to_player_factory_tiles.reshape(self.width, self.length, -1, order='F'), axis=2)
+            self._distance_to_player_factory_tiles = self._get_dis_to_player_factory_tiles_array()
+            self._min_distance_to_all_player_factories = np.min(self._distance_to_player_factory_tiles, axis=2)
+            self._min_distance_to_player_factory = np.min(self._min_distance_to_all_player_factories, axis=2)
+            self._closest_player_factory = np.argmin(self._min_distance_to_all_player_factories, axis=2)
+            self._closest_player_factory_tile = np.argmin(
+                self._distance_to_player_factory_tiles.reshape(self.width, self.length, -1, order='F'), axis=2)
 
     def _get_dis_to_player_factory_tiles_array(self) -> np.ndarray:
         tiles_xy = self._get_tiles_xy_array()
@@ -130,14 +130,14 @@ class Board:
         return None
 
     def get_closest_player_factory(self, c: Coordinate) -> Factory:
-        closest_factory_index = self.closest_player_factory[c.x, c.y]
+        closest_factory_index = self._closest_player_factory[c.x, c.y]
         return self.player_factories[closest_factory_index]
 
     def get_min_distance_to_player_factory(self, c: Coordinate) -> int:
-        return self.min_distance_to_player_factory[c.x, c.y]
+        return self._min_distance_to_player_factory[c.x, c.y]
 
     def get_closest_player_factory_tile(self, c: Coordinate) -> Coordinate:
-        closest_player_factory_tile_index = self.closest_player_factory_tile[c.x, c.y]
+        closest_player_factory_tile_index = self._closest_player_factory_tile[c.x, c.y]
         return self.player_factory_tiles[closest_player_factory_tile_index]
 
     def get_closest_ice_tile(self, c: Coordinate) -> Coordinate:

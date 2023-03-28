@@ -56,7 +56,7 @@ class BuildHeavyGoal(FactoryGoal):
         self.set_validity_plan(constraints)
         return self.action_plan
 
-    def _get_best_value(self) -> float:
+    def get_best_value_per_step(self, game_state: GameState) -> float:
         return 10_000
 
     def get_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
@@ -78,7 +78,7 @@ class BuildLightGoal(FactoryGoal):
         self.set_validity_plan(constraints)
         return self.action_plan
 
-    def _get_best_value(self) -> float:
+    def get_best_value_per_step(self, game_state: GameState) -> float:
         return 10_000
 
     def get_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
@@ -104,7 +104,7 @@ class WaterGoal(FactoryGoal):
         self.set_validity_plan(constraints)
         return self.action_plan
 
-    def _get_best_value(self) -> float:
+    def get_best_value_per_step(self, game_state: GameState) -> float:
         return 10_000
 
     def get_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
@@ -127,7 +127,7 @@ class FactoryNoGoal(FactoryGoal):
     ) -> FactoryActionPlan:
         return FactoryActionPlan(self.factory)
 
-    def _get_best_value(self) -> float:
+    def get_best_value_per_step(self, game_state: GameState) -> float:
         return 0.0
 
     def get_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:

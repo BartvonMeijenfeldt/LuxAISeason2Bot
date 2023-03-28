@@ -69,18 +69,8 @@ class Goal(metaclass=ABCMeta):
     def is_valid(self) -> bool:
         ...
 
-    def __lt__(self, other: Goal) -> bool:
-        return self._get_best_value() < other._get_best_value()
-
-    @property
-    def best_value(self) -> float:
-        if self._value is None:
-            return self._get_best_value()
-
-        return self._value
-
     @abstractmethod
-    def _get_best_value(self) -> float:
+    def get_best_value_per_step(self, game_state: GameState) -> float:
         ...
 
     @property

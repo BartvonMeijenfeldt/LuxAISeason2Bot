@@ -6,6 +6,7 @@ from objects.actors.actor import Actor
 from lux.config import UnitConfig
 from objects.coordinate import TimeCoordinate
 from objects.game_state import GameState
+from objects.resource import Resource
 from objects.actions.unit_action import UnitAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from logic.goals.unit_goal import (
@@ -31,21 +32,19 @@ class Unit(Actor):
 
     def __post_init__(self):
         self.time_to_power_cost = 5 if self.unit_type == "LIGHT" else 50
-
-    @property
-    def agent_id(self):
-        if self.team_id == 0:
-            return "player_0"
-        return "player_1"
-
-    @property
-    def has_actions_in_queue(self) -> bool:
-        return len(self.action_queue) > 0
-
-    @property
-    def action_queue_cost(self):
-        cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
-        return cost
+        self.recharge_power = self.unit_cfg.CHARGE
+        self.move_power_cost = self.unit_cfg.MOVE_COST
+        self.move_time_and_power_cost = self.move_power_cost + self.time_to_power_cost
+        self.dig_power_cost = self.unit_cfg.DIG_COST
+        self.dig_time_and_power_cost = self.dig_power_cost + self.time_to_power_cost
+        self.action_queue_cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
+        self.battery_capacity = self.unit_cfg.BATTERY_CAPACITY
+        self.power_space_left = self.battery_capacity - self.power
+        self.cargo_space_left = self.unit_cfg.CARGO_SPACE - self.cargo.total
+        self.rubble_removed_per_dig = self.unit_cfg.DIG_RUBBLE_REMOVED
+        self.resources_gained_per_dig = self.unit_cfg.DIG_RESOURCE_GAIN
+        self.has_actions_in_queue = len(self.action_queue) > 0
+        self.agent_id = "player_0" if self.team_id == 0 else "player_1"
 
     def generate_goals(self, game_state: GameState) -> List[UnitGoal]:
         if self.action_queue:
@@ -72,7 +71,7 @@ class Unit(Actor):
                     target_factory_c = game_state.get_closest_player_factory_c(c=target_ice_c)
                     goals.append(
                         CollectIceGoal(
-                            unit=self, pickup_power=pickup_power, resource_c=target_ice_c, factory_c=target_factory_c
+                            unit=self, pickup_power=pickup_power, dig_c=target_ice_c, factory_c=target_factory_c
                         )
                     )
 
@@ -81,15 +80,16 @@ class Unit(Actor):
             goals = []
             for pickup_power in [False, True]:
                 goals.extend(
-                    ClearRubbleGoal(unit=self, pickup_power=pickup_power, rubble_position=rubble_tile)
-                    for rubble_tile in closest_rubble_tiles)
+                    ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=rubble_tile)
+                    for rubble_tile in closest_rubble_tiles
+                )
 
         else:
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
             goals = []
             for pickup_power in [False, True]:
                 goals.extend(
-                    ClearRubbleGoal(unit=self, pickup_power=pickup_power, rubble_position=rubble_tile)
+                    ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=rubble_tile)
                     for rubble_tile in closest_rubble_tiles
                 )
 
@@ -101,7 +101,7 @@ class Unit(Actor):
                     CollectIceGoal(
                         unit=self,
                         pickup_power=pickup_power,
-                        resource_c=ice_tile,
+                        dig_c=ice_tile,
                         factory_c=game_state.get_closest_player_factory_c(c=ice_tile),
                     )
                     for ice_tile in closest_ice_tiles
@@ -114,7 +114,7 @@ class Unit(Actor):
 
             for pickup_power in [False, True]:
                 collect_ore_goal = CollectOreGoal(
-                    unit=self, pickup_power=pickup_power, resource_c=target_ore_c, factory_c=target_factory_c
+                    unit=self, pickup_power=pickup_power, dig_c=target_ore_c, factory_c=target_factory_c
                 )
                 goals.append(collect_ore_goal)
 
@@ -144,6 +144,18 @@ class Unit(Actor):
     def is_not_on_factory(self, game_state: GameState) -> bool:
         return not game_state.is_player_factory_tile(self.tc)
 
+    def get_quantity_resource_in_cargo(self, resource: Resource) -> int:
+        if resource.name == "ICE":
+            return self.cargo.ice
+        elif resource.name == "ORE":
+            return self.cargo.ore
+        elif resource.name == "WATER":
+            return self.cargo.water
+        elif resource.name == "METAL":
+            return self.cargo.metal
+        else:
+            raise ValueError("Unexpexcted resoruce")
+
     def _get_neighboring_opponents(self, game_state: GameState) -> list[Unit]:
         neighboring_opponents = []
 
@@ -156,38 +168,6 @@ class Unit(Actor):
 
     def is_stronger_than(self, other: Unit) -> bool:
         return self.unit_type == "HEAVY" and other.unit_type == "LIGHT"
-
-    @property
-    def recharge_power(self) -> int:
-        return self.unit_cfg.CHARGE
-
-    @property
-    def move_power_cost(self) -> int:
-        return self.unit_cfg.MOVE_COST
-
-    @property
-    def dig_power_cost(self) -> int:
-        return self.unit_cfg.DIG_COST
-
-    @property
-    def battery_capacity(self) -> int:
-        return self.unit_cfg.BATTERY_CAPACITY
-
-    @property
-    def power_space_left(self) -> int:
-        return self.battery_capacity - self.power
-
-    @property
-    def cargo_space_left(self) -> int:
-        return self.unit_cfg.CARGO_SPACE - self.cargo.total
-
-    @property
-    def rubble_removed_per_dig(self) -> int:
-        return self.unit_cfg.DIG_RUBBLE_REMOVED
-
-    @property
-    def resources_gained_per_dig(self) -> int:
-        return self.unit_cfg.DIG_RESOURCE_GAIN
 
     def __hash__(self) -> int:
         return hash(str(self))
