@@ -300,30 +300,41 @@ class DigGoal(UnitGoal):
         return self._get_benefit_n_digs(action_plan.nr_digs, game_state)
 
     def _get_min_cost_and_steps_go_to_dig_c(self, game_state: GameState) -> tuple[float, int]:
-        if self.pickup_power:
-            return self._get_min_cost_and_steps_go_to_dig_c_with_pickup_power(game_state)
-        else:
-            return self._get_min_cost_and_steps_go_to_dig_c_without_pickup_power()
-
-    def _get_min_cost_and_steps_go_to_dig_c_with_pickup_power(self, game_state: GameState) -> tuple[float, int]:
-        closest_factory_tile = game_state.board.get_closest_player_factory_tile(self.unit.tc)
-        nr_steps_to_factory_tile = self.unit.tc.distance_to(closest_factory_tile)
-        nr_steps_to_resource_c = closest_factory_tile.distance_to(self.dig_c)
-        nr_steps_moving = nr_steps_to_factory_tile + nr_steps_to_resource_c
-
-        nr_steps_power_pickup = 1
+        nr_steps_moving, nr_steps_power_pickup = self._get_min_nr_steps_moving_and_power_pickup(game_state)
         min_nr_steps = nr_steps_moving + nr_steps_power_pickup
 
         min_cost_moving = nr_steps_moving * self.unit.move_time_and_power_cost
-        min_cost_power_pickup = self.unit.time_to_power_cost
+        min_cost_power_pickup = nr_steps_power_pickup * self.unit.time_to_power_cost
         min_cost = min_cost_moving + min_cost_power_pickup
 
         return min_cost, min_nr_steps
 
-    def _get_min_cost_and_steps_go_to_dig_c_without_pickup_power(self) -> tuple[float, int]:
+    def _get_min_nr_steps_to_dig_c(self, game_state: GameState) -> int:
+        nr_steps_moving, nr_steps_power_pickup = self._get_min_nr_steps_moving_and_power_pickup(game_state)
+        return nr_steps_moving + nr_steps_power_pickup
+
+    def _get_min_nr_steps_moving_and_power_pickup(self, game_state: GameState) -> tuple[int, int]:
+        if self.pickup_power:
+            return self._get_min_nr_steps_moving_and_power_pickup_with_pickup_power(game_state)
+        else:
+            return self._get_min_nr_steps_moving_and_power_pickup_without_pickup_power(game_state)
+
+    def _get_min_nr_steps_moving_and_power_pickup_without_pickup_power(self, game_state: GameState) -> tuple[int, int]:
         nr_steps_moving = self.unit.tc.distance_to(self.dig_c)
-        min_cost_moving = nr_steps_moving * self.unit.move_time_and_power_cost
-        return min_cost_moving, nr_steps_moving
+        nr_steps_power_pickup = 0
+        return nr_steps_moving, nr_steps_power_pickup
+
+    def _get_min_nr_steps_moving_and_power_pickup_with_pickup_power(self, game_state: GameState) -> tuple[int, int]:
+        nr_steps_moving = self._get_min_steps_moving_to_dig_c_with_pickup_power(game_state)
+        nr_steps_power_pickup = 1
+        return nr_steps_moving, nr_steps_power_pickup
+
+    def _get_min_steps_moving_to_dig_c_with_pickup_power(self, game_state: GameState) -> int:
+        closest_factory_tile = game_state.board.get_closest_player_factory_tile(self.unit.tc)
+        nr_steps_to_factory_tile = self.unit.tc.distance_to(closest_factory_tile)
+        nr_steps_to_resource_c = closest_factory_tile.distance_to(self.dig_c)
+        nr_steps_moving = nr_steps_to_factory_tile + nr_steps_to_resource_c
+        return nr_steps_moving
 
     def _get_min_cost_and_steps_max_nr_digs(self) -> tuple[float, int]:
         max_nr_digs = self._get_best_max_nr_digs()
@@ -487,8 +498,7 @@ class CollectOreGoal(CollectGoal):
 
 class ClearRubbleGoal(DigGoal):
     def __repr__(self) -> str:
-        first_rubble_c = self.dig_c
-        return f"clear_rubble_[{first_rubble_c}]"
+        return f"clear_rubble_[{self.dig_c}]"
 
     @property
     def key(self) -> str:
@@ -571,6 +581,124 @@ class ClearRubbleGoal(DigGoal):
             return rubble_removed_benefit + bonus_clear_rubble
         else:
             return rubble_removed_benefit
+
+    def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+        min_cost_digging, max_nr_digs = self._get_min_cost_and_steps_max_nr_digs()
+        min_cost_go_to_c, min_steps_go_to_c = self._get_min_cost_and_steps_go_to_dig_c(game_state)
+
+        min_cost = min_cost_digging + min_cost_go_to_c
+        min_steps = max_nr_digs + min_steps_go_to_c
+
+        return min_cost, min_steps
+
+
+class DestroyLichenGoal(DigGoal):
+    def __repr__(self) -> str:
+        return f"destroy_lichen[{self.dig_c}]"
+
+    @property
+    def key(self) -> str:
+        return str(self)
+
+    def generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> UnitActionPlan:
+        self._init_action_plan()
+
+        if self.pickup_power:
+            self._add_power_pickup_actions(
+                game_state=game_state,
+                constraints=constraints,
+                next_goal_c=self.dig_c,
+                factory_power_availability_tracker=factory_power_availability_tracker,
+            )
+
+            if not self.action_plan.unit_has_enough_power(game_state):
+                self._is_valid = False
+                return self.action_plan
+
+        self._add_destroy_lichen_actions(game_state=game_state, constraints=constraints)
+        return self.action_plan
+
+    def _add_destroy_lichen_actions(self, game_state: GameState, constraints: Constraints) -> None:
+        nr_max_required_digs = self._get_nr_max_digs_to_destroy_lichen(game_state)
+        max_digs_possible = self._get_max_nr_digs_current_ptc(game_state)
+        max_nr_digs = min(nr_max_required_digs, max_digs_possible)
+
+        potential_dig_actions = self._get_dig_plan(
+            start_tc=self.action_plan.final_tc,
+            dig_c=self.dig_c,
+            nr_digs=max_nr_digs,
+            constraints=constraints,
+            board=game_state.board,
+        )
+
+        potential_dig_actions = self._get_valid_actions(potential_dig_actions, game_state)
+
+        max_valid_digs_actions = self.find_max_dig_actions_can_still_reach_factory(
+            potential_dig_actions, game_state, constraints
+        )
+
+        if len(max_valid_digs_actions) == 0:
+            self._is_valid = False
+            return
+
+        self.action_plan.extend(max_valid_digs_actions)
+        self._is_valid = True
+
+    def _get_nr_max_digs_to_destroy_lichen(self, game_state: GameState) -> int:
+        # Can underestimate the amount of digs when constraints make the unit appear a move later there
+        nr_steps_to_lichen = self._get_min_nr_steps_to_dig_c(game_state)
+        max_lichen_upon_arrival = self._get_max_lichen_in_n_steps(game_state.board, nr_steps_to_lichen)
+        return self._get_nr_max_dig_to_destroy_lichen_unit_at_lichen(max_lichen_upon_arrival)
+
+    def _get_nr_max_dig_to_destroy_lichen_unit_at_lichen(self, lichen_at_tile: int) -> int:
+        lichen_removed_per_dig = self.unit.lichen_removed_per_dig
+        potential_regain_lichen_per_turn = 1
+        min_lichen_change_per_dig = lichen_removed_per_dig - potential_regain_lichen_per_turn
+
+        quotient, remainder = divmod(lichen_at_tile, min_lichen_change_per_dig)
+
+        if remainder <= potential_regain_lichen_per_turn:
+            max_nr_digs = quotient
+        else:
+            max_nr_digs = quotient + 1
+
+        return max_nr_digs
+
+    def _get_max_lichen_in_n_steps(self, board: Board, n_steps: int) -> int:
+        max_lichen = 100
+        current_lichen = board.lichen[self.dig_c.xy]
+        return min(max_lichen, current_lichen + n_steps)
+
+    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        return self._get_benefit_n_digs(action_plan.nr_digs, game_state)
+
+    def _get_benefit_n_digs(self, n_digs: int, game_state: GameState) -> float:
+        lichen_removed = self._get_lichen_removed(n_digs, game_state)
+        benefit_lichen_removed = self._get_benefit_removing_lichen(lichen_removed, game_state)
+        return benefit_lichen_removed
+
+    def _get_lichen_removed(self, n_digs: int, game_state: GameState) -> int:
+        max_lichen_removed = self.unit.rubble_removed_per_dig * n_digs
+        lichen_at_pos = game_state.board.lichen[self.dig_c.xy]
+        lichen_removed = min(max_lichen_removed, lichen_at_pos)
+        return lichen_removed
+
+    def _get_benefit_removing_lichen(self, lichen_removed: int, game_state: GameState) -> float:
+        benefit_lichen_removed = 20
+        bonus_cleared_lichen = 20 * benefit_lichen_removed
+
+        lichen_removed_benefit = benefit_lichen_removed * lichen_removed
+
+        lichen_at_pos = game_state.board.lichen[self.dig_c.xy]
+        if lichen_removed == lichen_at_pos:
+            return lichen_removed_benefit + bonus_cleared_lichen
+        else:
+            return lichen_removed_benefit
 
     def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         min_cost_digging, max_nr_digs = self._get_min_cost_and_steps_max_nr_digs()
