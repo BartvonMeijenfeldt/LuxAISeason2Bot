@@ -50,7 +50,8 @@ class Board:
             self._min_distance_to_player_factory = np.min(self._min_distance_to_all_player_factories, axis=2)
             self._closest_player_factory = np.argmin(self._min_distance_to_all_player_factories, axis=2)
             self._closest_player_factory_tile = np.argmin(
-                self._distance_to_player_factory_tiles.reshape(self.width, self.length, -1, order='F'), axis=2)
+                self._distance_to_player_factory_tiles.reshape(self.width, self.length, -1, order="F"), axis=2
+            )
 
     def _get_dis_to_player_factory_tiles_array(self) -> np.ndarray:
         tiles_xy = self._get_tiles_xy_array()
@@ -154,6 +155,9 @@ class Board:
 
     def get_n_closest_rubble_tiles(self, c: Coordinate, n: int) -> CoordinateList:
         return self.rubble_coordinates.get_n_closest_tiles(c=c, n=n)
+
+    def get_n_closest_opp_lichen_tiles(self, c: Coordinate, n: int) -> CoordinateList:
+        return self.opp_lichen_tiles.get_n_closest_tiles(c=c, n=n)
 
     def get_n_closest_ice_tiles(self, c: Coordinate, n: int) -> CoordinateList:
         return self.ice_coordinates.get_n_closest_tiles(c=c, n=n)

@@ -15,6 +15,7 @@ from logic.goals.unit_goal import (
     CollectIceGoal,
     ClearRubbleGoal,
     CollectOreGoal,
+    DestroyLichenGoal,
     UnitNoGoal,
     ActionQueueGoal,
     FleeGoal,
@@ -44,6 +45,7 @@ class Unit(Actor):
         self.cargo_space_left = self.unit_cfg.CARGO_SPACE - self.cargo.total
         self.rubble_removed_per_dig = self.unit_cfg.DIG_RUBBLE_REMOVED
         self.resources_gained_per_dig = self.unit_cfg.DIG_RESOURCE_GAIN
+        self.lichen_removed_per_dig = self.unit_cfg.DIG_LICHEN_REMOVED
         self.has_actions_in_queue = len(self.action_queue) > 0
         self.agent_id = "player_0" if self.team_id == 0 else "player_1"
 
@@ -64,7 +66,7 @@ class Unit(Actor):
                 flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
                 goals.append(flee_goal)
 
-        elif game_state.env_steps <= 920 and self.unit_type == "HEAVY":
+        elif game_state.env_steps <= 1000 and self.unit_type == "HEAVY":
             targets_ice_c = game_state.get_n_closest_ice_tiles(c=self.tc, n=2)
             goals = []
             for target_ice_c in targets_ice_c:
@@ -87,28 +89,35 @@ class Unit(Actor):
 
         else:
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
-            goals = []
-            for pickup_power in [False, True]:
-                goals.extend(
-                    ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=rubble_tile)
-                    for rubble_tile in closest_rubble_tiles
-                )
+
+            goals = [
+                ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=rubble_tile)
+                for rubble_tile in closest_rubble_tiles
+                for pickup_power in [False, True]
+            ]
 
             closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=1)
-
-            for pickup_power in [False, True]:
-
-                ice_goals = [
-                    CollectIceGoal(
-                        unit=self,
-                        pickup_power=pickup_power,
-                        dig_c=ice_tile,
-                        factory_c=game_state.get_closest_player_factory_c(c=ice_tile),
-                    )
-                    for ice_tile in closest_ice_tiles
-                ]
+            ice_goals = [
+                CollectIceGoal(
+                    unit=self,
+                    pickup_power=pickup_power,
+                    dig_c=ice_tile,
+                    factory_c=game_state.get_closest_player_factory_c(c=ice_tile),
+                )
+                for ice_tile in closest_ice_tiles
+                for pickup_power in [False, True]
+            ]
 
             goals.extend(ice_goals)
+
+            closest_lichen_tiles = game_state.get_n_closest_opp_lichen_tiles(c=self.tc, n=5)
+
+            destroy_lichen_goals = [
+                DestroyLichenGoal(unit=self, pickup_power=pickup_power, dig_c=lichen_tile)
+                for lichen_tile in closest_lichen_tiles
+                for pickup_power in [False, True]
+            ]
+            goals.extend(destroy_lichen_goals)
 
             target_ore_c = game_state.get_closest_ore_tile(c=self.tc)
             target_factory_c = game_state.get_closest_player_factory_c(c=target_ore_c)
