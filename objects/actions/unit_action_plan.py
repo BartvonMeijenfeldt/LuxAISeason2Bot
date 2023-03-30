@@ -185,6 +185,7 @@ class UnitActionPlan(ActionPlan):
     ) -> list[UnitAction]:
         closest_factory_c = game_state.get_closest_player_factory_c(self.final_tc)
         graph = MoveToGraph(
+            unit_type=self.actor.unit_type,
             board=game_state.board,
             time_to_power_cost=self.actor.time_to_power_cost,
             unit_cfg=self.actor.unit_cfg,
@@ -372,6 +373,7 @@ class ActionPlanSimulator:
     def _get_actions_to_closest_factory_c(self, game_state: GameState, constraints: Constraints) -> list[UnitAction]:
         closest_factory_c = game_state.get_closest_player_factory_c(self.action_plan.final_tc)
         graph = MoveToGraph(
+            unit_type=self.unit.unit_type,
             board=game_state.board,
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,

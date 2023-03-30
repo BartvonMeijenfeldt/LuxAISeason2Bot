@@ -85,6 +85,7 @@ class UnitGoal(Goal):
 
     def _get_move_to_graph(self, board: Board, goal: Coordinate, constraints: Constraints) -> MoveToGraph:
         graph = MoveToGraph(
+            unit_type=self.unit.unit_type,
             board=board,
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,
@@ -102,6 +103,7 @@ class UnitGoal(Goal):
         next_goal_c: Optional[Coordinate] = None,
     ) -> PickupPowerGraph:
         graph = PickupPowerGraph(
+            unit_type=self.unit.unit_type,
             board=board,
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,
@@ -114,6 +116,7 @@ class UnitGoal(Goal):
 
     def _get_dig_graph(self, board: Board, goal: DigCoordinate, constraints: Constraints) -> DigAtGraph:
         graph = DigAtGraph(
+            unit_type=self.unit.unit_type,
             board=board,
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,
@@ -390,9 +393,9 @@ class CollectGoal(DigGoal):
             board=game_state.board,
         )
 
-        max_valid_dig_actions = self._get_valid_actions(actions_max_nr_digs, game_state)
+        max_valid_digs_actions = self._get_valid_actions(actions_max_nr_digs, game_state)
         max_valid_digs_actions = self.find_max_dig_actions_can_still_reach_factory(
-            max_valid_dig_actions, game_state, constraints
+            max_valid_digs_actions, game_state, constraints
         )
 
         if len(max_valid_digs_actions) == 0:
@@ -415,6 +418,7 @@ class CollectGoal(DigGoal):
 
     def _get_transfer_graph(self, board: Board, constraints: Constraints) -> TransferResourceGraph:
         graph = TransferResourceGraph(
+            unit_type=self.unit.unit_type,
             board=board,
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,
@@ -882,6 +886,7 @@ class EvadeConstraintsGoal(UnitGoal):
 
     def _get_evade_constraints_graph(self, board: Board, constraints: Constraints) -> EvadeConstraintsGraph:
         graph = EvadeConstraintsGraph(
+            unit_type=self.unit.unit_type,
             board=board,
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,

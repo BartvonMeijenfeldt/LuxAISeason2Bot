@@ -193,5 +193,5 @@ class Board:
         ]
         return CoordinateList(coordinates)
 
-    def get_dis_to_closest_opp_heavy(self, c: Coordinate) -> float:
+    def get_min_dis_to_opp_heavy(self, c: Coordinate) -> float:
         return self.distance_to_opp_heavies[c.x, c.y]
