@@ -5,6 +5,7 @@ from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional
 from math import ceil, inf
+from copy import copy
 
 from search.search import (
     Search,
@@ -716,7 +717,7 @@ class DestroyLichenGoal(DigGoal):
 
 @dataclass
 class FleeGoal(UnitGoal):
-    opp_c: Coordinate
+    opp_c: TimeCoordinate
     _is_valid = True
     benefit_fleeing = 1000
 
@@ -737,9 +738,8 @@ class FleeGoal(UnitGoal):
         opp_c = self.opp_c
         current_c_next_t = self.unit.tc + Direction.CENTER
 
-        for neg_tc_constraint in [current_tc, opp_c, current_c_next_t]:
-            constraints = constraints.add_negative_constraint(neg_tc_constraint)
-
+        constraints = copy(constraints)
+        constraints.add_negative_constraints([current_tc, opp_c, current_c_next_t])
         return constraints
 
     def _go_to_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:

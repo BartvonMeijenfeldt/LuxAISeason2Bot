@@ -80,7 +80,7 @@ class Agent:
         power_tracker = self.get_power_tracker(importance_sorted_actors)
         for actor in importance_sorted_actors:
             goal = actor.get_best_goal(game_state, constraints, power_tracker, reserved_goals)
-            constraints = constraints.add_negative_constraints(goal.action_plan.time_coordinates)
+            constraints.add_negative_constraints(goal.action_plan.time_coordinates)
             power_tracker.update_power_available(
                 power_requests=goal.action_plan.get_power_requests(game_state)
             )

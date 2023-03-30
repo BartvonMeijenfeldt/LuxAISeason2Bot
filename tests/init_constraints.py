@@ -15,7 +15,7 @@ def init_constraints(
     # Shuffle constraints to make sure the order of adding does not matter
     random.shuffle(negative_constraints)
 
-    for tc in negative_constraints:
-        constraints = constraints.add_negative_constraint(tc)
+    if negative_constraints:
+        constraints.add_negative_constraints(negative_constraints)
 
     return constraints

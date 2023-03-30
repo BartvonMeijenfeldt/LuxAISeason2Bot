@@ -9,17 +9,13 @@ from objects.coordinate import TimeCoordinate
 
 @dataclass
 class Constraints:
-    parent: str = field(default_factory=str)
-    negative: set[tuple[int, int, int]] = field(init=False, default_factory=set)
-    negative_t: set[int] = field(init=False, default_factory=set)
+    negative: set[tuple[int, int, int]] = field(default_factory=set)
+    negative_t: set[int] = field(default_factory=set)
 
-    def _copy_with_parent_key(self) -> Constraints:
-        # Like a copy, but stores the key of the object that created this copy
-
-        copy_constraints = Constraints(parent=self.key)
-        copy_constraints.negative = copy(self.negative)
-        copy_constraints.negative_t = copy(self.negative_t)
-        return copy_constraints
+    def __copy__(self) -> Constraints:
+        constraints_negative = copy(self.negative)
+        constraints_negative_t = copy(self.negative_t)
+        return Constraints(constraints_negative, constraints_negative_t)
 
     @property
     def key(self) -> str:
@@ -31,20 +27,11 @@ class Constraints:
 
         return False
 
-    def add_negative_constraint(self, tc: TimeCoordinate) -> Constraints:
-        constraints = self._copy_with_parent_key()
-        constraints._add_negative_constraint(tc)
-
-        return constraints
-
-    def add_negative_constraints(self, tcs: Iterable[TimeCoordinate]) -> Constraints:
-        constraints = self._copy_with_parent_key()
+    def add_negative_constraints(self, tcs: Iterable[TimeCoordinate]) -> None:
         for tc in tcs:
-            constraints._add_negative_constraint(tc)
+            self.add_negative_constraint(tc)
 
-        return constraints
-
-    def _add_negative_constraint(self, tc: TimeCoordinate) -> None:
+    def add_negative_constraint(self, tc: TimeCoordinate) -> None:
         self.negative.add(tc.xyt)
         self.negative_t.add(tc.t)
 
