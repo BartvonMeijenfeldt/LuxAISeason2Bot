@@ -30,6 +30,8 @@ class Board:
     def __post_init__(self) -> None:
         self.player_factory_tiles_set = {c.xy for factory in self.player_factories for c in factory.coordinates}
         self.opp_factory_tiles_set = {c.xy for factory in self.opp_factories for c in factory.coordinates}
+        self.opp_lights = [light for light in self.opp_units if light.unit_type == "LIGHT"]
+        self.opp_heavies = [light for light in self.opp_units if light.unit_type == "HEAVY"]
 
         self.player_factory_tiles = self._get_factory_tiles(self.player_factories)
         self.opp_factory_tiles = self._get_factory_tiles(self.opp_factories)
@@ -45,13 +47,34 @@ class Board:
         self.length = self.rubble.shape[1]
 
         if self.player_factory_tiles:
-            self._distance_to_player_factory_tiles = self._get_dis_to_player_factory_tiles_array()
-            self._min_distance_to_all_player_factories = np.min(self._distance_to_player_factory_tiles, axis=2)
+            distance_to_player_factory_tiles = self._get_dis_to_player_factory_tiles_array()
+            self._min_distance_to_all_player_factories = np.min(distance_to_player_factory_tiles, axis=2)
             self._min_distance_to_player_factory = np.min(self._min_distance_to_all_player_factories, axis=2)
             self._closest_player_factory = np.argmin(self._min_distance_to_all_player_factories, axis=2)
             self._closest_player_factory_tile = np.argmin(
-                self._distance_to_player_factory_tiles.reshape(self.width, self.length, -1, order="F"), axis=2
+                distance_to_player_factory_tiles.reshape(self.width, self.length, -1, order="F"), axis=2
             )
+
+        self.distance_to_opp_heavies = self._get_min_dis_to_opponent_heavies()
+
+    def _get_min_dis_to_opponent_heavies(self) -> np.ndarray:
+        tiles_heavy = np.array([[heavy.x, heavy.y] for heavy in self.opp_heavies]).transpose()
+        return self._get_min_manhattan_distance_tiles_to_coordinates(tiles_heavy)
+
+    def _get_dis_to_coordinates_array(self, coordinates: CoordinateList) -> np.ndarray:
+        tiles_coordinates = coordinates.to_array()
+        return self._get_min_manhattan_distance_tiles_to_coordinates(tiles_coordinates)
+
+    def _get_min_manhattan_distance_tiles_to_coordinates(self, tiles_coordinates: np.ndarray) -> np.ndarray:
+        if not tiles_coordinates.shape[0]:
+            return np.full((self.width, self.length), np.inf)
+
+        tiles_xy = self._get_tiles_xy_array()
+
+        diff = tiles_xy[..., None] - tiles_coordinates[None, ...]
+        abs_dis_xy = np.abs(diff)
+        abs_dis = np.sum(abs_dis_xy, axis=2)
+        return np.min(abs_dis, axis=2)
 
     def _get_dis_to_player_factory_tiles_array(self) -> np.ndarray:
         tiles_xy = self._get_tiles_xy_array()
@@ -169,3 +192,6 @@ class Board:
             if self.is_on_the_board(neighbor_c) and not self.is_opponent_factory_tile(c=neighbor_c)
         ]
         return CoordinateList(coordinates)
+
+    def get_dis_to_closest_opp_heavy(self, c: Coordinate) -> float:
+        return self.distance_to_opp_heavies[c.x, c.y]

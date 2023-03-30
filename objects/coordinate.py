@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import numpy as np
+
 from typing import Optional, TYPE_CHECKING
 from dataclasses import dataclass
 
@@ -339,3 +341,6 @@ class CoordinateList:
 
     def __len__(self):
         return len(self.coordinates)
+
+    def to_array(self) -> np.ndarray:
+        return np.array([[c.x, c.y] for c in self]).transpose()
