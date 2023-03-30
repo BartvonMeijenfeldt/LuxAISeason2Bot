@@ -30,6 +30,7 @@ class Graph(metaclass=ABCMeta):
     board: Board
     time_to_power_cost: float
     unit_cfg: UnitConfig
+    unit_type: str
     constraints: Constraints
 
     @abstractmethod
@@ -44,12 +45,25 @@ class Graph(metaclass=ABCMeta):
 
     def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
         action_power_cost = self.get_power_cost(action=action, to_c=to_c)
-        return action_power_cost + self.time_to_power_cost
+        danger_cost = self._get_danger_cost(to_c=to_c)
+        return action_power_cost + self.time_to_power_cost + danger_cost
 
     def get_power_cost(self, action: UnitAction, to_c: Coordinate) -> float:
         power_change = action.get_power_change_by_end_c(unit_cfg=self.unit_cfg, end_c=to_c, board=self.board)
         power_cost = max(0, -power_change)
         return power_cost
+
+    def _get_danger_cost(self, to_c: TimeCoordinate) -> float:
+        if self.unit_type == "HEAVY":
+            return 0
+
+        distance_to_opp_heavy = self.board.get_min_dis_to_opp_heavy(c=to_c)
+        if distance_to_opp_heavy == 0:
+            return 50
+        elif distance_to_opp_heavy == 1:
+            return 5
+        else:
+            return 0
 
     @abstractmethod
     def heuristic(self, node: Coordinate) -> float:

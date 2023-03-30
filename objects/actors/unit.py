@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Sequence, Optional
 from math import ceil
 
 from objects.actors.actor import Actor
@@ -12,6 +12,7 @@ from objects.actions.unit_action import UnitAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from logic.goals.unit_goal import (
     UnitGoal,
+    DigGoal,
     CollectIceGoal,
     ClearRubbleGoal,
     CollectOreGoal,
@@ -33,6 +34,8 @@ class Unit(Actor):
     _is_under_threath: Optional[bool] = field(init=False, default=None)
 
     def __post_init__(self):
+        self.x = self.tc.x
+        self.y = self.tc.y
         self.time_to_power_cost = 5 if self.unit_type == "LIGHT" else 50
         self.recharge_power = self.unit_cfg.CHARGE
         self.move_power_cost = self.unit_cfg.MOVE_COST
@@ -50,6 +53,11 @@ class Unit(Actor):
         self.agent_id = "player_0" if self.team_id == 0 else "player_1"
 
     def generate_goals(self, game_state: GameState) -> List[UnitGoal]:
+        goals = self._generate_goals(game_state)
+        goals = self._filter_goals(goals, game_state)
+        return goals
+
+    def _generate_goals(self, game_state: GameState) -> List[UnitGoal]:
         if self.action_queue:
             if not self.prev_step_goal:
                 raise RuntimeError()
@@ -66,7 +74,7 @@ class Unit(Actor):
                 flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
                 goals.append(flee_goal)
 
-        elif game_state.env_steps <= 1000 and self.unit_type == "HEAVY":
+        elif self.unit_type == "HEAVY":
             targets_ice_c = game_state.get_n_closest_ice_tiles(c=self.tc, n=2)
             goals = []
             for target_ice_c in targets_ice_c:
@@ -77,16 +85,6 @@ class Unit(Actor):
                             unit=self, pickup_power=pickup_power, dig_c=target_ice_c, factory_c=target_factory_c
                         )
                     )
-
-        elif game_state.env_steps > 920 and self.unit_type == "HEAVY":
-            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
-            goals = []
-            for pickup_power in [False, True]:
-                goals.extend(
-                    ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=rubble_tile)
-                    for rubble_tile in closest_rubble_tiles
-                )
-
         else:
             closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
 
@@ -132,6 +130,17 @@ class Unit(Actor):
         goals += [EvadeConstraintsGoal(unit=self)]
 
         return goals
+
+    def _filter_goals(self, goals: Sequence[UnitGoal], game_state: GameState) -> List[UnitGoal]:
+        return [
+            goal
+            for goal in goals
+            if not (
+                self.unit_type == "LIGHT"
+                and isinstance(goal, DigGoal)
+                and game_state.get_dis_to_closest_opp_heavy(goal.dig_c) <= 1
+            )
+        ]
 
     def is_under_threath(self, game_state: GameState) -> bool:
         if self._is_under_threath is None:

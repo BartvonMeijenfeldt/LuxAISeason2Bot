@@ -53,6 +53,7 @@ class TestMoveToSearch(unittest.TestCase):
         unit_cfg = ENV_CFG.ROBOTS[unit_type]
 
         move_to_graph = MoveToGraph(
+            unit_type=unit_type,
             board=state.board,
             time_to_power_cost=time_to_power_cost,
             unit_cfg=unit_cfg,
@@ -242,6 +243,7 @@ class DigAtSearch(unittest.TestCase):
         unit_cfg = ENV_CFG.ROBOTS[unit_type]
 
         dig_at_graph = DigAtGraph(
+            unit_type=unit_type,
             board=state.board,
             time_to_power_cost=time_to_power_cost,
             unit_cfg=unit_cfg,
@@ -470,6 +472,7 @@ class TestPowerPickupSearch(unittest.TestCase):
             board=state.board,
             time_to_power_cost=time_to_power_cost,
             unit_cfg=unit_cfg,
+            unit_type=unit_type,
             constraints=constraints,
             next_goal_c=next_goal_c,
             factory_power_availability_tracker=power_availability_tracker,
@@ -631,6 +634,7 @@ class TestTransferResearchesSearch(unittest.TestCase):
         unit_cfg = ENV_CFG.ROBOTS[unit_type]
 
         move_to_graph = TransferResourceGraph(
+            unit_type=unit_type,
             board=state.board,
             time_to_power_cost=time_to_power_cost,
             unit_cfg=unit_cfg,
