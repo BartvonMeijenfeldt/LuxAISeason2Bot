@@ -2,39 +2,28 @@ import pandas as pd
 import numpy as np
 
 from scipy.optimize import linear_sum_assignment
-from typing import Dict
-from collections import defaultdict
+from typing import Dict, List, Tuple
 
 from objects.actors.actor import Actor
 from objects.game_state import GameState
-from logic.goals.goal import Goal#, GoalCollection
-from logic.constraints import Constraints
+from logic.goals.goal import Goal, GoalCollection
 
 
 def resolve_goal_conflicts(
-    goal_collections: Dict[Actor, GoalCollection],
-    game_state: GameState,
-    constraints: Dict[Actor, Constraints],
+    goal_collections: Dict[Actor, GoalCollection], cost_matrix: pd.DataFrame
 ) -> Dict[Actor, Goal]:
     if not goal_collections:
-        return {}
+        return []
 
-    if not constraints:
-        constraints = defaultdict(lambda: Constraints())
-
-    cost_matrix = _create_cost_matrix(goal_collections, constraints, game_state)
     actor_keys_goals_keys = _solve_sum_assigment_problem(cost_matrix)
     actor_goals = _get_actor_goals(actor_goal_collections=goal_collections, actor_keys_goals_keys=actor_keys_goals_keys)
 
     return actor_goals
 
 
-def _create_cost_matrix(
-    goal_collections: Dict[Actor, GoalCollection], actor_constraints: Dict[Actor, Constraints], game_state: GameState
-) -> pd.DataFrame:
+def create_cost_matrix(goal_collections: Dict[Actor, GoalCollection], game_state: GameState) -> pd.DataFrame:
     entries = [
-        goal_collection.get_key_values(game_state=game_state, constraints=actor_constraints[actor])
-        for actor, goal_collection in goal_collections.items()
+        goal_collection.get_key_best_values(game_state=game_state) for _, goal_collection in goal_collections.items()
     ]
 
     actor_ids = [actor.unit_id for actor in goal_collections]

@@ -143,7 +143,7 @@ class PickupPowerGraph(Graph):
             factory = self.board.get_closest_player_factory(c=c)
             power_available_in_factory = self.factory_power_availability_tracker.get_power_available(factory, c.t)
             battery_space_left = self.unit_cfg.BATTERY_CAPACITY - c.p
-            power_pickup_amount = min(battery_space_left, power_available_in_factory)
+            power_pickup_amount = min(battery_space_left, power_available_in_factory, 3000)
 
             if power_pickup_amount:
                 potential_recharge_action = PickupAction(amount=power_pickup_amount, resource=Resource.POWER)

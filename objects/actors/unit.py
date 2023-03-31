@@ -10,6 +10,7 @@ from objects.game_state import GameState
 from objects.resource import Resource
 from objects.actions.unit_action import UnitAction
 from objects.actions.unit_action_plan import UnitActionPlan
+from logic.goals.goal import GoalCollection
 from logic.goals.unit_goal import (
     UnitGoal,
     DigGoal,
@@ -52,10 +53,10 @@ class Unit(Actor):
         self.has_actions_in_queue = len(self.action_queue) > 0
         self.agent_id = "player_0" if self.team_id == 0 else "player_1"
 
-    def generate_goals(self, game_state: GameState) -> List[UnitGoal]:
+    def generate_goals(self, game_state: GameState) -> GoalCollection:
         goals = self._generate_goals(game_state)
         goals = self._filter_goals(goals, game_state)
-        return goals
+        return GoalCollection(goals)
 
     def _generate_goals(self, game_state: GameState) -> List[UnitGoal]:
         if self.action_queue:
@@ -75,7 +76,7 @@ class Unit(Actor):
                 goals.append(flee_goal)
 
         elif self.unit_type == "HEAVY":
-            targets_ice_c = game_state.get_n_closest_ice_tiles(c=self.tc, n=2)
+            targets_ice_c = game_state.get_n_closest_ice_tiles(c=self.tc, n=4)
             goals = []
             for target_ice_c in targets_ice_c:
                 for pickup_power in [False, True]:
@@ -86,7 +87,7 @@ class Unit(Actor):
                         )
                     )
         else:
-            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
+            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=10)
 
             goals = [
                 ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=rubble_tile)
@@ -94,7 +95,7 @@ class Unit(Actor):
                 for pickup_power in [False, True]
             ]
 
-            closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=1)
+            closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=5)
             ice_goals = [
                 CollectIceGoal(
                     unit=self,
@@ -108,7 +109,7 @@ class Unit(Actor):
 
             goals.extend(ice_goals)
 
-            closest_lichen_tiles = game_state.get_n_closest_opp_lichen_tiles(c=self.tc, n=5)
+            closest_lichen_tiles = game_state.get_n_closest_opp_lichen_tiles(c=self.tc, n=10)
 
             destroy_lichen_goals = [
                 DestroyLichenGoal(unit=self, pickup_power=pickup_power, dig_c=lichen_tile)
@@ -126,10 +127,12 @@ class Unit(Actor):
                 )
                 goals.append(collect_ore_goal)
 
-        goals += [UnitNoGoal(unit=self)]
-        goals += [EvadeConstraintsGoal(unit=self)]
+        goals += self._get_do_nothing_goals()
 
         return goals
+
+    def _get_do_nothing_goals(self) -> List[UnitGoal]:
+        return [UnitNoGoal(self), EvadeConstraintsGoal(self)]
 
     def _filter_goals(self, goals: Sequence[UnitGoal], game_state: GameState) -> List[UnitGoal]:
         return [

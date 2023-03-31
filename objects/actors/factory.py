@@ -4,13 +4,14 @@ import numpy as np
 
 from dataclasses import dataclass
 
-from typing import Tuple, List
+from typing import Tuple
 from lux.config import EnvConfig
 from objects.actions.factory_action import WaterAction, LIGHT_CFG, HEAVY_CFG
 from objects.actors.actor import Actor
 from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
 from objects.game_state import GameState
-from logic.goals.factory_goal import FactoryGoal, BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal
+from logic.goals.goal import GoalCollection
+from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal, FactoryGoal
 
 
 @dataclass
@@ -26,7 +27,7 @@ class Factory(Actor):
     def __eq__(self, __o: Factory) -> bool:
         return self.unit_id == __o.unit_id
 
-    def generate_goals(self, game_state: GameState) -> List[FactoryGoal]:
+    def generate_goals(self, game_state: GameState) -> GoalCollection:
         goals = []
 
         if self.can_build_heavy:
@@ -42,8 +43,11 @@ class Factory(Actor):
         ):
             goals.append(WaterGoal(self))
 
-        goals.append(FactoryNoGoal(self))
-        return goals
+        goals += self._get_do_nothing_goals()
+        return GoalCollection(goals)
+
+    def _get_do_nothing_goals(self) -> list[FactoryGoal]:
+        return [FactoryNoGoal(self)]
 
     def get_expected_power_available(self, n=50) -> np.ndarray:
         # TODO add the expected effect of Lichen

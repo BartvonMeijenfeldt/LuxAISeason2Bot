@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
-from typing import List, Set, Sequence, TYPE_CHECKING
+from typing import Set, TYPE_CHECKING
 from dataclasses import dataclass
 
 from objects.cargo import UnitCargo
@@ -8,7 +8,7 @@ from utils import PriorityQueue
 
 if TYPE_CHECKING:
     from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
-    from logic.goals.goal import Goal
+    from logic.goals.goal import Goal, GoalCollection
     from logic.constraints import Constraints
     from lux.kit import GameState
 
@@ -23,12 +23,13 @@ class Actor(metaclass=ABCMeta):
     # TODO should remove the action_queu_goal here and let it automatically be generated in generate goals
     def get_best_goal(
         self,
+        goals: GoalCollection,
         game_state: GameState,
         constraints: Constraints,
         factory_power_availability_tracker: PowerAvailabilityTracker,
         reserved_goals: Set[str] = set(),
     ) -> Goal:
-        goals = self.generate_goals(game_state)
+        # goals = self.generate_goals(game_state)
         priority_queue = self._init_priority_queue(goals, reserved_goals, game_state)
 
         while not priority_queue.is_empty():
@@ -46,8 +47,9 @@ class Actor(metaclass=ABCMeta):
 
         raise RuntimeError("No best goal was found")
 
-    def _init_priority_queue(self, goals: Sequence[Goal], reserved_goals: Set[str], game_state: GameState
-                             ) -> PriorityQueue:
+    def _init_priority_queue(
+        self, goals: GoalCollection, reserved_goals: Set[str], game_state: GameState
+    ) -> PriorityQueue:
         goals_priority_queue = PriorityQueue()
 
         for goal in goals:
@@ -61,5 +63,9 @@ class Actor(metaclass=ABCMeta):
         return goals_priority_queue
 
     @abstractmethod
-    def generate_goals(self, game_state: GameState) -> List[Goal]:
+    def _get_do_nothing_goals(self) -> list[Goal]:
+        ...
+
+    @abstractmethod
+    def generate_goals(self, game_state: GameState) -> GoalCollection:
         ...

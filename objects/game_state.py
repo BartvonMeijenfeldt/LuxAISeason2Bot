@@ -1,10 +1,11 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Sequence
 
 from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from objects.board import Board
+    from objects.actors.actor import Actor
     from objects.actors.factory import Factory
     from objects.actors.unit import Unit
     from lux.team import Team
@@ -40,6 +41,10 @@ class GameState:
     @property
     def player_factories(self) -> list[Factory]:
         return self.board.player_factories
+
+    @property
+    def player_actors(self) -> Sequence[Actor]:
+        return self.player_units + self.player_factories
 
     @property
     def opp_factories(self) -> list[Factory]:
