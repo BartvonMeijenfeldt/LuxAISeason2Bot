@@ -112,7 +112,7 @@ def create_units(obs, env_cfg: EnvConfig, t: int, prev_step_goals: Dict[str, Uni
             unit_data["tc"] = TimeCoordinate(*unit_data["pos"], t=t)
             del unit_data["pos"]
             unit_data["cargo"] = UnitCargo(**unit_data["cargo"])
-            unit_data["unit_cfg"] = env_cfg.ROBOTS[unit_data["unit_type"]]
+            unit_data["unit_cfg"] = env_cfg.get_unit_config(unit_data["unit_type"])
             unit_data["action_queue"] = [UnitAction.from_array(action) for action in unit_data["action_queue"]]
 
             if unit_data["unit_id"] in prev_step_goals:

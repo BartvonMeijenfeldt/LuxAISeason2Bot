@@ -20,6 +20,12 @@ class GameState:
     player_team: Team
     opp_team: Team
 
+    def __hash__(self) -> int:
+        return self.real_env_steps
+
+    def __eq__(self, o: GameState) -> bool:
+        return self.real_env_steps == o.real_env_steps
+
     def __repr__(self) -> str:
         return f"Gamestate [t={self.real_env_steps}]"
 

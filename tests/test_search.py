@@ -30,8 +30,8 @@ from tests.init_constraints import init_constraints
 
 
 ENV_CFG = EnvConfig()
-LIGHT_CFG = ENV_CFG.ROBOTS["LIGHT"]
-HEAVY_CFG = ENV_CFG.ROBOTS["HEAVY"]
+LIGHT_CFG = ENV_CFG.LIGHT_ROBOT
+HEAVY_CFG = ENV_CFG.HEAVY_ROBOT
 
 
 class TestMoveToSearch(unittest.TestCase):
@@ -50,7 +50,7 @@ class TestMoveToSearch(unittest.TestCase):
 
         expected_actions = list(expected_actions)
 
-        unit_cfg = ENV_CFG.ROBOTS[unit_type]
+        unit_cfg = ENV_CFG.get_unit_config(unit_type)
 
         move_to_graph = MoveToGraph(
             unit_type=unit_type,
@@ -240,7 +240,7 @@ class DigAtSearch(unittest.TestCase):
 
         expected_actions = list(expected_actions)
 
-        unit_cfg = ENV_CFG.ROBOTS[unit_type]
+        unit_cfg = ENV_CFG.get_unit_config(unit_type)
 
         dig_at_graph = DigAtGraph(
             unit_type=unit_type,
@@ -464,7 +464,7 @@ class TestPowerPickupSearch(unittest.TestCase):
         start_ptc = RPTC(
             start.x, start.y, start.t, start.p, start.unit_cfg, start.game_state, q=0, resource=Resource.POWER
         )
-        unit_cfg = ENV_CFG.ROBOTS[unit_type]
+        unit_cfg = ENV_CFG.get_unit_config(unit_type)
 
         power_availability_tracker = PowerAvailabilityTracker(state.board.player_factories)
 
@@ -631,7 +631,7 @@ class TestTransferResearchesSearch(unittest.TestCase):
         expected_actions = list(expected_actions)
 
         start_ptc = RTC(start.x, start.y, start.t, q=0, resource=resource)
-        unit_cfg = ENV_CFG.ROBOTS[unit_type]
+        unit_cfg = ENV_CFG.get_unit_config(unit_type)
 
         move_to_graph = TransferResourceGraph(
             unit_type=unit_type,

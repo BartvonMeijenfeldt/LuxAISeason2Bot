@@ -20,7 +20,7 @@ from logic.goals.factory_goal import BuildLightGoal
 from logic.constraints import Constraints
 from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARN)
 
 
 if TYPE_CHECKING:
@@ -54,7 +54,7 @@ class Agent:
         forward_obs = forward_sim(obs, self.env_cfg, n=2)
         forward_game_states = [obs_to_game_state(step + i, self.env_cfg, f_obs) for i, f_obs in enumerate(forward_obs)]
         """
-        start_time = time.time()
+        self._set_time()
 
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_steps_goals)
         actor_goals = self.resolve_goals(game_state)
@@ -62,14 +62,25 @@ class Agent:
         self._update_prev_step_goals(actor_goals)
         actions = self.get_actions(actor_goals)
 
-        end_time = time.time()
-        time_taken = end_time - start_time
-        if time_taken < 1:
-            logging.info(f"{game_state.real_env_steps}: player {game_state.player_team.team_id} {time_taken: 0.1f}")
-        else:
-            logging.warning(f"{game_state.real_env_steps}: player {game_state.player_team.team_id} {time_taken: 0.1f}")
+        self._log_time_taken(game_state.real_env_steps, game_state.player_team.team_id)
 
         return actions
+
+    def _set_time(self) -> None:
+        self.start_time = time.time()
+
+    def _is_out_of_time(self) -> bool:
+        return self._get_time_taken() > 2.9
+
+    def _get_time_taken(self) -> float:
+        return time.time() - self.start_time
+
+    def _log_time_taken(self, real_env_steps: int, team_id: int) -> None:
+        time_taken = self._get_time_taken()
+        if time_taken < 1:
+            logging.info(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
+        else:
+            logging.warning(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
 
     def resolve_goals(self, game_state: GameState) -> Dict[Actor, Goal]:
         constraints = Constraints()
@@ -79,11 +90,12 @@ class Agent:
 
         power_tracker = self.get_power_tracker(importance_sorted_actors)
         for actor in importance_sorted_actors:
+            if self._is_out_of_time():
+                break
+
             goal = actor.get_best_goal(game_state, constraints, power_tracker, reserved_goals)
             constraints.add_negative_constraints(goal.action_plan.time_coordinates)
-            power_tracker.update_power_available(
-                power_requests=goal.action_plan.get_power_requests(game_state)
-            )
+            power_tracker.update_power_available(power_requests=goal.action_plan.get_power_requests(game_state))
 
             reserved_goals.add(goal.key)
             goals[actor] = goal
@@ -96,9 +108,7 @@ class Agent:
                     power_requests = goal.action_plan.get_power_requests(game_state)
                     for power_request in power_requests:
                         power_request.t = t
-                    power_tracker.update_power_available(
-                        power_requests=power_requests
-                    )
+                    power_tracker.update_power_available(power_requests=power_requests)
 
         return goals
 

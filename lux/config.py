@@ -1,14 +1,4 @@
-import dataclasses
-from argparse import Namespace
-from dataclasses import dataclass
-from typing import Dict
-
-
-def convert_dict_to_ns(x):
-    if isinstance(x, dict):
-        for k in x:
-            x[k] = convert_dict_to_ns(x)
-        return Namespace(x)
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -28,6 +18,12 @@ class UnitConfig:
     SELF_DESTRUCT_COST: int = 10
     RUBBLE_AFTER_DESTRUCTION: int = 1
     ACTION_QUEUE_POWER_COST: int = 1
+
+    def __hash__(self) -> int:
+        return self.DIG_COST
+
+    def __eq__(self, __value) -> bool:
+        return self.DIG_COST == __value.DIG_COST
 
 
 @dataclass
@@ -87,48 +83,55 @@ class EnvConfig:
     #### Collision Mechanics ####
     POWER_LOSS_FACTOR: float = 0.5
 
-    #### Units ####
-    ROBOTS: Dict[str, UnitConfig] = dataclasses.field(
-        default_factory=lambda: dict(
-            LIGHT=UnitConfig(
-                METAL_COST=10,
-                POWER_COST=50,
-                INIT_POWER=50,
-                CARGO_SPACE=100,
-                BATTERY_CAPACITY=150,
-                CHARGE=1,
-                MOVE_COST=1,
-                RUBBLE_MOVEMENT_COST=0.05,
-                DIG_COST=5,
-                SELF_DESTRUCT_COST=5,
-                DIG_RUBBLE_REMOVED=2,
-                DIG_RESOURCE_GAIN=2,
-                DIG_LICHEN_REMOVED=10,
-                RUBBLE_AFTER_DESTRUCTION=1,
-                ACTION_QUEUE_POWER_COST=1,
-            ),
-            HEAVY=UnitConfig(
-                METAL_COST=100,
-                POWER_COST=500,
-                INIT_POWER=500,
-                CARGO_SPACE=1000,
-                BATTERY_CAPACITY=3000,
-                CHARGE=10,
-                MOVE_COST=20,
-                RUBBLE_MOVEMENT_COST=1,
-                DIG_COST=60,
-                SELF_DESTRUCT_COST=100,
-                DIG_RUBBLE_REMOVED=20,
-                DIG_RESOURCE_GAIN=20,
-                DIG_LICHEN_REMOVED=100,
-                RUBBLE_AFTER_DESTRUCTION=10,
-                ACTION_QUEUE_POWER_COST=10,
-            ),
+    LIGHT_ROBOT: UnitConfig = field(
+        default=UnitConfig(
+            METAL_COST=10,
+            POWER_COST=50,
+            INIT_POWER=50,
+            CARGO_SPACE=100,
+            BATTERY_CAPACITY=150,
+            CHARGE=1,
+            MOVE_COST=1,
+            RUBBLE_MOVEMENT_COST=0.05,
+            DIG_COST=5,
+            SELF_DESTRUCT_COST=5,
+            DIG_RUBBLE_REMOVED=2,
+            DIG_RESOURCE_GAIN=2,
+            DIG_LICHEN_REMOVED=10,
+            RUBBLE_AFTER_DESTRUCTION=1,
+            ACTION_QUEUE_POWER_COST=1,
+        )
+    )
+
+    HEAVY_ROBOT: UnitConfig = field(
+        default=UnitConfig(
+            METAL_COST=100,
+            POWER_COST=500,
+            INIT_POWER=500,
+            CARGO_SPACE=1000,
+            BATTERY_CAPACITY=3000,
+            CHARGE=10,
+            MOVE_COST=20,
+            RUBBLE_MOVEMENT_COST=1,
+            DIG_COST=60,
+            SELF_DESTRUCT_COST=100,
+            DIG_RUBBLE_REMOVED=20,
+            DIG_RESOURCE_GAIN=20,
+            DIG_LICHEN_REMOVED=100,
+            RUBBLE_AFTER_DESTRUCTION=10,
+            ACTION_QUEUE_POWER_COST=10,
         )
     )
 
     @classmethod
+    def get_unit_config(cls, unit_type: str) -> UnitConfig:
+        if unit_type == "LIGHT":
+            return cls.LIGHT_ROBOT
+        else:
+            return cls.HEAVY_ROBOT
+
+    @classmethod
     def from_dict(cls, data):
-        data["ROBOTS"]["LIGHT"] = UnitConfig(**data["ROBOTS"]["LIGHT"])
-        data["ROBOTS"]["HEAVY"] = UnitConfig(**data["ROBOTS"]["HEAVY"])
-        return cls(**data)
+        LIGHT_ROBOT = UnitConfig(**data["ROBOTS"]["LIGHT"])
+        HEAVY_ROBOT = UnitConfig(**data["ROBOTS"]["HEAVY"])
+        return cls(LIGHT_ROBOT=LIGHT_ROBOT, HEAVY_ROBOT=HEAVY_ROBOT)

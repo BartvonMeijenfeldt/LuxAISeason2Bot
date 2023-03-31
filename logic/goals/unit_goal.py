@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from math import ceil, inf
 from copy import copy
+from functools import lru_cache
 
 from search.search import (
     Search,
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
     from objects.actors.unit import Unit
     from objects.game_state import GameState
     from objects.board import Board
+    from lux.config import UnitConfig
     from objects.actions.unit_action import UnitAction
     from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
 
@@ -127,7 +129,8 @@ class UnitGoal(Goal):
 
         return graph
 
-    def _search_graph(self, graph: Graph, start: TimeCoordinate) -> list[UnitAction]:
+    @staticmethod
+    def _search_graph(graph: Graph, start: TimeCoordinate) -> list[UnitAction]:
         search = Search(graph=graph)
         optimal_actions = search.get_actions_to_complete_goal(start=start)
         return optimal_actions
@@ -167,13 +170,6 @@ class UnitGoal(Goal):
         graph = self._get_move_to_graph(board=board, goal=goal, constraints=constraints)
         actions = self._search_graph(graph=graph, start=start_tc)
         return actions
-
-    def _unit_can_still_reach_factory(
-        self, action_plan: UnitActionPlan, game_state: GameState, constraints: Constraints
-    ) -> bool:
-        return action_plan.unit_can_add_reach_factory_to_plan(
-            game_state=game_state, constraints=constraints
-        ) or action_plan.unit_can_reach_factory_after_action_plan(game_state=game_state, constraints=constraints)
 
     def _init_action_plan(self) -> None:
         self.action_plan = UnitActionPlan(actor=self.unit)
@@ -239,15 +235,29 @@ class DigGoal(UnitGoal):
         low = 0
         high = self._get_nr_digs_in_actions(actions)
 
+        closest_factory_c = game_state.get_closest_player_factory_c(c=self.dig_c)
+        actions_back = get_actions_a_to_b(
+            self.dig_c,
+            closest_factory_c,
+            game_state,
+            self.unit.unit_type,
+            self.unit.time_to_power_cost,
+            self.unit.unit_cfg,
+        )
+        # fake_tc = TimeCoordinate(self.dig_c.x, self.dig_c.y, 0)
+        # actions_back = self._get_move_to_plan(
+        #     fake_tc, closest_factory_c, constraints=Constraints(), board=game_state.board
+        # )
+
         while low < high:
             mid = (high + low) // 2
             if mid == low:
                 mid += 1
 
             potential_actions = self._get_actions_up_to_n_digs(actions, mid)
-            potential_action_plan = self.action_plan + potential_actions
+            potential_action_plan = self.action_plan + potential_actions + actions_back
 
-            if self._unit_can_still_reach_factory(potential_action_plan, game_state, constraints):
+            if potential_action_plan.unit_has_enough_power(game_state):
                 low = mid
             else:
                 high = mid - 1
@@ -470,6 +480,23 @@ class CollectGoal(DigGoal):
         return cost, nr_steps
 
 
+@lru_cache(256)
+def get_actions_a_to_b(
+    a: Coordinate, b: Coordinate, game_state: GameState, unit_type: str, time_to_power_cost: int, unit_cfg: UnitConfig
+) -> list[UnitAction]:
+    fake_tc = TimeCoordinate(a.x, a.y, 0)
+    graph = MoveToGraph(
+        unit_type=unit_type,
+        board=game_state.board,
+        time_to_power_cost=time_to_power_cost,
+        unit_cfg=unit_cfg,
+        goal=b,
+        constraints=Constraints(),
+    )
+
+    return UnitGoal._search_graph(graph=graph, start=fake_tc)
+
+
 @dataclass
 class CollectIceGoal(CollectGoal):
     resource = Resource.ICE
@@ -545,10 +572,10 @@ class ClearRubbleGoal(DigGoal):
             board=game_state.board,
         )
 
-        potential_dig_actions = self._get_valid_actions(potential_dig_actions, game_state)
+        max_valid_digs_actions = self._get_valid_actions(potential_dig_actions, game_state)
 
         max_valid_digs_actions = self.find_max_dig_actions_can_still_reach_factory(
-            potential_dig_actions, game_state, constraints
+            max_valid_digs_actions, game_state, constraints
         )
 
         if len(max_valid_digs_actions) == 0:
@@ -573,11 +600,14 @@ class ClearRubbleGoal(DigGoal):
         return rubble_removed
 
     def _get_benefit_removing_rubble(self, rubble_removed: int, game_state: GameState) -> float:
-        distance_player_to_rubble = game_state.board.get_min_distance_to_player_factory_or_lichen(self.dig_c)
-        distance_opp_to_rubble = game_state.board.get_min_distance_to_opp_factory_or_lichen(self.dig_c)
-        delta_closer_to_player = min(distance_opp_to_rubble - distance_player_to_rubble, 5)
-        benefit_rubble_reduced = delta_closer_to_player * 1
-        bonus_clear_rubble = 20 * benefit_rubble_reduced
+        distance_player_factory_to_rubble = game_state.board.get_min_distance_to_player_factory_or_lichen(self.dig_c)
+        distance_opp_factory_to_rubble = game_state.board.get_min_distance_to_opp_factory_or_lichen(self.dig_c)
+        delta_closer_factory_to_player_mp = min(distance_opp_factory_to_rubble - distance_player_factory_to_rubble, 5)
+
+        distance_player_factory_mp = 121 - distance_player_factory_to_rubble ** 2
+
+        benefit_rubble_reduced = distance_player_factory_mp * delta_closer_factory_to_player_mp * 0.005
+        bonus_clear_rubble = 50 * benefit_rubble_reduced
 
         rubble_removed_benefit = benefit_rubble_reduced * rubble_removed
 
@@ -641,10 +671,10 @@ class DestroyLichenGoal(DigGoal):
             board=game_state.board,
         )
 
-        potential_dig_actions = self._get_valid_actions(potential_dig_actions, game_state)
+        max_valid_digs_actions = self._get_valid_actions(potential_dig_actions, game_state)
 
         max_valid_digs_actions = self.find_max_dig_actions_can_still_reach_factory(
-            potential_dig_actions, game_state, constraints
+            max_valid_digs_actions, game_state, constraints
         )
 
         if len(max_valid_digs_actions) == 0:

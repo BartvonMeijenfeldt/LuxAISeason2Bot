@@ -10,8 +10,8 @@ from lux.config import EnvConfig
 
 
 ENV_CFG = EnvConfig()
-LIGHT_CFG = ENV_CFG.ROBOTS["LIGHT"]
-HEAVY_CFG = ENV_CFG.ROBOTS["HEAVY"]
+LIGHT_CFG = ENV_CFG.LIGHT_ROBOT
+HEAVY_CFG = ENV_CFG.HEAVY_ROBOT
 
 
 class TestSortedActors(unittest.TestCase):

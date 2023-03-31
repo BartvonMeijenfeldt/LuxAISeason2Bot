@@ -1,28 +1,8 @@
 import numpy as np
-import cv2
 import random
 
-from datetime import datetime
+from itertools import count
 from luxai_s2.env import LuxAI_S2
-
-
-def animate(imgs):
-    file_name = _get_file_name()
-    height, width, _ = imgs[0].shape
-    fourcc = cv2.VideoWriter_fourcc(*'VP90')
-    video = cv2.VideoWriter(file_name, fourcc, 1, (width, height))
-
-    for img in imgs:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        video.write(img)
-
-    video.release()
-
-
-def _get_file_name() -> str:
-    datetime_now = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-    file_name = f'matches/{datetime_now}.webm'
-    return file_name
 
 
 def interact(env: LuxAI_S2, agents, nr_steps: int, seed=None):
@@ -32,42 +12,38 @@ def interact(env: LuxAI_S2, agents, nr_steps: int, seed=None):
     obs = env.reset(seed=seed)
     np.random.seed(0)
 
-    imgs = []
-    step = 0
+    setup_step = 0
 
     while env.state.real_env_steps < 0:
-        if step >= nr_steps:
-            break
-
         actions = {}
         for player in env.agents:
             o = obs[player]
-            a = agents[player].early_setup(step, o)
+            a = agents[player].early_setup(setup_step, o)
             actions[player] = a
 
-        step += 1
-        obs, _, dones, _ = env.step(actions)
-        imgs += [env.render("rgb_array", width=640, height=640)]
+        setup_step += 1
+        obs, _, _, _ = env.step(actions)
 
-    done = False
-    while not done:
-        if step >= nr_steps:
+    for step in count(start=setup_step):
+        if step >= nr_steps + setup_step:
             break
 
         actions = {}
         for player in env.agents:
             o = obs[player]
-            # if o["real_env_steps"] in [193, 195] and player == 'player_0':
+
+            # env_step = o["real_env_steps"]
+            # if env_step in [999] and player == "player_0":
             #     import cProfile
-            #     env_step = o["real_env_steps"]
-            #     cProfile.runctx("a = agents[player].act(step, o)", None, locals(), f"test_{env_step}.prof")
+
+            #     cProfile.runctx("a = agents[player].act(step, o)", None, locals(), f"prof/step_{env_step}.prof")
 
             a = agents[player].act(step, o)
             actions[player] = a
 
-        step += 1
         obs, _, dones, _ = env.step(actions)
-        imgs += [env.render("rgb_array", width=640, height=640)]
         done = dones["player_0"] and dones["player_1"]
+        if done:
+            break
 
-    return  # animate(imgs)
+    return

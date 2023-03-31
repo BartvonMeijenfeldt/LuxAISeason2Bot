@@ -13,7 +13,7 @@ from objects.direction import Direction, NUMBER_DIRECTION
 
 if TYPE_CHECKING:
     from objects.coordinate import Coordinate
-    from objects.actors.unit import UnitConfig
+    from lux.config import UnitConfig
     from objects.board import Board
 
     TCoordinate = TypeVar("TCoordinate", bound=Coordinate)

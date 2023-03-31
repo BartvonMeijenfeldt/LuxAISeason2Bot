@@ -21,7 +21,7 @@ from logic.constraints import Constraints
 from utils import PriorityQueue
 
 if TYPE_CHECKING:
-    from objects.actors.unit import UnitConfig
+    from lux.config import UnitConfig
     from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
 
 
@@ -103,6 +103,9 @@ class MoveToGraph(GoalGraph):
             self._potential_actions = [
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
+
+        if not self.constraints:
+            self._potential_actions = [MoveAction(dir) for dir in Direction if dir != Direction.CENTER]
 
     def potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
         return self._potential_actions
