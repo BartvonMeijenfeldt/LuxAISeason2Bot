@@ -107,7 +107,7 @@ class UnitActionPlan(ActionPlan):
 
     @property
     def time_coordinates(self) -> List[TimeCoordinate]:
-        if len(self.actions) == 0:
+        if self.is_empty():
             return [self.actor.tc + Direction.CENTER]
 
         simulator = ActionPlanSimulator(self, unit=self.actor)
@@ -132,8 +132,11 @@ class UnitActionPlan(ActionPlan):
     def is_valid_size(self) -> bool:
         return len(self) <= 20
 
+    def is_empty(self) -> bool:
+        return not self.original_actions
+
     def get_nr_valid_primitive_actions(self, game_state: GameState):
-        if len(self.actions) == 0:
+        if self.is_empty():
             return 0
 
         simulator = self._init_simulator()
@@ -143,7 +146,7 @@ class UnitActionPlan(ActionPlan):
         return ActionPlanSimulator(action_plan=self, unit=self.actor)
 
     def unit_has_enough_power(self, game_state: GameState) -> bool:
-        if len(self.actions) == 0:
+        if self.is_empty():
             return True
 
         simulator = self._init_simulator()

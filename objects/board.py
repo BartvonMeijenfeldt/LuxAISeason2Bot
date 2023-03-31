@@ -55,7 +55,13 @@ class Board:
                 distance_to_player_factory_tiles.reshape(self.width, self.length, -1, order="F"), axis=2
             )
 
-        self.distance_to_opp_heavies = self._get_min_dis_to_opponent_heavies()
+        self._min_distance_to_opp_heavies = self._get_min_dis_to_opponent_heavies()
+        self._min_distance_to_player_factory_or_lichen = self._get_dis_to_coordinates_array(
+            self.player_factories_or_lichen_tiles
+        )
+        self._min_distance_to_opp_factory_or_lichen = self._get_dis_to_coordinates_array(
+            self.opp_factories_or_lichen_tiles
+        )
 
     def _get_min_dis_to_opponent_heavies(self) -> np.ndarray:
         tiles_heavy = np.array([[heavy.x, heavy.y] for heavy in self.opp_heavies]).transpose()
@@ -126,10 +132,10 @@ class Board:
         return CoordinateList([Coordinate(*xy) for xy in rubble_locations])
 
     def get_min_distance_to_player_factory_or_lichen(self, c: Coordinate) -> int:
-        return self.player_factories_or_lichen_tiles.min_dis_to(c)
+        return self._min_distance_to_player_factory_or_lichen[c.x, c.y]
 
     def get_min_distance_to_opp_factory_or_lichen(self, c: Coordinate) -> int:
-        return self.opp_factories_or_lichen_tiles.min_dis_to(c)
+        return self._min_distance_to_opp_factory_or_lichen[c.x, c.y]
 
     def is_valid_c_for_player(self, c: Coordinate) -> bool:
         return not self.is_opponent_factory_tile(c=c) and self.is_on_the_board(c=c)
@@ -194,4 +200,4 @@ class Board:
         return CoordinateList(coordinates)
 
     def get_min_dis_to_opp_heavy(self, c: Coordinate) -> float:
-        return self.distance_to_opp_heavies[c.x, c.y]
+        return self._min_distance_to_opp_heavies[c.x, c.y]
