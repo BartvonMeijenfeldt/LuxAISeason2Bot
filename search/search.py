@@ -22,6 +22,7 @@ from utils import PriorityQueue
 
 if TYPE_CHECKING:
     from lux.config import UnitConfig
+    from objects.actors.factory import Factory
     from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
 
 
@@ -201,9 +202,16 @@ class PickupPowerGraph(Graph):
 class TransferResourceGraph(Graph):
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
     resource: Resource
+    factory: Optional[Factory] = field(default=None)
 
     def potential_actions(self, c: ResourcePowerTimeCoordinate) -> Generator[UnitAction, None, None]:
-        if self.board.get_min_distance_to_player_factory(c=c) <= 1:
+        if not self.factory and self.board.get_min_distance_to_any_player_factory(c=c) <= 1:
+            factory_tile = self.board.get_closest_player_factory_tile(c=c)
+            dir = c.direction_to(factory_tile)
+            transfer_action = TransferAction(direction=dir, amount=self.unit_cfg.CARGO_SPACE, resource=self.resource)
+            yield (transfer_action)
+
+        elif self.factory and self.board.get_min_distance_to_player_factory(c, self.factory.strain_id) <= 1:
             factory_tile = self.board.get_closest_player_factory_tile(c=c)
             dir = c.direction_to(factory_tile)
             transfer_action = TransferAction(direction=dir, amount=self.unit_cfg.CARGO_SPACE, resource=self.resource)
@@ -221,7 +229,11 @@ class TransferResourceGraph(Graph):
         return min_distance_cost + min_time_recharge_cost
 
     def _get_distance_heuristic(self, node: Coordinate) -> float:
-        min_nr_steps_to_factory = self.board.get_min_distance_to_player_factory(c=node)
+        if not self.factory:
+            min_nr_steps_to_factory = self.board.get_min_distance_to_any_player_factory(c=node)
+        else:
+            min_nr_steps_to_factory = self.board.get_min_distance_to_player_factory(node, self.factory.strain_id)
+
         min_nr_steps_next_to_factory = max(min_nr_steps_to_factory - 1, 0)
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
         min_distance_cost = min_nr_steps_next_to_factory * min_cost_per_step

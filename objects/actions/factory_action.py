@@ -75,9 +75,9 @@ class WaterAction(FactoryAction):
 
     @staticmethod
     def get_water_cost_from_strain_id(game_state: GameState, strain_id: int) -> int:
-        # TODO, this underestimates the cost, does not take into account the new water tiles
-        owned_lichen_tiles = (game_state.board.lichen_strains == strain_id).sum()
-        return np.ceil(owned_lichen_tiles / ENV_CFG.LICHEN_WATERING_COST_FACTOR)
+        # Might be less if you water at the same time as another factory
+        max_nr_tiles_to_water = game_state.board.get_max_nr_tiles_to_water(strain_id)
+        return np.ceil(max_nr_tiles_to_water / ENV_CFG.LICHEN_WATERING_COST_FACTOR)
 
     @staticmethod
     def to_lux_output() -> int:
