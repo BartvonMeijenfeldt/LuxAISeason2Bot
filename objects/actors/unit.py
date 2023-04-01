@@ -67,10 +67,10 @@ class Unit(Actor):
                 self._add_flee_goal(game_state)
 
         elif self.unit_type == "LIGHT":
-            self._add_rubble_goals(game_state, n=5)
-            self._add_ice_goals(game_state, n=1)
-            self._add_ore_goals(game_state, n=1)
-            self._add_destroy_lichen_goals(game_state, n=5)
+            self._add_rubble_goals(game_state, n=10)
+            self._add_ice_goals(game_state, n=2)
+            self._add_ore_goals(game_state, n=2)
+            self._add_destroy_lichen_goals(game_state, n=10)
 
         else:
             self._add_ice_goals(game_state, n=2)

@@ -367,7 +367,6 @@ class CollectGoal(DigGoal):
     factory_c: Coordinate
     quantity: Optional[int] = None
     resource: Resource = field(init=False)
-    benefit_resource: int = field(init=False)
 
     def generate_action_plan(
         self,
@@ -463,7 +462,13 @@ class CollectGoal(DigGoal):
         nr_resources_unit = self.unit.get_quantity_resource_in_cargo(self.resource)
         nr_resources_to_return = nr_resources_digged + nr_resources_unit
 
-        return self.benefit_resource * nr_resources_to_return
+        benefit_resource = self.get_benefit_resource(game_state)
+
+        return benefit_resource * nr_resources_to_return
+
+    @abstractmethod
+    def get_benefit_resource(self, game_state: GameState) -> float:
+        ...
 
     def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         min_cost_digging, max_nr_digs = self._get_min_cost_and_steps_max_nr_digs(game_state)
@@ -508,7 +513,7 @@ def get_actions_a_to_b(
 @dataclass
 class CollectIceGoal(CollectGoal):
     resource = Resource.ICE
-    benefit_resource = 10
+    benefit_resource = 40
 
     def __repr__(self) -> str:
         return f"collect_ice_[{self.dig_c}]"
@@ -517,19 +522,21 @@ class CollectIceGoal(CollectGoal):
     def key(self) -> str:
         return str(self)
 
+    def get_benefit_resource(self, game_state: GameState) -> float:
+        return self.benefit_resource
+
 
 @dataclass
 class CollectOreGoal(CollectGoal):
     resource = Resource.ORE
-    benefit_resource = 40
+    benefit_resource = 160
 
     def __repr__(self) -> str:
         return f"collect_ore_[{self.dig_c}]"
 
-    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        benefit_action_plan = super().get_benefit_action_plan(action_plan, game_state)
+    def get_benefit_resource(self, game_state: GameState) -> float:
         time_importance = 1 - game_state.real_env_steps / 950
-        return benefit_action_plan * time_importance
+        return time_importance * self.benefit_resource
 
     @property
     def key(self) -> str:
@@ -888,7 +895,7 @@ class UnitNoGoal(UnitGoal):
         return 0.0 if not self._invalidates_constraint else self.PENALTY_VIOLATING_CONSTRAINT
 
     def __repr__(self) -> str:
-        return f"No_Goal_Unit_{self.unit.unit_id}"
+        return f"No_Goal_{self.unit.unit_id}"
 
     def _get_max_benefit(self, game_state: GameState) -> float:
         return 0
@@ -946,7 +953,7 @@ class EvadeConstraintsGoal(UnitGoal):
         return 0.0
 
     def __repr__(self) -> str:
-        return f"Evade_Constraints_Unit_{self.unit.unit_id}"
+        return f"No_Goal_{self.unit.unit_id}"
 
     def _get_max_benefit(self, game_state: GameState) -> float:
         return 0
