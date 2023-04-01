@@ -27,12 +27,13 @@ if TYPE_CHECKING:
 
 
 class Agent:
-    def __init__(self, player: str, env_cfg: EnvConfig) -> None:
+    def __init__(self, player: str, env_cfg: EnvConfig, debug_mode: bool = False) -> None:
         self.player = player
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         np.random.seed(0)
         self.env_cfg: EnvConfig = env_cfg
         self.prev_steps_goals: dict[str, Goal] = {}
+        self.DEBUG_MODE = debug_mode
 
     def early_setup(self, step: int, obs, remainingOverageTime: int = 60):
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_steps_goals)
@@ -69,6 +70,9 @@ class Agent:
         self.start_time = time.time()
 
     def _is_out_of_time(self) -> bool:
+        if self.DEBUG_MODE:
+            return False
+
         is_out_of_time = self._get_time_taken() > 2.9
 
         if is_out_of_time:
@@ -101,6 +105,9 @@ class Agent:
         reserved_goals = set()
 
         for actor in actors:
+            if self._is_out_of_time():
+                break
+
             while True:
                 goals = actor_goals[actor]
                 try:

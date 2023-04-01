@@ -35,6 +35,7 @@ from logic.goals.goal import Goal
 
 if TYPE_CHECKING:
     from objects.actors.unit import Unit
+    from objects.actors.factory import Factory
     from objects.game_state import GameState
     from objects.board import Board
     from lux.config import UnitConfig
@@ -364,8 +365,8 @@ class DigGoal(UnitGoal):
 
 @dataclass
 class CollectGoal(DigGoal):
-    factory_c: Coordinate
-    quantity: Optional[int] = None
+    factory: Optional[Factory] = field(default=None)
+    # quantity: Optional[int] = None
     resource: Resource = field(init=False)
 
     def generate_action_plan(
@@ -396,9 +397,7 @@ class CollectGoal(DigGoal):
         return self.action_plan
 
     def _add_dig_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        max_nr_digs_possible = self._get_max_nr_digs_current_ptc(game_state)
-        nr_digs_to_fill_cargo = self._get_total_nr_digs_to_fill_cargo(game_state)
-        max_nr_digs = min(max_nr_digs_possible, nr_digs_to_fill_cargo)
+        max_nr_digs = self._get_max_nr_digs_current_ptc(game_state)
 
         actions_max_nr_digs = self._get_dig_plan(
             start_tc=self.action_plan.final_tc,
@@ -439,6 +438,7 @@ class CollectGoal(DigGoal):
             unit_cfg=self.unit.unit_cfg,
             constraints=constraints,
             resource=self.resource,
+            factory=self.factory
         )
 
         return graph
@@ -481,7 +481,7 @@ class CollectGoal(DigGoal):
         return min_cost, min_steps
 
     def _get_min_cost_and_steps_transfer_resource(self, game_state: GameState) -> tuple[float, int]:
-        nr_steps_to_closest_factory = game_state.board.get_min_distance_to_player_factory(self.dig_c)
+        nr_steps_to_closest_factory = game_state.board.get_min_distance_to_any_player_factory(self.dig_c)
         nr_steps_next_to_closest_factory = nr_steps_to_closest_factory - 1
         nr_steps_transfer = 1
         nr_steps = nr_steps_next_to_closest_factory + nr_steps_transfer
@@ -578,9 +578,7 @@ class ClearRubbleGoal(DigGoal):
         return self._get_nr_digs_to_clear_rubble(game_state.board)
 
     def _add_clear_rubble_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        nr_required_digs = self._get_nr_digs_to_clear_rubble(board=game_state.board)
-        max_digs_possible = self._get_max_nr_digs_current_ptc(game_state)
-        max_nr_digs = min(nr_required_digs, max_digs_possible)
+        max_nr_digs = self._get_max_nr_digs_current_ptc(game_state)
 
         potential_dig_actions = self._get_dig_plan(
             start_tc=self.action_plan.final_tc,
@@ -677,9 +675,7 @@ class DestroyLichenGoal(DigGoal):
         return self.action_plan
 
     def _add_destroy_lichen_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        nr_max_required_digs = self._get_nr_max_digs_to_destroy_lichen(game_state)
-        max_digs_possible = self._get_max_nr_digs_current_ptc(game_state)
-        max_nr_digs = min(nr_max_required_digs, max_digs_possible)
+        max_nr_digs = self._get_max_nr_digs_current_ptc(game_state)
 
         potential_dig_actions = self._get_dig_plan(
             start_tc=self.action_plan.final_tc,
@@ -824,7 +820,7 @@ class FleeGoal(UnitGoal):
         return str(self)
 
     def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
-        min_steps = game_state.board.get_min_distance_to_player_factory(self.unit.tc)
+        min_steps = game_state.board.get_min_distance_to_any_player_factory(self.unit.tc)
         min_cost = min_steps * self.unit.move_time_and_power_cost
 
         return min_cost, min_steps

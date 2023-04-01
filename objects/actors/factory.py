@@ -28,18 +28,22 @@ class Factory(Actor):
         return self.unit_id == __o.unit_id
 
     def generate_goals(self, game_state: GameState) -> GoalCollection:
+        water_cost = self.water_cost(game_state)
         goals = []
 
         if self.can_build_heavy:
             goals.append(BuildHeavyGoal(self))
 
-        if self.can_build_light:
+        elif self.can_build_light:
             goals.append(BuildLightGoal(self))
 
-        if (
+        elif self.cargo.water - water_cost > 50 and water_cost < 5:
+            goals.append(WaterGoal(self))
+
+        elif (
             game_state.env_steps > 750
             and self.can_water(game_state)
-            and self.cargo.water - self.water_cost(game_state) > game_state.steps_left
+            and self.cargo.water - water_cost > game_state.steps_left
         ):
             goals.append(WaterGoal(self))
 

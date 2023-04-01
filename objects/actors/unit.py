@@ -51,7 +51,7 @@ class Unit(Actor):
         self.resources_gained_per_dig = self.unit_cfg.DIG_RESOURCE_GAIN
         self.lichen_removed_per_dig = self.unit_cfg.DIG_LICHEN_REMOVED
         self.has_actions_in_queue = len(self.action_queue) > 0
-        self.agent_id = "player_0" if self.team_id == 0 else "player_1"
+        self.agent_id = f"player_{self.team_id}"
 
     def generate_goals(self, game_state: GameState) -> GoalCollection:
         goals = self._generate_goals(game_state)
@@ -68,12 +68,19 @@ class Unit(Actor):
 
         elif self.unit_type == "LIGHT":
             self._add_rubble_goals(game_state, n=10)
-            self._add_ice_goals(game_state, n=2)
-            self._add_ore_goals(game_state, n=2)
-            self._add_destroy_lichen_goals(game_state, n=10)
+
+            if game_state.real_env_steps > 50:
+                self._add_ice_goals(game_state, n=2)
+                self._add_ore_goals(game_state, n=2)
+
+            if game_state.real_env_steps > 500:
+                self._add_destroy_lichen_goals(game_state, n=10)
 
         else:
-            self._add_ice_goals(game_state, n=2)
+            self._add_ice_goals(game_state, n=2, closest_factory_to_ice=False)
+
+            # if game_state.real_env_steps > 20:
+            #     self._add_ore_goals(game_state, n=2)
 
         self._add_dummy_goals()
 
@@ -108,30 +115,33 @@ class Unit(Actor):
 
         self.goals.extend(rubble_goals)
 
-    def _add_ice_goals(self, game_state: GameState, n: int) -> None:
+    def _add_ice_goals(self, game_state: GameState, n: int, closest_factory_to_ice: bool = True) -> None:
         closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=n)
-        ice_goals = [
-            CollectIceGoal(
-                unit=self,
-                pickup_power=pickup_power,
-                dig_c=ice_tile,
-                factory_c=game_state.get_closest_player_factory_c(c=ice_tile),
-            )
-            for ice_tile in closest_ice_tiles
-            for pickup_power in [False, True]
-        ]
+
+        if closest_factory_to_ice:
+            ice_goals = [
+                CollectIceGoal(unit=self, pickup_power=pickup_power, dig_c=ice_tile)
+                for ice_tile in closest_ice_tiles
+                for pickup_power in [False, True]
+            ]
+        else:
+            ice_goals = [
+                CollectIceGoal(
+                    unit=self,
+                    pickup_power=pickup_power,
+                    dig_c=ice_tile,
+                    factory=game_state.get_closest_player_factory(c=self.tc),
+                )
+                for ice_tile in closest_ice_tiles
+                for pickup_power in [False, True]
+            ]
 
         self.goals.extend(ice_goals)
 
     def _add_ore_goals(self, game_state: GameState, n: int) -> None:
         closest_ore_tiles = game_state.get_n_closest_ore_tiles(c=self.tc, n=n)
         ice_goals = [
-            CollectOreGoal(
-                unit=self,
-                pickup_power=pickup_power,
-                dig_c=ore_tile,
-                factory_c=game_state.get_closest_player_factory_c(c=ore_tile),
-            )
+            CollectOreGoal(unit=self, pickup_power=pickup_power, dig_c=ore_tile)
             for ore_tile in closest_ore_tiles
             for pickup_power in [False, True]
         ]

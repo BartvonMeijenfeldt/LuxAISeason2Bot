@@ -115,7 +115,7 @@ class TestMinDistancesPlayerFactory(unittest.TestCase):
         state = get_state(board_width=9, factory_positions=factory_positions)
         board = state.board
 
-        distance = board.get_min_distance_to_player_factory(c)
+        distance = board.get_min_distance_to_any_player_factory(c)
 
         self.assertEqual(expected_distance, distance)
 
@@ -127,7 +127,7 @@ class TestMinDistancesPlayerFactory(unittest.TestCase):
         state = get_state(board_width=12, factory_positions=factory_positions)
         board = state.board
 
-        distance = board.get_min_distance_to_player_factory(c)
+        distance = board.get_min_distance_to_any_player_factory(c)
 
         self.assertEqual(expected_distance, distance)
 
@@ -139,7 +139,7 @@ class TestMinDistancesPlayerFactory(unittest.TestCase):
         state = get_state(board_width=12, factory_positions=factory_positions)
         board = state.board
 
-        distance = board.get_min_distance_to_player_factory(c)
+        distance = board.get_min_distance_to_any_player_factory(c)
 
         self.assertEqual(expected_distance, distance)
 
@@ -151,7 +151,7 @@ class TestMinDistancesPlayerFactory(unittest.TestCase):
         state = get_state(board_width=12, factory_positions=factory_positions)
         board = state.board
 
-        distance = board.get_min_distance_to_player_factory(c)
+        distance = board.get_min_distance_to_any_player_factory(c)
 
         self.assertEqual(expected_distance, distance)
 
@@ -163,7 +163,7 @@ class TestMinDistancesPlayerFactory(unittest.TestCase):
         state = get_state(board_width=12, factory_positions=factory_positions)
         board = state.board
 
-        distance = board.get_min_distance_to_player_factory(c)
+        distance = board.get_min_distance_to_any_player_factory(c)
 
         self.assertEqual(expected_distance, distance)
 
@@ -175,7 +175,7 @@ class TestMinDistancesPlayerFactory(unittest.TestCase):
         state = get_state(board_width=12, factory_positions=factory_positions)
         board = state.board
 
-        distance = board.get_min_distance_to_player_factory(c)
+        distance = board.get_min_distance_to_any_player_factory(c)
 
         self.assertEqual(expected_distance, distance)
 
