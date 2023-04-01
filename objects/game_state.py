@@ -115,5 +115,8 @@ class GameState:
     def get_n_closest_ice_tiles(self, c: Coordinate, n: int) -> CoordinateList:
         return self.board.get_n_closest_ice_tiles(c=c, n=n)
 
+    def get_n_closest_ore_tiles(self, c: Coordinate, n: int) -> CoordinateList:
+        return self.board.get_n_closest_ore_tiles(c=c, n=n)
+
     def get_dis_to_closest_opp_heavy(self, c: Coordinate) -> float:
         return self.board.get_min_dis_to_opp_heavy(c=c)

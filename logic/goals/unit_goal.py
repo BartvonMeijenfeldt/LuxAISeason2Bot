@@ -847,9 +847,7 @@ class ActionQueueGoal(UnitGoal):
         if self.unit.is_under_threath(game_state) and action_plan.actions[0].is_stationary:
             return -1000
 
-        return 1_000_000
-
-        return self.goal.get_benefit_action_plan(self.action_plan, game_state)
+        return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
 
     @property
     def key(self) -> str:
@@ -866,8 +864,7 @@ class ActionQueueGoal(UnitGoal):
         if self.unit.is_under_threath(game_state) and self.action_plan.actions[0].is_stationary:
             return -1000
 
-        return 1_000_000
-        return self.goal.get_benefit_action_plan(self.action_plan, game_state)
+        return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
 
 
 class UnitNoGoal(UnitGoal):

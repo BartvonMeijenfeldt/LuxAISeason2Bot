@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 from scipy.optimize import linear_sum_assignment
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 from objects.actors.actor import Actor
 from objects.game_state import GameState
@@ -11,9 +11,9 @@ from logic.goals.goal import Goal, GoalCollection
 
 def resolve_goal_conflicts(
     goal_collections: Dict[Actor, GoalCollection], cost_matrix: pd.DataFrame
-) -> Dict[Actor, Goal]:
+) -> Dict[Actor, List[Goal]]:
     if not goal_collections:
-        return []
+        return {}
 
     actor_keys_goals_keys = _solve_sum_assigment_problem(cost_matrix)
     actor_goals = _get_actor_goals(actor_goal_collections=goal_collections, actor_keys_goals_keys=actor_keys_goals_keys)
@@ -42,8 +42,8 @@ def _solve_sum_assigment_problem(cost_matrix: pd.DataFrame) -> Dict[str, str]:
 
 def _get_actor_goals(
     actor_goal_collections: Dict[Actor, GoalCollection], actor_keys_goals_keys: Dict[str, str]
-) -> Dict[Actor, Goal]:
+) -> Dict[Actor, List[Goal]]:
     return {
-        actor: goal_collection.get_goal(goal)
+        actor: goal_collection.get_goals(goal)
         for goal, (actor, goal_collection) in zip(actor_keys_goals_keys.values(), actor_goal_collections.items())
     }

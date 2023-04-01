@@ -69,7 +69,12 @@ class Agent:
         self.start_time = time.time()
 
     def _is_out_of_time(self) -> bool:
-        return self._get_time_taken() > 2.9
+        is_out_of_time = self._get_time_taken() > 2.9
+
+        if is_out_of_time:
+            logging.critical("RAN OUT OF TIME")
+
+        return is_out_of_time
 
     def _get_time_taken(self) -> float:
         return time.time() - self.start_time
@@ -96,17 +101,21 @@ class Agent:
         reserved_goals = set()
 
         for actor in actors:
-            if self._is_out_of_time():
-                break
+            # if self._is_out_of_time():
+            #     break
 
-            goal = actor_goals[actor]
-            goal.generate_and_evaluate_action_plan(game_state, constraints, power_tracker)
+            # goal.generate_and_evaluate_action_plan(game_state, constraints, power_tracker)
 
-            while not goal.is_valid:
-                cost_matrix.loc[actor.unit_id, cost_matrix.columns == goal.key] = np.inf
+            while True:
+                goals = actor_goals[actor]
+                try:
+                    goal = actor.get_best_goal(goals, game_state, constraints, power_tracker)
+                    break
+                except RuntimeError:
+                    pass
+
+                cost_matrix.loc[actor.unit_id, cost_matrix.columns == goals[0].key] = np.inf
                 actor_goals = resolve_goal_conflicts(goal_collections, cost_matrix)
-                goal = actor_goals[actor]
-                goal.generate_and_evaluate_action_plan(game_state, constraints, power_tracker)
 
             cost_matrix.loc[actor.unit_id, cost_matrix.columns != goal.key] = np.inf
 

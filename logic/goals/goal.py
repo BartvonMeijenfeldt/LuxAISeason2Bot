@@ -88,22 +88,23 @@ class Goal(metaclass=ABCMeta):
 
 class GoalCollection:
     def __init__(self, goals: Sequence[Goal]) -> None:
-        self.goals_dict = {goal.key: goal for goal in goals}
+        self.goals_dict: dict[str, list[Goal]] = defaultdict(list)
+
+        for goal in goals:
+            self.goals_dict[goal.key].append(goal)
 
     def __iter__(self):
         return iter(self.goals_dict.values())
 
-    def get_goal(self, key: str) -> Goal:
+    def get_goals(self, key: str) -> list[Goal]:
         return self.goals_dict[key]
-
-    def get_keys(self) -> set[str]:
-        return {key for key, goal in self.goals_dict.items() if goal.is_valid}
 
     def get_key_best_values(self, game_state: GameState) -> dict[str, float]:
         key_best_values = defaultdict(lambda: -np.inf)
-        for key, goal in self.goals_dict.items():
-            best_value = goal.get_best_value_per_step(game_state)
-            if key_best_values[key] < best_value:
-                key_best_values[key] = best_value
+        for key, goals in self.goals_dict.items():
+            for goal in goals:
+                best_value = goal.get_best_value_per_step(game_state)
+                if key_best_values[key] < best_value:
+                    key_best_values[key] = best_value
 
         return key_best_values

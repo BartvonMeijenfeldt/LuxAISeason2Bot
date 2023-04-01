@@ -23,7 +23,7 @@ class Actor(metaclass=ABCMeta):
     # TODO should remove the action_queu_goal here and let it automatically be generated in generate goals
     def get_best_goal(
         self,
-        goals: GoalCollection,
+        goals: list[Goal],
         game_state: GameState,
         constraints: Constraints,
         factory_power_availability_tracker: PowerAvailabilityTracker,
@@ -48,7 +48,7 @@ class Actor(metaclass=ABCMeta):
         raise RuntimeError("No best goal was found")
 
     def _init_priority_queue(
-        self, goals: GoalCollection, reserved_goals: Set[str], game_state: GameState
+        self, goals: list[Goal], reserved_goals: Set[str], game_state: GameState
     ) -> PriorityQueue:
         goals_priority_queue = PriorityQueue()
 
@@ -61,10 +61,6 @@ class Actor(metaclass=ABCMeta):
             goals_priority_queue.put(goal, priority)
 
         return goals_priority_queue
-
-    @abstractmethod
-    def _get_do_nothing_goals(self) -> list[Goal]:
-        ...
 
     @abstractmethod
     def generate_goals(self, game_state: GameState) -> GoalCollection:

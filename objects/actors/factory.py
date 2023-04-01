@@ -43,10 +43,10 @@ class Factory(Actor):
         ):
             goals.append(WaterGoal(self))
 
-        goals += self._get_do_nothing_goals()
+        goals += self._get_dummy_goals()
         return GoalCollection(goals)
 
-    def _get_do_nothing_goals(self) -> list[FactoryGoal]:
+    def _get_dummy_goals(self) -> list[FactoryGoal]:
         return [FactoryNoGoal(self)]
 
     def get_expected_power_available(self, n=50) -> np.ndarray:

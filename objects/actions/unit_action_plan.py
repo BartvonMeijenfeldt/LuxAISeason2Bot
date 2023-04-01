@@ -115,7 +115,7 @@ class UnitActionPlan(ActionPlan):
 
     def get_power_used(self, board: Board) -> float:
         cur_c = self.actor.tc
-        total_power = self.actor.unit_cfg.ACTION_QUEUE_POWER_COST
+        total_power = self.actor.unit_cfg.ACTION_QUEUE_POWER_COST if not self.is_set else 0
 
         for action in self.actions:
             power_action = action.get_power_change(unit_cfg=self.actor.unit_cfg, start_c=cur_c, board=board)
