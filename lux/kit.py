@@ -12,7 +12,7 @@ from objects.board import Board
 from objects.coordinate import TimeCoordinate
 from objects.actors.factory import Factory
 from objects.actions.unit_action import UnitAction
-from logic.goals.unit_goal import UnitGoal
+from logic.goals.unit_goal import Goal
 
 
 def process_action(action):
@@ -71,7 +71,7 @@ def process_obs(player, game_state, step, obs):
     return game_state
 
 
-def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str, prev_steps_goals: Dict[str, UnitGoal]):
+def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str, prev_steps_goals: Dict[str, Goal]):
     units = create_units(obs=obs, env_cfg=env_cfg, t=obs['real_env_steps'], prev_step_goals=prev_steps_goals)
     factories = create_factories(obs=obs, env_cfg=env_cfg, t=obs['real_env_steps'])
     factory_occupancy_map = create_factory_occupancy_map(factories, obs["board"]["rubble"].shape)
@@ -103,7 +103,7 @@ def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str, prev
     )
 
 
-def create_units(obs, env_cfg: EnvConfig, t: int, prev_step_goals: Dict[str, UnitGoal]) -> Dict[str, List[Unit]]:
+def create_units(obs, env_cfg: EnvConfig, t: int, prev_step_goals: Dict[str, Goal]) -> Dict[str, List[Unit]]:
     units = defaultdict(list)
 
     for agent in obs["units"]:

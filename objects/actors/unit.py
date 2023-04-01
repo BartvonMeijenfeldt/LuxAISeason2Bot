@@ -10,6 +10,7 @@ from objects.game_state import GameState
 from objects.resource import Resource
 from objects.actions.unit_action import UnitAction
 from objects.actions.unit_action_plan import UnitActionPlan
+from logic.goals.goal import GoalCollection
 from logic.goals.unit_goal import (
     UnitGoal,
     DigGoal,
@@ -52,84 +53,103 @@ class Unit(Actor):
         self.has_actions_in_queue = len(self.action_queue) > 0
         self.agent_id = "player_0" if self.team_id == 0 else "player_1"
 
-    def generate_goals(self, game_state: GameState) -> List[UnitGoal]:
+    def generate_goals(self, game_state: GameState) -> GoalCollection:
         goals = self._generate_goals(game_state)
         goals = self._filter_goals(goals, game_state)
-        return goals
+        return GoalCollection(goals)
 
     def _generate_goals(self, game_state: GameState) -> List[UnitGoal]:
+        self._init_goals()
+
         if self.action_queue:
-            if not self.prev_step_goal:
-                raise RuntimeError()
-
-            action_plan = UnitActionPlan(original_actions=self.action_queue, actor=self, is_set=True)
-            action_queue_goal = ActionQueueGoal(unit=self, action_plan=action_plan, goal=self.prev_step_goal)
-            goals = [action_queue_goal]
-
+            self._add_action_queue_goal()
             if self.is_under_threath(game_state) and self.next_step_is_stationary():
-                # TODO, this should be getting all threatening opponents and the flee goal should be adapted to
-                # take multiple opponents into account
-                neighboring_opponents = self._get_neighboring_opponents(game_state)
-                randomly_picked_neighboring_opponent = neighboring_opponents[0]
-                flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
-                goals.append(flee_goal)
+                self._add_flee_goal(game_state)
 
-        elif self.unit_type == "HEAVY":
-            targets_ice_c = game_state.get_n_closest_ice_tiles(c=self.tc, n=2)
-            goals = []
-            for target_ice_c in targets_ice_c:
-                for pickup_power in [False, True]:
-                    target_factory_c = game_state.get_closest_player_factory_c(c=target_ice_c)
-                    goals.append(
-                        CollectIceGoal(
-                            unit=self, pickup_power=pickup_power, dig_c=target_ice_c, factory_c=target_factory_c
-                        )
-                    )
+        elif self.unit_type == "LIGHT":
+            self._add_rubble_goals(game_state, n=10)
+            self._add_ice_goals(game_state, n=2)
+            self._add_ore_goals(game_state, n=2)
+            self._add_destroy_lichen_goals(game_state, n=10)
+
         else:
-            closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=5)
+            self._add_ice_goals(game_state, n=2)
 
-            goals = [
-                ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=rubble_tile)
-                for rubble_tile in closest_rubble_tiles
-                for pickup_power in [False, True]
-            ]
+        self._add_dummy_goals()
 
-            closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=1)
-            ice_goals = [
-                CollectIceGoal(
-                    unit=self,
-                    pickup_power=pickup_power,
-                    dig_c=ice_tile,
-                    factory_c=game_state.get_closest_player_factory_c(c=ice_tile),
-                )
-                for ice_tile in closest_ice_tiles
-                for pickup_power in [False, True]
-            ]
+        return self.goals
 
-            goals.extend(ice_goals)
+    def _init_goals(self) -> None:
+        self.goals = []
 
-            closest_lichen_tiles = game_state.get_n_closest_opp_lichen_tiles(c=self.tc, n=5)
+    def _add_action_queue_goal(self) -> None:
+        if not self.prev_step_goal:
+            raise RuntimeError()
 
-            destroy_lichen_goals = [
-                DestroyLichenGoal(unit=self, pickup_power=pickup_power, dig_c=lichen_tile)
-                for lichen_tile in closest_lichen_tiles
-                for pickup_power in [False, True]
-            ]
-            goals.extend(destroy_lichen_goals)
+        action_plan = UnitActionPlan(original_actions=self.action_queue, actor=self, is_set=True)
+        action_queue_goal = ActionQueueGoal(unit=self, action_plan=action_plan, goal=self.prev_step_goal)
+        self.goals.append(action_queue_goal)
 
-            target_ore_c = game_state.get_closest_ore_tile(c=self.tc)
-            target_factory_c = game_state.get_closest_player_factory_c(c=target_ore_c)
+    def _add_flee_goal(self, game_state: GameState) -> None:
+        # TODO, this should be getting all threatening opponents and the flee goal should be adapted to
+        # take multiple opponents into account
+        neighboring_opponents = self._get_neighboring_opponents(game_state)
+        randomly_picked_neighboring_opponent = neighboring_opponents[0]
+        flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
+        self.goals.append(flee_goal)
 
-            for pickup_power in [False, True]:
-                collect_ore_goal = CollectOreGoal(
-                    unit=self, pickup_power=pickup_power, dig_c=target_ore_c, factory_c=target_factory_c
-                )
-                goals.append(collect_ore_goal)
+    def _add_rubble_goals(self, game_state: GameState, n: int) -> None:
+        closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=n)
+        rubble_goals = [
+            ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=rubble_tile)
+            for rubble_tile in closest_rubble_tiles
+            for pickup_power in [False, True]
+        ]
 
-        goals += [UnitNoGoal(unit=self)]
-        goals += [EvadeConstraintsGoal(unit=self)]
+        self.goals.extend(rubble_goals)
 
-        return goals
+    def _add_ice_goals(self, game_state: GameState, n: int) -> None:
+        closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=n)
+        ice_goals = [
+            CollectIceGoal(
+                unit=self,
+                pickup_power=pickup_power,
+                dig_c=ice_tile,
+                factory_c=game_state.get_closest_player_factory_c(c=ice_tile),
+            )
+            for ice_tile in closest_ice_tiles
+            for pickup_power in [False, True]
+        ]
+
+        self.goals.extend(ice_goals)
+
+    def _add_ore_goals(self, game_state: GameState, n: int) -> None:
+        closest_ore_tiles = game_state.get_n_closest_ore_tiles(c=self.tc, n=n)
+        ice_goals = [
+            CollectOreGoal(
+                unit=self,
+                pickup_power=pickup_power,
+                dig_c=ore_tile,
+                factory_c=game_state.get_closest_player_factory_c(c=ore_tile),
+            )
+            for ore_tile in closest_ore_tiles
+            for pickup_power in [False, True]
+        ]
+
+        self.goals.extend(ice_goals)
+
+    def _add_destroy_lichen_goals(self, game_state: GameState, n: int) -> None:
+        closest_lichen_tiles = game_state.get_n_closest_opp_lichen_tiles(c=self.tc, n=n)
+        destroy_lichen_goals = [
+            DestroyLichenGoal(unit=self, pickup_power=pickup_power, dig_c=lichen_tile)
+            for lichen_tile in closest_lichen_tiles
+            for pickup_power in [False, True]
+        ]
+        self.goals.extend(destroy_lichen_goals)
+
+    def _add_dummy_goals(self) -> None:
+        none_goals = [UnitNoGoal(self), EvadeConstraintsGoal(self)]
+        self.goals.extend(none_goals)
 
     def _filter_goals(self, goals: Sequence[UnitGoal], game_state: GameState) -> List[UnitGoal]:
         return [

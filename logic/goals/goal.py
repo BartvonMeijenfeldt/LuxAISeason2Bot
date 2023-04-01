@@ -1,9 +1,11 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+import numpy as np
 
+from typing import TYPE_CHECKING, Sequence
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 
+from collections import defaultdict
 from objects.actions.action_plan import ActionPlan
 from objects.actions.unit_action_plan import UnitActionPlan
 from logic.constraints import Constraints
@@ -84,20 +86,25 @@ class Goal(metaclass=ABCMeta):
         self._is_valid = not constraints.any_tc_violates_constraint(self.action_plan.time_coordinates)
 
 
-# class GoalCollection:
-#     def __init__(self, goals: Sequence[Goal]) -> None:
-#         self.goals_dict = {goal.key: goal for goal in goals}
+class GoalCollection:
+    def __init__(self, goals: Sequence[Goal]) -> None:
+        self.goals_dict: dict[str, list[Goal]] = defaultdict(list)
 
-#     def generate_and_evaluate_action_plans(self, game_state: GameState, constraints: Constraints) -> None:
-#         for goal in self.goals_dict.values():
-#             goal.generate_and_evaluate_action_plan(game_state=game_state, constraints=constraints)
+        for goal in goals:
+            self.goals_dict[goal.key].append(goal)
 
-#     def get_goal(self, key: str) -> Goal:
-#         return self.goals_dict[key]
+    def __iter__(self):
+        return iter(self.goals_dict.values())
 
-#     def get_keys(self) -> set[str]:
-#         return {key for key, goal in self.goals_dict.items() if goal.is_valid}
+    def get_goals(self, key: str) -> list[Goal]:
+        return self.goals_dict[key]
 
-#     def get_key_values(self, game_state: GameState, constraints: Constraints) -> dict[str, float]:
-#         self.generate_and_evaluate_action_plans(game_state=game_state, constraints=constraints)
-#         return {key: goal.value for key, goal in self.goals_dict.items() if goal.is_valid}
+    def get_key_best_values(self, game_state: GameState) -> dict[str, float]:
+        key_best_values = defaultdict(lambda: -np.inf)
+        for key, goals in self.goals_dict.items():
+            for goal in goals:
+                best_value = goal.get_best_value_per_step(game_state)
+                if key_best_values[key] < best_value:
+                    key_best_values[key] = best_value
+
+        return key_best_values
