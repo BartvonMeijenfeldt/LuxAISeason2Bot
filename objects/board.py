@@ -47,8 +47,11 @@ class Board:
 
         self.player_factory_tiles_set = {c.xy for factory in self.player_factories for c in factory.coordinates}
         self.opp_factory_tiles_set = {c.xy for factory in self.opp_factories for c in factory.coordinates}
+        self.player_lights = [light for light in self.player_units if light.unit_type == "LIGHT"]
+        self.nr_player_lights = len(self.player_lights)
+        self.player_heavies = [heavy for heavy in self.player_units if heavy.unit_type == "HEAVY"]
         self.opp_lights = [light for light in self.opp_units if light.unit_type == "LIGHT"]
-        self.opp_heavies = [light for light in self.opp_units if light.unit_type == "HEAVY"]
+        self.opp_heavies = [heavy for heavy in self.opp_units if heavy.unit_type == "HEAVY"]
 
         valid_tiles_set = {(x, y) for x in range(self.size) for y in range(self.size)}
         self.valid_tiles_set = valid_tiles_set - self.opp_factory_tiles_set
