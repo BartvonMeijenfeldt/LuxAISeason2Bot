@@ -1,28 +1,23 @@
 import numpy as np
 
 from scipy.signal import convolve2d
+from scipy.ndimage.filters import minimum_filter
 
-
+from objects.board import Board
 from objects.coordinate import Coordinate, CoordinateList
 
 
-def get_factory_spawn_loc(obs: dict) -> tuple:
-    rubble_score = get_rubble_score(obs["board"]["rubble"], obs["factories"]["player_0"], obs["factories"]["player_1"])
-    ice_score = get_ice_score(obs["board"]["ice"])
-    ore_score = get_ore_score(obs["board"]["ore"])
-    scores = get_scores(rubble_score, ice_score, ore_score, valid_spawns=obs["board"]["valid_spawns_mask"])
+def get_factory_spawn_loc(board: Board, valid_spawns: np.ndarray) -> tuple:
+    rubble_score = get_rubble_score(board)
+    ice_score = get_ice_score(board)
+    ore_score = get_ore_score(board)
+    scores = get_scores(rubble_score, ice_score, ore_score, valid_spawns=valid_spawns)
     spawn_loc = get_coordinate_biggest(scores)
     return spawn_loc
 
 
-def get_rubble_score(rubble: np.ndarray, factories_player_0: dict, factories_player_1: dict) -> np.ndarray:
-    rubble = rubble.copy()
-    for factories_player in [factories_player_0, factories_player_1]:
-        for factory in factories_player.values():
-            x, y = factory["pos"]
-            #rubble[x - 1: x + 2, y - 1: y + 2] = 100
-
-    neighbouring_inverted_rubble = sum_neighbouring_inverted_rubble(rubble)
+def get_rubble_score(board: Board) -> np.ndarray:
+    neighbouring_inverted_rubble = sum_neighbouring_inverted_rubble(board.rubble)
     rubble_score = neighbouring_inverted_rubble / 100000
     return rubble_score
 
@@ -30,21 +25,51 @@ def get_rubble_score(rubble: np.ndarray, factories_player_0: dict, factories_pla
 def sum_neighbouring_inverted_rubble(rubble: np.ndarray) -> np.ndarray:
     inverted_rubble = 100 - rubble
     neighbouring_inverted_rubble = sum_closest_numbers(inverted_rubble, r=5)
-    return neighbouring_inverted_rubble
+    directly_neighbouring_inverted_rubble = sum_closest_numbers(inverted_rubble, r=1)
+
+    # TODO bonus connected / easy to connect?
+    return neighbouring_inverted_rubble + 100 * directly_neighbouring_inverted_rubble
 
 
-def get_ice_score(ice: np.ndarray) -> np.ndarray:
-    ice_surrounding = sum_closest_numbers(ice, r=1)
-    ice_surrounding = np.clip(ice_surrounding, a_min=0, a_max=1)
-    ice_score = ice_surrounding * 10000
-    return ice_score
+def get_ice_score(board: Board) -> np.ndarray:
+    tiles_array = board._get_tiles_xy_array()
+    min_distances = _get_min_distances_placing_factory_to_positions(tiles_array, board.ice_positions)
+    base_scores = get_base_scores(min_distances, base_score=20, max_distance=10, best_n_valid=4)
+    direct_neighbor_bonus = get_direct_neighbor_bonus(min_distances, bonus=300)
+    return base_scores + direct_neighbor_bonus
 
 
-def get_ore_score(ore: np.ndarray) -> np.ndarray:
-    ore_surrounding = sum_closest_numbers(ore, r=1)
-    ore_surrounding = np.clip(ore_surrounding, a_min=0, a_max=1)
-    ore_score = ore_surrounding * 1000
-    return ore_score
+def get_base_scores(min_distances: np.ndarray, base_score: int, max_distance: int, best_n_valid: int) -> np.ndarray:
+    min_distances = min_distances.astype("float")
+    base_array = np.array([base_score])
+    valid_mask = (min_distances != 0) & (min_distances <= max_distance)
+    scores = np.divide(base_array, min_distances, out=np.zeros_like(min_distances), where=valid_mask)
+    best_n_scores = np.partition(scores, -best_n_valid, axis=2)[:, :, -best_n_valid:]
+    base_scores = best_n_scores.sum(axis=2)
+    return base_scores
+
+
+def get_direct_neighbor_bonus(min_distances: np.ndarray, bonus: int) -> np.ndarray:
+    has_direct_neighbor = min_distances.min(axis=2) == 1
+    return bonus * has_direct_neighbor
+
+
+def _get_min_distances_placing_factory_to_positions(tiles_array: np.ndarray, positions: np.ndarray) -> np.ndarray:
+    positions = positions.transpose()
+    diff = tiles_array[..., None] - positions[None, None, ...]
+    abs_dis = np.abs(diff)
+    distances = np.sum(abs_dis, axis=2)
+
+    f = np.ones((3, 3, 1))
+    min_distances = minimum_filter(distances, footprint=f)
+    return min_distances
+
+
+def get_ore_score(board: Board) -> np.ndarray:
+    tiles_array = board._get_tiles_xy_array()
+    min_distances = _get_min_distances_placing_factory_to_positions(tiles_array, board.ore_positions)
+    base_scores = get_base_scores(min_distances, base_score=40, max_distance=10, best_n_valid=5)
+    return base_scores
 
 
 def sum_closest_numbers(x: np.ndarray, r: int) -> np.ndarray:
@@ -88,8 +113,9 @@ def _convert_min_distance_to_conv_filter(distance_array: np.ndarray, r: int) -> 
     return np.where(between_0_and_r, 1, 0)
 
 
-def get_scores(rubble_score: np.ndarray, ice_score: np.ndarray, ore_score: np.ndarray, valid_spawns: np.ndarray
-               ) -> np.ndarray:
+def get_scores(
+    rubble_score: np.ndarray, ice_score: np.ndarray, ore_score: np.ndarray, valid_spawns: np.ndarray
+) -> np.ndarray:
     score = rubble_score + ice_score + ore_score
     score = zero_invalid_spawns(score, valid_spawns)
     return score

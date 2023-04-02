@@ -129,7 +129,7 @@ class Board:
     def _get_dis_to_player_factory_tiles_array(self) -> np.ndarray:
         tiles_xy = self._get_tiles_xy_array()
         player_factory_tiles_xy = self._get_player_factory_tiles_array()
-        return self._get_manhattan_distance_tiles_factories(tiles_xy, player_factory_tiles_xy)
+        return self._get_distance_tiles_factories(tiles_xy, player_factory_tiles_xy)
 
     def _get_tiles_xy_array(self) -> np.ndarray:
         """dimensions of (x: size, y: size, xy: 2)"""
@@ -143,10 +143,9 @@ class Board:
         factory_tiles_pos = np.array([[[c.x, c.y] for c in factory.coordinates] for factory in self.player_factories])
         return factory_tiles_pos.transpose()
 
-    def _get_manhattan_distance_tiles_factories(
+    def _get_distance_tiles_factories(
         self, tiles_xy: np.ndarray, player_factories_xy: np.ndarray
     ) -> np.ndarray:
-
         diff = tiles_xy[..., None, None] - player_factories_xy[None, None, ...]
         abs_dis = np.abs(diff)
         return np.sum(abs_dis, axis=2)

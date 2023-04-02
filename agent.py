@@ -42,7 +42,7 @@ class Agent:
             return dict(faction="AlphaStrike", bid=0)
         else:
             if is_my_turn_to_place_factory(game_state, step):
-                spawn_loc = get_factory_spawn_loc(obs)
+                spawn_loc = get_factory_spawn_loc(game_state.board, obs["board"]["valid_spawns_mask"])
                 return dict(spawn=spawn_loc, metal=150, water=150)
             return dict()
 
