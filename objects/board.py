@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from objects.coordinate import Coordinate, CoordinateList
 from image_processing import get_islands
 from positions import init_empty_positions
+from distances import get_distances_between_pos_and_positions
 
 if TYPE_CHECKING:
     from objects.actors.unit import Unit
@@ -45,7 +46,8 @@ class Board:
         for factory in self.player_factories:
             factory.set_positions(self)
 
-        self.rubble_to_remove_positions_set = self._get_rubble_to_remove_positions_set()
+        self.rubble_to_remove_positions = self._get_rubble_to_remove_positions()
+        self.rubble_to_remove_positions_set = set(map(tuple, self.rubble_to_remove_positions))
 
         self.player_factory_tiles = self._get_factory_tiles(self.player_factories)
         self.opp_factory_tiles = self._get_factory_tiles(self.opp_factories)
@@ -73,13 +75,18 @@ class Board:
             self.opp_factories_or_lichen_tiles
         )
 
-    def _get_rubble_to_remove_positions_set(self) -> set:
+    def _get_rubble_to_remove_positions(self) -> np.ndarray:
         rubble_to_remove_positions = init_empty_positions()
         for factory in self.player_factories:
             positions = factory.rubble_positions_to_clear
             rubble_to_remove_positions = np.append(rubble_to_remove_positions, positions, axis=0)
 
-        return set(map(tuple, rubble_to_remove_positions))
+        return rubble_to_remove_positions
+
+    def get_rubble_to_remove_positions(self, c: Coordinate, max_distance: int) -> np.ndarray:
+        pos = np.array(c.xy)
+        distances = get_distances_between_pos_and_positions(pos, self.rubble_to_remove_positions)
+        return self.rubble_to_remove_positions[distances <= max_distance]
 
     def is_rubble_to_remove_c(self, c: Coordinate) -> bool:
         return c.xy in self.rubble_to_remove_positions_set

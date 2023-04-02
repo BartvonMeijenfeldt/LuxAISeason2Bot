@@ -36,6 +36,13 @@ def get_distance_between_pos_and_pos(a: np.ndarray, b: np.ndarray) -> int:
     return distance
 
 
+def get_distances_between_pos_and_positions(pos: np.ndarray, positions: np.ndarray) -> np.ndarray:
+    diff = np.subtract(pos, positions)
+    abs_diff = np.abs(diff)
+    distances = np.sum(abs_diff, axis=1)
+    return distances
+
+
 def get_positions_on_optimal_path_between_pos_and_pos(a: np.ndarray, b: np.ndarray, board) -> np.ndarray:
     start = Coordinate(a[0], a[1])
     goal = Coordinate(b[0], b[1])

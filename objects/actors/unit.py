@@ -5,7 +5,7 @@ from math import ceil
 
 from objects.actors.actor import Actor
 from lux.config import UnitConfig
-from objects.coordinate import TimeCoordinate
+from objects.coordinate import TimeCoordinate, Coordinate
 from objects.game_state import GameState
 from objects.resource import Resource
 from objects.actions.unit_action import UnitAction
@@ -67,10 +67,8 @@ class Unit(Actor):
                 self._add_flee_goal(game_state)
 
         elif self.unit_type == "LIGHT":
-            if game_state.real_env_steps < 80:
-                self._add_rubble_goals(game_state, n=100)
-            else:
-                self._add_rubble_goals(game_state, n=10)
+            self._add_factory_rubble_to_clear_goals(game_state)
+            self._add_rubble_goals(game_state, n=10)
 
             if game_state.real_env_steps > 50:
                 self._add_ice_goals(game_state, n=2)
@@ -107,6 +105,16 @@ class Unit(Actor):
         randomly_picked_neighboring_opponent = neighboring_opponents[0]
         flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
         self.goals.append(flee_goal)
+
+    def _add_factory_rubble_to_clear_goals(self, game_state: GameState, max_distance: int = 10) -> None:
+        rubble_positions = game_state.board.get_rubble_to_remove_positions(c=self.tc, max_distance=max_distance)
+        rubble_goals = [
+            ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=Coordinate(*rubble_pos))
+            for rubble_pos in rubble_positions
+            for pickup_power in [False, True]
+        ]
+
+        self.goals.extend(rubble_goals)
 
     def _add_rubble_goals(self, game_state: GameState, n: int) -> None:
         closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=n)
