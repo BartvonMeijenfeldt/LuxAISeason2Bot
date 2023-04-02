@@ -1,24 +1,24 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from typing import Set, TYPE_CHECKING
-from dataclasses import dataclass
 
-from objects.cargo import UnitCargo
+
 from utils import PriorityQueue
 
 if TYPE_CHECKING:
+    from objects.cargo import UnitCargo
     from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
     from logic.goals.goal import Goal, GoalCollection
     from logic.constraints import Constraints
     from lux.kit import GameState
 
 
-@dataclass
 class Actor(metaclass=ABCMeta):
-    team_id: int
-    unit_id: str
-    power: int
-    cargo: UnitCargo
+    def __init__(self, team_id: int, unit_id: str, power: int, cargo: UnitCargo) -> None:
+        self.team_id = team_id
+        self.unit_id = unit_id
+        self.power = power
+        self.cargo = cargo
 
     # TODO should remove the action_queu_goal here and let it automatically be generated in generate goals
     def get_best_goal(

@@ -35,7 +35,7 @@ class FactoryGoal(Goal):
         return super().get_value_per_step_of_action_plan(action_plan=action_plan, game_state=game_state)
 
     def get_cost_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
-        return sum(action.get_resource_cost(game_state, self.factory.strain_id) for action in action_plan)
+        return sum(action.get_resource_cost(self.factory) for action in action_plan)
 
     @property
     def is_valid(self) -> bool:

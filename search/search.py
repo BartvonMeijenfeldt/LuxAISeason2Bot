@@ -13,14 +13,16 @@ from objects.coordinate import (
     Coordinate,
 )
 from objects.direction import Direction
-from objects.board import Board
 from objects.actions.unit_action import UnitAction, MoveAction, DigAction, PickupAction, TransferAction
 from objects.resource import Resource
 
 from logic.constraints import Constraints
 from utils import PriorityQueue
+from lux.config import HEAVY_CONFIG
+
 
 if TYPE_CHECKING:
+    from objects.board import Board
     from lux.config import UnitConfig
     from objects.actors.factory import Factory
     from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
@@ -92,6 +94,35 @@ class GoalGraph(Graph):
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
         min_distance_cost = (min_nr_steps - 1) * min_cost_per_step + self.last_action_cost
         return min_distance_cost
+
+
+@dataclass
+class TilesToClearGraph(GoalGraph):
+    time_to_power_cost: int = field(init=False, default=50)
+    unit_cfg: UnitConfig = field(init=False, default=HEAVY_CONFIG)
+    unit_type: str = field(init=False, default="HEAVY")
+    constraints: Constraints = field(init=False, default_factory=Constraints)
+    goal: Coordinate
+    _potential_actions = [MoveAction(direction) for direction in Direction if direction != direction.CENTER]
+
+    def get_valid_action_nodes(self, c: TimeCoordinate) -> Generator[Tuple[UnitAction, TimeCoordinate], None, None]:
+        for action in self.potential_actions(c=c):
+            to_c = c.add_action(action)
+            if (
+                not self.constraints.tc_violates_constraint(to_c)
+                and self.board.is_valid_c_for_player(c=to_c)
+                and not self.board.is_resource_tile(c=to_c)
+            ):
+                yield ((action, to_c))
+
+    def potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
+        return self._potential_actions
+
+    def heuristic(self, node: Coordinate) -> float:
+        return self._get_distance_heuristic(node=node)
+
+    def node_completes_goal(self, node: Coordinate) -> bool:
+        return self.goal == node
 
 
 @dataclass
@@ -304,16 +335,16 @@ class Search:
     def __init__(self, graph: Graph) -> None:
         self.frontier = PriorityQueue()
 
-        self.came_from: dict[TimeCoordinate, tuple[UnitAction, TimeCoordinate]] = {}
-        self.cost_so_far: dict[TimeCoordinate, float] = {}
+        self.came_from: dict[Coordinate, tuple[UnitAction, Coordinate]] = {}
+        self.cost_so_far: dict[Coordinate, float] = {}
         self.graph = graph
 
-    def get_actions_to_complete_goal(self, start: TimeCoordinate) -> List[UnitAction]:
+    def get_actions_to_complete_goal(self, start: Coordinate) -> List[UnitAction]:
         self._init_search(start)
         self._find_optimal_solution()
         return self._get_solution_actions()
 
-    def _init_search(self, start_tc: TimeCoordinate) -> None:
+    def _init_search(self, start_tc: Coordinate) -> None:
         # if self.graph.constraints:
         #     start = start_tc
         # else:
@@ -330,7 +361,7 @@ class Search:
             if i > 100:
                 raise SolutionNotFoundWithinBudgetError
 
-            current_node: TimeCoordinate = self.frontier.pop()
+            current_node = self.frontier.pop()
 
             if self.graph.node_completes_goal(node=current_node):
                 break

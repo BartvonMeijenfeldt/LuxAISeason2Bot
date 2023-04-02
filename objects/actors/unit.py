@@ -23,18 +23,31 @@ from logic.goals.unit_goal import (
     FleeGoal,
     EvadeConstraintsGoal,
 )
+from objects.cargo import UnitCargo
 
 
-@dataclass
 class Unit(Actor):
-    unit_type: str  # "LIGHT" or "HEAVY"
-    tc: TimeCoordinate
-    unit_cfg: UnitConfig
-    action_queue: List[UnitAction]
-    prev_step_goal: Optional[UnitGoal]
-    _is_under_threath: Optional[bool] = field(init=False, default=None)
+    def __init__(
+        self,
+        team_id: int,
+        unit_id: str,
+        power: int,
+        cargo: UnitCargo,
+        unit_type: str,
+        tc: TimeCoordinate,
+        unit_cfg: UnitConfig,
+        action_queue: List[UnitAction],
+        prev_step_goal: Optional[UnitGoal],
+    ) -> None:
 
-    def __post_init__(self):
+        super().__init__(team_id, unit_id, power, cargo)
+        self.unit_type = unit_type
+        self.tc = tc
+        self.unit_cfg = unit_cfg
+        self.action_queue = action_queue
+        self.prev_step_goal = prev_step_goal
+        self._is_under_threath: Optional[bool] = None
+
         self.x = self.tc.x
         self.y = self.tc.y
         self.time_to_power_cost = 5 if self.unit_type == "LIGHT" else 50
@@ -67,7 +80,10 @@ class Unit(Actor):
                 self._add_flee_goal(game_state)
 
         elif self.unit_type == "LIGHT":
-            self._add_rubble_goals(game_state, n=10)
+            if game_state.real_env_steps < 80:
+                self._add_rubble_goals(game_state, n=100)
+            else:
+                self._add_rubble_goals(game_state, n=10)
 
             if game_state.real_env_steps > 50:
                 self._add_ice_goals(game_state, n=2)

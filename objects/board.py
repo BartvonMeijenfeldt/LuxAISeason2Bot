@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Iterable, Generator, Sequence
+from typing import TYPE_CHECKING, Optional, Iterable
 
 import numpy as np
-
 from dataclasses import dataclass
 
 from objects.coordinate import Coordinate, CoordinateList
-from lux.config import EnvConfig
+from image_processing import get_islands
+from positions import init_empty_positions
 
 if TYPE_CHECKING:
     from objects.actors.unit import Unit
@@ -29,10 +29,23 @@ class Board:
     opp_factories: list[Factory]
 
     def __post_init__(self) -> None:
+        self.size = self.rubble.shape[0]  # Board is square
+
+        self.ice_coordinates = self._get_ice_coordinates()
+        self.ore_coordinates = self._get_ore_coordinates()
+        self.rubble_coordinates = self._get_rubble_coordinates()
+        self.is_empty_array = self._get_is_empty_array()
+        self.empty_islands = get_islands(self.is_empty_array)
+
         self.player_factory_tiles_set = {c.xy for factory in self.player_factories for c in factory.coordinates}
         self.opp_factory_tiles_set = {c.xy for factory in self.opp_factories for c in factory.coordinates}
         self.opp_lights = [light for light in self.opp_units if light.unit_type == "LIGHT"]
         self.opp_heavies = [light for light in self.opp_units if light.unit_type == "HEAVY"]
+
+        for factory in self.player_factories:
+            factory.set_positions(self)
+
+        self.rubble_to_remove_positions_set = self._get_rubble_to_remove_positions_set()
 
         self.player_factory_tiles = self._get_factory_tiles(self.player_factories)
         self.opp_factory_tiles = self._get_factory_tiles(self.opp_factories)
@@ -40,13 +53,6 @@ class Board:
         self.opp_lichen_tiles = self._get_lichen_coordinates_from_factories(factories=self.opp_factories)
         self.player_factories_or_lichen_tiles = self.player_factory_tiles + self.player_lichen_tiles
         self.opp_factories_or_lichen_tiles = self.opp_factory_tiles + self.opp_lichen_tiles
-
-        self.ice_coordinates = self._get_ice_coordinates()
-        self.ore_coordinates = self._get_ore_coordinates()
-        self.rubble_coordinates = self._get_rubble_coordinates()
-        self._is_empty_array = self._get_is_empty_array()
-        self.width = self.rubble.shape[0]
-        self.length = self.rubble.shape[1]
 
         self._strain_id_to_index = {factory.strain_id: i for i, factory in enumerate(self.player_factories)}
 
@@ -56,7 +62,7 @@ class Board:
             self._min_distance_to_player_factory = np.min(self._min_distance_to_all_player_factories, axis=2)
             self._closest_player_factory = np.argmin(self._min_distance_to_all_player_factories, axis=2)
             self._closest_player_factory_tile = np.argmin(
-                distance_to_player_factory_tiles.reshape(self.width, self.length, -1, order="F"), axis=2
+                distance_to_player_factory_tiles.reshape(self.size, self.size, -1, order="F"), axis=2
             )
 
         self._min_distance_to_opp_heavies = self._get_min_dis_to_opponent_heavies()
@@ -66,6 +72,20 @@ class Board:
         self._min_distance_to_opp_factory_or_lichen = self._get_dis_to_coordinates_array(
             self.opp_factories_or_lichen_tiles
         )
+
+    def _get_rubble_to_remove_positions_set(self) -> set:
+        rubble_to_remove_positions = init_empty_positions()
+        for factory in self.player_factories:
+            positions = factory.rubble_positions_to_clear
+            rubble_to_remove_positions = np.append(rubble_to_remove_positions, positions, axis=0)
+
+        return set(map(tuple, rubble_to_remove_positions))
+
+    def is_rubble_to_remove_c(self, c: Coordinate) -> bool:
+        return c.xy in self.rubble_to_remove_positions_set
+
+    def are_positions_empty(self, positions: np.ndarray) -> np.ndarray:
+        return self.is_empty_array[positions[:, 0], positions[:, 1]]
 
     def _get_min_dis_to_opponent_heavies(self) -> np.ndarray:
         tiles_heavy = np.array([[heavy.x, heavy.y] for heavy in self.opp_heavies]).transpose()
@@ -77,7 +97,7 @@ class Board:
 
     def _get_min_manhattan_distance_tiles_to_coordinates(self, tiles_coordinates: np.ndarray) -> np.ndarray:
         if not tiles_coordinates.shape[0]:
-            return np.full((self.width, self.length), np.inf)
+            return np.full((self.size, self.size), np.inf)
 
         tiles_xy = self._get_tiles_xy_array()
 
@@ -93,8 +113,8 @@ class Board:
 
     def _get_tiles_xy_array(self) -> np.ndarray:
         """dimensions of (x: 48, y: 48, xy: 2)"""
-        tiles_x = np.arange(self.width)
-        tiles_y = np.arange(self.length)
+        tiles_x = np.arange(self.size)
+        tiles_y = np.arange(self.size)
         xx, yy = np.meshgrid(tiles_x, tiles_y, indexing="ij")
         return np.stack([xx, yy], axis=2)
 
@@ -164,10 +184,10 @@ class Board:
         return self.is_x_on_the_board(c.x) and self.is_y_on_the_board(c.y)
 
     def is_x_on_the_board(self, x: int) -> bool:
-        return 0 <= x < self.width
+        return 0 <= x < self.size
 
     def is_y_on_the_board(self, y: int) -> bool:
-        return 0 <= y < self.length
+        return 0 <= y < self.size
 
     def is_off_the_board(self, c: Coordinate) -> bool:
         return not self.is_off_the_board(c=c)
@@ -193,6 +213,15 @@ class Board:
     def get_closest_player_factory_tile(self, c: Coordinate) -> Coordinate:
         closest_player_factory_tile_index = self._closest_player_factory_tile[c.x, c.y]
         return self.player_factory_tiles[closest_player_factory_tile_index]
+
+    def is_ice_tile(self, c: Coordinate) -> bool:
+        return self.ice[c.x, c.y] == 1
+
+    def is_ore_tile(self, c: Coordinate) -> bool:
+        return self.ore[c.x, c.y] == 1
+
+    def is_resource_tile(self, c: Coordinate) -> bool:
+        return self.is_ice_tile(c) or self.is_ore_tile(c)
 
     def get_closest_ice_tile(self, c: Coordinate) -> Coordinate:
         return self.ice_coordinates.get_closest_tile(c=c)
@@ -228,89 +257,3 @@ class Board:
 
     def get_min_dis_to_opp_heavy(self, c: Coordinate) -> float:
         return self._min_distance_to_opp_heavies[c.x, c.y]
-
-    def get_max_nr_tiles_to_water(self, strain_id: int) -> int:
-        nr_positions_can_be_spread_to = self._get_nr_positions_can_be_spread_to(strain_id)
-        nr_connected_lichen = len(self._get_connected_lichen_positions(strain_id))
-        nr_tiles_to_water = nr_positions_can_be_spread_to + nr_connected_lichen
-        return nr_tiles_to_water
-
-    def _get_nr_positions_can_be_spread_to(self, strain_id: int) -> int:
-        positions_can_spread = self._get_positions_can_spread(strain_id)
-        neighbor_positions = self._get_neighboring_positions_to_array(positions_can_spread)
-        nr_positions_can_be_spread_to = self._get_nr_empty_tiles(neighbor_positions)
-        return nr_positions_can_be_spread_to
-
-    def _get_positions_can_spread(self, strain_id: int) -> np.ndarray:
-        factory_positions = self._get_factory_positions(strain_id)
-        lichen_positions_can_spread = self._get_lichen_positions_can_spread(strain_id)
-        positions_can_spread = np.append(factory_positions, lichen_positions_can_spread, axis=0)
-        return positions_can_spread
-
-    def _get_factory_positions(self, strain_id: int) -> np.ndarray:
-        return np.argwhere(self.factory_occupancy_map == strain_id)
-
-    def _get_connected_lichen_positions(self, strain_id: int) -> np.ndarray:
-        factory_positions = self._get_factory_positions(strain_id)
-        queue: list[tuple] = []
-        seen: set[tuple] = {tuple(pos) for pos in factory_positions}
-
-        for pos in factory_positions:
-            tuple_pos = tuple(pos)
-            for new_pos in self._get_neighboring_positions_to_sequence(tuple_pos):
-                if new_pos not in seen:
-                    seen.add(new_pos)
-                    queue.append(new_pos)
-
-        connected = []
-
-        while queue:
-            tuple_pos = queue.pop()
-            if self.lichen_strains[tuple_pos] != strain_id:
-                continue
-
-            connected.append(tuple_pos)
-
-            for new_pos in self._get_neighboring_positions_to_sequence(tuple_pos):
-                if new_pos not in seen:
-                    seen.add(new_pos)
-                    queue.append(new_pos)
-
-        if not connected:
-            return np.empty((0, 2), dtype=int)
-
-        return np.array(connected)
-
-    def _get_lichen_positions_can_spread(self, strain_id: int) -> np.ndarray:
-        connected_lichen_positions = self._get_connected_lichen_positions(strain_id)
-
-        if not connected_lichen_positions.shape[0]:
-            return connected_lichen_positions
-
-        can_spread_mask = (
-            self.lichen[connected_lichen_positions[:, 0], connected_lichen_positions[:, 1]]
-            >= EnvConfig.MIN_LICHEN_TO_SPREAD
-        )
-        return connected_lichen_positions[can_spread_mask]
-
-    def _get_neighboring_positions_to_array(self, positions: np.ndarray) -> np.ndarray:
-        neighbor_positions = positions[..., None] + NEIGHBORING_DIRECTIONS_ARRAY.transpose()[None, ...]
-        neighbor_positions = np.swapaxes(neighbor_positions, 1, 2).reshape(-1, 2)
-        is_valid_mask = np.logical_and(neighbor_positions >= 0, neighbor_positions < self.width).all(axis=1)
-        neighbor_positions = neighbor_positions[is_valid_mask]
-        unique_neighbors = np.unique(neighbor_positions, axis=0)
-        return unique_neighbors
-
-    def _get_nr_empty_tiles(self, positions) -> int:
-        empty_mask = self._is_empty_array[positions[:, 0], positions[:, 1]]
-        nr_empty_tiles = empty_mask.sum()
-        return nr_empty_tiles
-
-    def _get_neighboring_positions_to_sequence(self, pos: Sequence[int]) -> Generator[tuple, None, None]:
-        for dir_pos in NEIGHBORING_DIRECTIONS_ARRAY:
-            x, y = pos[0] + dir_pos[0], pos[1] + dir_pos[1]
-            if self.is_x_on_the_board(x) and self.is_y_on_the_board(y):
-                yield ((x, y))
-
-
-NEIGHBORING_DIRECTIONS_ARRAY = np.array([[1, 0], [-1, 0], [0, 1], [0, -1]])

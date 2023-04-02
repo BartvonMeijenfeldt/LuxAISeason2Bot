@@ -24,14 +24,14 @@ class FactoryActionPlan(ActionPlan):
     def __iter__(self) -> Iterator[FactoryAction]:
         return iter(self.actions)
 
-    def get_resource_cost(self, game_state: GameState, strain_id: int) -> float:
-        return sum(action.get_resource_cost(game_state, strain_id) for action in self.actions)
+    def get_resource_cost(self) -> float:
+        return sum(action.get_resource_cost(self.actor) for action in self.actions)
 
     def actor_can_carry_out_plan(self, game_state: GameState) -> bool:
-        return self.actor_has_enough_resources(game_state)
+        return self.actor_has_enough_resources()
 
-    def actor_has_enough_resources(self, game_state: GameState) -> bool:
-        return self.actor_has_enough_power and self.actor_has_enough_metal and self.actor_has_enough_water(game_state)
+    def actor_has_enough_resources(self) -> bool:
+        return self.actor_has_enough_power and self.actor_has_enough_metal and self.actor_has_enough_water()
 
     @property
     def actor_has_enough_power(self) -> bool:
@@ -43,9 +43,9 @@ class FactoryActionPlan(ActionPlan):
         metal_requested = sum(action.quantity_metal_cost for action in self.actions)
         return metal_requested <= self.actor.cargo.metal
 
-    def actor_has_enough_water(self, game_state: GameState) -> bool:
+    def actor_has_enough_water(self) -> bool:
         power_requested = sum(
-            action.get_water_cost_from_strain_id(game_state, self.actor.strain_id) for action in self.actions
+            action.get_water_cost(factory=self.actor) for action in self.actions
         )
         return power_requested <= self.actor.cargo.water
 
