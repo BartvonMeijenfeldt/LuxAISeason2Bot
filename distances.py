@@ -4,7 +4,7 @@ import numpy as np
 
 from typing import Tuple, TYPE_CHECKING
 
-from search.search import TilesToClearGraph, Search, SolutionNotFoundWithinBudgetError
+from search.search import TilesToClearGraph, Search
 from objects.coordinate import Coordinate
 from positions import init_empty_positions
 
@@ -77,7 +77,7 @@ def get_positions_on_optimal_path_between_pos_and_pos(a: np.ndarray, b: np.ndarr
     search = Search(graph=graph)
     try:
         optimal_actions = search.get_actions_to_complete_goal(start=start)
-    except SolutionNotFoundWithinBudgetError:
+    except Exception:
         return init_empty_positions()
 
     positions = []
@@ -88,7 +88,7 @@ def get_positions_on_optimal_path_between_pos_and_pos(a: np.ndarray, b: np.ndarr
         positions.append(c.xy)
 
     if not positions:
-        return np.empty((0, 2), dtype=int)
+        return init_empty_positions()
 
     positions = np.array(positions)
 
