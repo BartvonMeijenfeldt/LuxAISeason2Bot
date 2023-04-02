@@ -1,6 +1,7 @@
 import heapq
-from typing import Any
 import itertools
+
+from typing import Any
 
 
 class PriorityQueue:

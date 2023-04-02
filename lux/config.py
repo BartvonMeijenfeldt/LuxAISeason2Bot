@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass, field
 
 
@@ -22,8 +23,45 @@ class UnitConfig:
     def __hash__(self) -> int:
         return self.DIG_COST
 
-    def __eq__(self, __value) -> bool:
+    def __eq__(self, __value: UnitConfig) -> bool:
         return self.DIG_COST == __value.DIG_COST
+
+
+LIGHT_CONFIG = UnitConfig(
+    METAL_COST=10,
+    POWER_COST=50,
+    INIT_POWER=50,
+    CARGO_SPACE=100,
+    BATTERY_CAPACITY=150,
+    CHARGE=1,
+    MOVE_COST=1,
+    RUBBLE_MOVEMENT_COST=0.05,
+    DIG_COST=5,
+    SELF_DESTRUCT_COST=5,
+    DIG_RUBBLE_REMOVED=2,
+    DIG_RESOURCE_GAIN=2,
+    DIG_LICHEN_REMOVED=10,
+    RUBBLE_AFTER_DESTRUCTION=1,
+    ACTION_QUEUE_POWER_COST=1,
+)
+
+HEAVY_CONFIG = UnitConfig(
+    METAL_COST=100,
+    POWER_COST=500,
+    INIT_POWER=500,
+    CARGO_SPACE=1000,
+    BATTERY_CAPACITY=3000,
+    CHARGE=10,
+    MOVE_COST=20,
+    RUBBLE_MOVEMENT_COST=1,
+    DIG_COST=60,
+    SELF_DESTRUCT_COST=100,
+    DIG_RUBBLE_REMOVED=20,
+    DIG_RESOURCE_GAIN=20,
+    DIG_LICHEN_REMOVED=100,
+    RUBBLE_AFTER_DESTRUCTION=10,
+    ACTION_QUEUE_POWER_COST=10,
+)
 
 
 @dataclass
@@ -83,45 +121,9 @@ class EnvConfig:
     #### Collision Mechanics ####
     POWER_LOSS_FACTOR: float = 0.5
 
-    LIGHT_ROBOT: UnitConfig = field(
-        default=UnitConfig(
-            METAL_COST=10,
-            POWER_COST=50,
-            INIT_POWER=50,
-            CARGO_SPACE=100,
-            BATTERY_CAPACITY=150,
-            CHARGE=1,
-            MOVE_COST=1,
-            RUBBLE_MOVEMENT_COST=0.05,
-            DIG_COST=5,
-            SELF_DESTRUCT_COST=5,
-            DIG_RUBBLE_REMOVED=2,
-            DIG_RESOURCE_GAIN=2,
-            DIG_LICHEN_REMOVED=10,
-            RUBBLE_AFTER_DESTRUCTION=1,
-            ACTION_QUEUE_POWER_COST=1,
-        )
-    )
+    LIGHT_ROBOT: UnitConfig = field(default=LIGHT_CONFIG)
 
-    HEAVY_ROBOT: UnitConfig = field(
-        default=UnitConfig(
-            METAL_COST=100,
-            POWER_COST=500,
-            INIT_POWER=500,
-            CARGO_SPACE=1000,
-            BATTERY_CAPACITY=3000,
-            CHARGE=10,
-            MOVE_COST=20,
-            RUBBLE_MOVEMENT_COST=1,
-            DIG_COST=60,
-            SELF_DESTRUCT_COST=100,
-            DIG_RUBBLE_REMOVED=20,
-            DIG_RESOURCE_GAIN=20,
-            DIG_LICHEN_REMOVED=100,
-            RUBBLE_AFTER_DESTRUCTION=10,
-            ACTION_QUEUE_POWER_COST=10,
-        )
-    )
+    HEAVY_ROBOT: UnitConfig = field(default=HEAVY_CONFIG)
 
     @classmethod
     def get_unit_config(cls, unit_type: str) -> UnitConfig:

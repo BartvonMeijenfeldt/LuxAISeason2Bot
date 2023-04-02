@@ -438,7 +438,7 @@ class CollectGoal(DigGoal):
             unit_cfg=self.unit.unit_cfg,
             constraints=constraints,
             resource=self.resource,
-            factory=self.factory
+            factory=self.factory,
         )
 
         return graph
@@ -623,6 +623,10 @@ class ClearRubbleGoal(DigGoal):
         distance_player_factory_mp = 121 - distance_player_factory_to_rubble ** 2
 
         benefit_rubble_reduced = distance_player_factory_mp * delta_closer_factory_to_player_mp * 0.005
+
+        if game_state.board.is_rubble_to_remove_c(self.dig_c):
+            benefit_rubble_reduced += 4
+
         bonus_clear_rubble = 50 * benefit_rubble_reduced
 
         rubble_removed_benefit = benefit_rubble_reduced * rubble_removed

@@ -2,16 +2,30 @@ from __future__ import annotations
 
 import numpy as np
 
+from typing import Tuple, TYPE_CHECKING
+from itertools import product
+from operator import itemgetter
 from dataclasses import dataclass
 
-from typing import Tuple
-from lux.config import EnvConfig
-from objects.actions.factory_action import WaterAction, LIGHT_CFG, HEAVY_CFG
+from objects.actions.factory_action import WaterAction
 from objects.actors.actor import Actor
 from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
-from objects.game_state import GameState
 from logic.goals.goal import GoalCollection
 from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal, FactoryGoal
+from distances import (
+    get_min_distance_between_positions,
+    get_closest_pos_and_pos_between_positions,
+    get_closest_pos_between_pos_and_positions,
+    get_positions_on_optimal_path_between_pos_and_pos,
+)
+from image_processing import get_islands
+from positions import init_empty_positions, get_neighboring_positions
+from lux.config import EnvConfig, LIGHT_CONFIG, HEAVY_CONFIG
+
+if TYPE_CHECKING:
+    from objects.game_state import GameState
+    from objects.board import Board
+    from objects.cargo import UnitCargo
 
 
 @dataclass
@@ -21,14 +35,114 @@ class Factory(Actor):
     env_cfg: EnvConfig
     radius = 1
 
+    def __init__(
+        self,
+        team_id: int,
+        unit_id: str,
+        power: int,
+        cargo: UnitCargo,
+        strain_id: int,
+        center_tc: TimeCoordinate,
+        env_cfg: EnvConfig,
+    ) -> None:
+        super().__init__(team_id, unit_id, power, cargo)
+        self.strain_id = strain_id
+        self.env_cfg = env_cfg
+
+        self.center_tc = center_tc
+        self.x = self.center_tc.x
+        self.y = self.center_tc.y
+        self.positions = np.array([[self.x + x, self.y + y] for x, y in product(range(-1, 2), range(-1, 2))])
+
+    def set_positions(self, board: Board) -> None:
+        self.lichen_positions = np.argwhere(board.lichen_strains == self.strain_id)
+        self.connected_lichen_positions = self._get_connected_lichen_positions(board)
+        self.spreadable_lichen_positions = self._get_spreadable_lichen_positions(board, self.connected_lichen_positions)
+        self.can_spread_positions = np.append(self.positions, self.spreadable_lichen_positions, axis=0)
+        self.can_spread_to_positions = self._get_can_spread_to_positions(board, self.can_spread_positions)
+        self.max_nr_tiles_to_water = len(self.lichen_positions) + len(self.can_spread_to_positions)
+        self.connected_positions = self._get_empty_or_lichen_connected_positions(board)
+        self.nr_connected_positions = len(self.connected_positions)
+        self.rubble_positions_to_clear = self._get_rubble_positions_to_clear(board)
+
+    def _get_connected_lichen_positions(self, board: Board) -> np.ndarray:
+        own_lichen = board.lichen_strains == self.strain_id
+        return self._get_connected_positions(own_lichen)
+
+    def _get_spreadable_lichen_positions(self, board: Board, connected_lichen_positions: np.ndarray) -> np.ndarray:
+        if not connected_lichen_positions.shape[0]:
+            return init_empty_positions()
+
+        lichen_available = board.lichen[connected_lichen_positions[:, 0], connected_lichen_positions[:, 1]]
+        can_spread_mask = lichen_available >= EnvConfig.MIN_LICHEN_TO_SPREAD
+        return connected_lichen_positions[can_spread_mask]
+
+    def _get_empty_or_lichen_connected_positions(self, board: Board) -> np.ndarray:
+        is_empty_or_own_lichen = (board.lichen_strains == self.strain_id) | (board.is_empty_array)
+        return self._get_connected_positions(is_empty_or_own_lichen)
+
+    def _get_connected_positions(self, array: np.ndarray) -> np.ndarray:
+        islands = get_islands(array)
+
+        connected_positions = init_empty_positions()
+        for single_island in islands:
+            if get_min_distance_between_positions(self.positions, single_island) == 1:
+                connected_positions = np.append(connected_positions, single_island, axis=0)
+
+        return connected_positions
+
+    def _get_can_spread_to_positions(self, board: Board, can_spread_positions: np.ndarray) -> np.ndarray:
+        neighboring_positions = get_neighboring_positions(can_spread_positions)
+        is_empty_mask = board.are_positions_empty(neighboring_positions)
+        return neighboring_positions[is_empty_mask]
+
+    def _get_rubble_positions_to_clear(self, board: Board) -> np.ndarray:
+        if self.nr_connected_positions <= 30:
+            return self._get_rubble_positions_to_clear_for_watering(board)
+        else:
+            return self._get_rubble_positions_to_clear_for_resources(board)
+
+    def _get_rubble_positions_to_clear_for_watering(self, board: Board) -> np.ndarray:
+        distances_to_islands = [
+            (self.min_distance_to_positions(positions), positions) for positions in board.empty_islands
+        ]
+        non_connected_distances_to_islands = [
+            (dis, positions) for dis, positions in distances_to_islands if dis and len(positions) > 2
+        ]
+        if not non_connected_distances_to_islands:
+            return init_empty_positions()
+
+        closest_island_positions = min(non_connected_distances_to_islands, key=itemgetter(0))[1]
+
+        factory_pos, island_pos = get_closest_pos_and_pos_between_positions(self.positions, closest_island_positions)
+        positions = get_positions_on_optimal_path_between_pos_and_pos(a=factory_pos, b=island_pos, board=board)
+        return positions
+
+    def _get_rubble_positions_to_clear_for_resources(self, board: Board) -> np.ndarray:
+        closest_2_ice_positions = board.get_n_closest_ice_positions_to_factory(self, n=2)
+        closest_2_ore_positions = board.get_n_closest_ore_positions_to_factory(self, n=2)
+        closest_resource_positions = np.append(closest_2_ice_positions, closest_2_ore_positions, axis=0)
+
+        positions = init_empty_positions()
+
+        for pos in closest_resource_positions:
+            closest_factory_pos = get_closest_pos_between_pos_and_positions(pos, self.positions)
+            optimal_positions = get_positions_on_optimal_path_between_pos_and_pos(pos, closest_factory_pos, board)
+            positions = np.append(positions, optimal_positions, axis=0)
+
+        return positions
+
     def __hash__(self) -> int:
         return hash(self.unit_id)
 
     def __eq__(self, __o: Factory) -> bool:
         return self.unit_id == __o.unit_id
 
+    def min_distance_to_positions(self, positions: np.ndarray) -> int:
+        return get_min_distance_between_positions(self.positions, positions)
+
     def generate_goals(self, game_state: GameState) -> GoalCollection:
-        water_cost = self.water_cost(game_state)
+        water_cost = self.water_cost()
         goals = []
 
         if self.can_build_heavy:
@@ -40,11 +154,7 @@ class Factory(Actor):
         elif self.cargo.water - water_cost > 50 and water_cost < 5:
             goals.append(WaterGoal(self))
 
-        elif (
-            game_state.env_steps > 750
-            and self.can_water(game_state)
-            and self.cargo.water - water_cost > game_state.steps_left
-        ):
+        elif game_state.env_steps > 750 and self.can_water() and self.cargo.water - water_cost > game_state.steps_left:
             goals.append(WaterGoal(self))
 
         goals += self._get_dummy_goals()
@@ -64,17 +174,17 @@ class Factory(Actor):
 
     @property
     def can_build_heavy(self) -> bool:
-        return self.power >= HEAVY_CFG.POWER_COST and self.cargo.metal >= HEAVY_CFG.METAL_COST
+        return self.power >= HEAVY_CONFIG.POWER_COST and self.cargo.metal >= HEAVY_CONFIG.METAL_COST
 
     @property
     def can_build_light(self) -> bool:
-        return self.power >= LIGHT_CFG.POWER_COST and self.cargo.metal >= LIGHT_CFG.METAL_COST
+        return self.power >= LIGHT_CONFIG.POWER_COST and self.cargo.metal >= LIGHT_CONFIG.METAL_COST
 
-    def water_cost(self, game_state: GameState) -> int:
-        return WaterAction.get_water_cost_from_strain_id(game_state=game_state, strain_id=self.strain_id)
+    def water_cost(self) -> int:
+        return WaterAction.get_water_cost(self)
 
-    def can_water(self, game_state):
-        return self.cargo.water >= self.water_cost(game_state)
+    def can_water(self):
+        return self.cargo.water >= self.water_cost()
 
     @property
     def pos_slice(self) -> Tuple[slice, slice]:

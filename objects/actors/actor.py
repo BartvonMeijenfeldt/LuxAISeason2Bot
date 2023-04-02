@@ -3,10 +3,11 @@ from abc import ABCMeta, abstractmethod
 from typing import Set, TYPE_CHECKING
 from dataclasses import dataclass
 
-from objects.cargo import UnitCargo
+
 from utils import PriorityQueue
 
 if TYPE_CHECKING:
+    from objects.cargo import UnitCargo
     from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
     from logic.goals.goal import Goal, GoalCollection
     from logic.constraints import Constraints
