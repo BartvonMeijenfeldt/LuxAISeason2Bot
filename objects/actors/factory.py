@@ -15,6 +15,7 @@ from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, 
 from distances import (
     get_min_distance_between_positions,
     get_closest_pos_and_pos_between_positions,
+    get_closest_pos_between_pos_and_positions,
     get_positions_on_optimal_path_between_pos_and_pos,
 )
 from image_processing import get_islands
@@ -96,9 +97,12 @@ class Factory(Actor):
         return neighboring_positions[is_empty_mask]
 
     def _get_rubble_positions_to_clear(self, board: Board) -> np.ndarray:
-        if self.nr_connected_positions > 30:
-            return init_empty_positions()
+        if self.nr_connected_positions <= 30:
+            return self._get_rubble_positions_to_clear_for_watering(board)
+        else:
+            return self._get_rubble_positions_to_clear_for_resources(board)
 
+    def _get_rubble_positions_to_clear_for_watering(self, board: Board) -> np.ndarray:
         distances_to_islands = [
             (self.min_distance_to_positions(positions), positions) for positions in board.empty_islands
         ]
@@ -112,6 +116,20 @@ class Factory(Actor):
 
         factory_pos, island_pos = get_closest_pos_and_pos_between_positions(self.positions, closest_island_positions)
         positions = get_positions_on_optimal_path_between_pos_and_pos(a=factory_pos, b=island_pos, board=board)
+        return positions
+
+    def _get_rubble_positions_to_clear_for_resources(self, board: Board) -> np.ndarray:
+        closest_2_ice_positions = board.get_n_closest_ice_positions_to_factory(self, n=2)
+        closest_2_ore_positions = board.get_n_closest_ore_positions_to_factory(self, n=2)
+        closest_resource_positions = np.append(closest_2_ice_positions, closest_2_ore_positions, axis=0)
+
+        positions = init_empty_positions()
+
+        for pos in closest_resource_positions:
+            closest_factory_pos = get_closest_pos_between_pos_and_positions(pos, self.positions)
+            optimal_positions = get_positions_on_optimal_path_between_pos_and_pos(pos, closest_factory_pos, board)
+            positions = np.append(positions, optimal_positions, axis=0)
+
         return positions
 
     def __hash__(self) -> int:

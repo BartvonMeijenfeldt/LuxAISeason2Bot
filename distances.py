@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import numpy as np
 
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 
 from search.search import TilesToClearGraph, Search, SolutionNotFoundWithinBudgetError
 from objects.coordinate import Coordinate
 from positions import init_empty_positions
+
+if TYPE_CHECKING:
+    from objects.board import Board
 
 
 def get_distances_between_positions(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -29,6 +34,27 @@ def get_closest_pos_and_pos_between_positions(a: np.ndarray, b: np.ndarray) -> T
     return pos_a, pos_b
 
 
+def get_closest_pos_between_pos_and_positions(pos: np.ndarray, positions: np.ndarray) -> np.ndarray:
+    distances = get_distances_between_pos_and_positions(pos=pos, positions=positions)
+    index_closest = np.argmin(distances)
+    return positions[index_closest]
+
+
+def get_min_distances_between_positions(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    "Return the min distances from a to b"
+    distances = get_distances_between_positions(a, b)
+    min_distances = distances.min(axis=1)
+    return min_distances
+
+
+def get_n_closests_positions_between_positions(a: np.ndarray, b: np.ndarray, n: int) -> np.ndarray:
+    """Return the n positions in a that are closest to b"""
+    min_distances = get_min_distances_between_positions(a, b)
+    closest_indexes = np.argpartition(min_distances, n)[:n]
+    closest_positions = a[closest_indexes]
+    return closest_positions
+
+
 def get_distance_between_pos_and_pos(a: np.ndarray, b: np.ndarray) -> int:
     diff = np.subtract(a, b)
     abs_diff = np.abs(diff)
@@ -43,7 +69,7 @@ def get_distances_between_pos_and_positions(pos: np.ndarray, positions: np.ndarr
     return distances
 
 
-def get_positions_on_optimal_path_between_pos_and_pos(a: np.ndarray, b: np.ndarray, board) -> np.ndarray:
+def get_positions_on_optimal_path_between_pos_and_pos(a: np.ndarray, b: np.ndarray, board: Board) -> np.ndarray:
     start = Coordinate(a[0], a[1])
     goal = Coordinate(b[0], b[1])
 

@@ -69,10 +69,8 @@ class Unit(Actor):
         elif self.unit_type == "LIGHT":
             self._add_factory_rubble_to_clear_goals(game_state)
             self._add_rubble_goals(game_state, n=10)
-
-            if game_state.real_env_steps > 50:
-                self._add_ice_goals(game_state, n=2)
-                self._add_ore_goals(game_state, n=2)
+            self._add_ice_goals(game_state, n=2)
+            self._add_ore_goals(game_state, n=2)
 
             if game_state.real_env_steps > 500:
                 self._add_destroy_lichen_goals(game_state, n=10)
@@ -111,6 +109,7 @@ class Unit(Actor):
         rubble_goals = [
             ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=Coordinate(*rubble_pos))
             for rubble_pos in rubble_positions
+            if game_state.board.is_rubble_tile(Coordinate(*rubble_pos))
             for pickup_power in [False, True]
         ]
 
