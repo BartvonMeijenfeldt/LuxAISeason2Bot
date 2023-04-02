@@ -23,31 +23,18 @@ from logic.goals.unit_goal import (
     FleeGoal,
     EvadeConstraintsGoal,
 )
-from objects.cargo import UnitCargo
 
 
+@dataclass
 class Unit(Actor):
-    def __init__(
-        self,
-        team_id: int,
-        unit_id: str,
-        power: int,
-        cargo: UnitCargo,
-        unit_type: str,
-        tc: TimeCoordinate,
-        unit_cfg: UnitConfig,
-        action_queue: List[UnitAction],
-        prev_step_goal: Optional[UnitGoal],
-    ) -> None:
+    unit_type: str  # "LIGHT" or "HEAVY"
+    tc: TimeCoordinate
+    unit_cfg: UnitConfig
+    action_queue: List[UnitAction]
+    prev_step_goal: Optional[UnitGoal]
+    _is_under_threath: Optional[bool] = field(init=False, default=None)
 
-        super().__init__(team_id, unit_id, power, cargo)
-        self.unit_type = unit_type
-        self.tc = tc
-        self.unit_cfg = unit_cfg
-        self.action_queue = action_queue
-        self.prev_step_goal = prev_step_goal
-        self._is_under_threath: Optional[bool] = None
-
+    def __post_init__(self) -> None:
         self.x = self.tc.x
         self.y = self.tc.y
         self.time_to_power_cost = 5 if self.unit_type == "LIGHT" else 50

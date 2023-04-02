@@ -1,6 +1,7 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from typing import Set, TYPE_CHECKING
+from dataclasses import dataclass
 
 
 from utils import PriorityQueue
@@ -13,12 +14,12 @@ if TYPE_CHECKING:
     from lux.kit import GameState
 
 
+@dataclass
 class Actor(metaclass=ABCMeta):
-    def __init__(self, team_id: int, unit_id: str, power: int, cargo: UnitCargo) -> None:
-        self.team_id = team_id
-        self.unit_id = unit_id
-        self.power = power
-        self.cargo = cargo
+    team_id: int
+    unit_id: str
+    power: int
+    cargo: UnitCargo
 
     # TODO should remove the action_queu_goal here and let it automatically be generated in generate goals
     def get_best_goal(

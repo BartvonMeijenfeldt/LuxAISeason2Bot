@@ -5,6 +5,7 @@ import numpy as np
 from typing import Tuple, TYPE_CHECKING
 from itertools import product
 from operator import itemgetter
+from dataclasses import dataclass
 
 from objects.actions.factory_action import WaterAction
 from objects.actors.actor import Actor
@@ -26,7 +27,11 @@ if TYPE_CHECKING:
     from objects.cargo import UnitCargo
 
 
+@dataclass
 class Factory(Actor):
+    strain_id: int
+    center_tc: TimeCoordinate
+    env_cfg: EnvConfig
     radius = 1
 
     def __init__(
