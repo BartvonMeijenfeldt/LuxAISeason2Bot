@@ -134,4 +134,7 @@ class GameState:
         return self.board.get_min_dis_to_opp_heavy(c=c)
 
     def is_opponent_heavy_on_tile(self, c: Coordinate) -> bool:
-        return self.board.is_opponent_heavy_on_tile(c)
+        return self.board.is_opponent_heavy_on_tile(c=c)
+
+    def get_neighboring_opponents(self, c: Coordinate) -> list[Unit]:
+        return self.board.get_neighboring_opponents(c=c)

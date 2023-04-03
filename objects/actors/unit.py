@@ -71,7 +71,9 @@ class Unit(Actor):
             if self.is_under_threath(game_state) and self.next_step_is_stationary():
                 self._add_flee_goal(game_state)
 
-            if self.is_light and self.next_step_walks_into_opponent_heavy(game_state):
+            if (
+                self.is_light and self.next_step_walks_into_opponent_heavy(game_state)
+            ) or self.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
                 self._add_factory_rubble_to_clear_goals(game_state)
                 self._add_rubble_goals(game_state, n=10)
                 self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=False)
@@ -111,6 +113,27 @@ class Unit(Actor):
         action_plan = UnitActionPlan(original_actions=self.action_queue, actor=self, is_set=True)
         action_queue_goal = ActionQueueGoal(unit=self, action_plan=action_plan, goal=prev_goal)
         self.goals.append(action_queue_goal)
+
+    def next_step_walks_next_to_opponent_unit_that_can_capture_self(self, game_state: GameState) -> bool:
+        next_action = self.action_queue[0]
+        next_c = self.tc.add_action(next_action)
+        return self.is_c_next_to_opponent_that_can_capture_self(c=next_c, game_state=game_state)
+
+    def is_c_next_to_opponent_that_can_capture_self(self, c: Coordinate, game_state: GameState) -> bool:
+        neighboring_opponents = game_state.get_neighboring_opponents(c)
+        if not neighboring_opponents:
+            return False
+
+        strongest_neighboring_opponent = max(neighboring_opponents, key=lambda x: x.is_heavy * 10_000 + x.power)
+        return strongest_neighboring_opponent.can_capture(self)
+
+    def can_capture(self, other: Unit) -> bool:
+        if self.is_stronger_than(other):
+            return True
+        elif other.is_stronger_than(self):
+            return False
+
+        return self.power >= other.power
 
     def next_step_walks_into_opponent_heavy(self, game_state: GameState) -> bool:
         if not self.action_queue:
@@ -212,6 +235,9 @@ class Unit(Actor):
 
         return False
 
+    def _get_neighboring_opponents(self, game_state: GameState) -> list[Unit]:
+        return game_state.get_neighboring_opponents(self.tc)
+
     def next_step_is_stationary(self) -> bool:
         return self.has_actions_in_queue and self.action_queue[0].is_stationary
 
@@ -233,15 +259,12 @@ class Unit(Actor):
     def get_nr_digs_to_fill_cargo(self) -> int:
         return ceil(self.cargo_space_left / self.resources_gained_per_dig)
 
-    def _get_neighboring_opponents(self, game_state: GameState) -> list[Unit]:
-        neighboring_opponents = []
-
-        for tc in self.tc.neighbors:
-            opponent_on_c = game_state.get_opponent_on_c(tc)
-            if opponent_on_c:
-                neighboring_opponents.append(opponent_on_c)
-
-        return neighboring_opponents
+    def get_danger_tcs(self, game_state) -> dict[TimeCoordinate, float]:
+        return {
+            neighbor_c: 100
+            for neighbor_c in self.tc.neighbors
+            if self.is_c_next_to_opponent_that_can_capture_self(neighbor_c, game_state)
+        }
 
     def is_stronger_than(self, other: Unit) -> bool:
         return self.unit_type == "HEAVY" and other.unit_type == "LIGHT"

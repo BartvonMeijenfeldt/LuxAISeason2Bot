@@ -857,6 +857,9 @@ class ActionQueueGoal(UnitGoal):
         if self.unit.is_light and self.unit.next_step_walks_into_opponent_heavy(game_state):
             return -1000
 
+        if self.unit.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
+            return -1000
+
         return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
 
     @property
@@ -872,6 +875,12 @@ class ActionQueueGoal(UnitGoal):
 
     def _get_max_benefit(self, game_state: GameState) -> float:
         if self.unit.is_under_threath(game_state) and self.action_plan.actions[0].is_stationary:
+            return -1000
+
+        if self.unit.is_light and self.unit.next_step_walks_into_opponent_heavy(game_state):
+            return -1000
+
+        if self.unit.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
             return -1000
 
         return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)

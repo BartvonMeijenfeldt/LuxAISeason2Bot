@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Optional, Iterable
 
 import numpy as np
 from dataclasses import dataclass
+from collections import defaultdict
 
 from objects.coordinate import Coordinate, CoordinateList
 from image_processing import get_islands
@@ -47,10 +48,12 @@ class Board:
 
         self.player_factory_tiles_set = {c.xy for factory in self.player_factories for c in factory.coordinates}
         self.opp_factory_tiles_set = {c.xy for factory in self.opp_factories for c in factory.coordinates}
-        self.player_lights = [light for light in self.player_units if light.unit_type == "LIGHT"]
-        self.player_heavies = [heavy for heavy in self.player_units if heavy.unit_type == "HEAVY"]
-        self.opp_lights = [light for light in self.opp_units if light.unit_type == "LIGHT"]
-        self.opp_heavies = [heavy for heavy in self.opp_units if heavy.unit_type == "HEAVY"]
+        self.player_lights = [light for light in self.player_units if light.is_light]
+        self.player_heavies = [heavy for heavy in self.player_units if heavy.is_heavy]
+        self.opp_lights = [light for light in self.opp_units if light.is_light]
+        self.opp_heavies = [heavy for heavy in self.opp_units if heavy.is_heavy]
+
+        self._pos_tuple_to_opponent = defaultdict(lambda: None, {opp.tc.xy: opp for opp in self.opp_units})
 
         self.player_nr_lights = len(self.player_lights)
         self.player_nr_heavies = len(self.player_heavies)
@@ -219,11 +222,7 @@ class Board:
         return not self.is_off_the_board(c=c)
 
     def get_opponent_on_c(self, c: Coordinate) -> Optional[Unit]:
-        for unit in self.opp_units:
-            if unit.tc.xy == c.xy:
-                return unit
-
-        return None
+        return self._pos_tuple_to_opponent[c.xy]
 
     def get_n_closest_ore_positions_to_factory(self, factory: Factory, n: int) -> np.ndarray:
         return get_n_closests_positions_between_positions(self.ore_positions, factory.positions, n)
@@ -287,3 +286,13 @@ class Board:
 
     def is_opponent_heavy_on_tile(self, c: Coordinate) -> bool:
         return self.get_min_dis_to_opp_heavy(c) == 0
+
+    def get_neighboring_opponents(self, c: Coordinate) -> list[Unit]:
+        neighboring_opponents = []
+
+        for tc in c.neighbors:
+            opponent_on_c = self.get_opponent_on_c(tc)
+            if opponent_on_c:
+                neighboring_opponents.append(opponent_on_c)
+
+        return neighboring_opponents
