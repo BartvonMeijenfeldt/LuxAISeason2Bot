@@ -132,3 +132,6 @@ class GameState:
 
     def get_dis_to_closest_opp_heavy(self, c: Coordinate) -> float:
         return self.board.get_min_dis_to_opp_heavy(c=c)
+
+    def is_opponent_heavy_on_tile(self, c: Coordinate) -> bool:
+        return self.board.is_opponent_heavy_on_tile(c)

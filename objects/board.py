@@ -54,7 +54,8 @@ class Board:
 
         self.player_nr_lights = len(self.player_lights)
         self.player_nr_heavies = len(self.player_heavies)
-        self.player_light_heavy_ratio = np.divide(self.player_nr_lights, self.player_nr_heavies)
+        with np.errstate(invalid="ignore"):
+            self.player_light_heavy_ratio = np.divide(self.player_nr_lights, self.player_nr_heavies)
 
         valid_tiles_set = {(x, y) for x in range(self.size) for y in range(self.size)}
         self.valid_tiles_set = valid_tiles_set - self.opp_factory_tiles_set
@@ -283,3 +284,6 @@ class Board:
 
     def get_min_dis_to_opp_heavy(self, c: Coordinate) -> float:
         return self._min_distance_to_opp_heavies[c.x, c.y]
+
+    def is_opponent_heavy_on_tile(self, c: Coordinate) -> bool:
+        return self.get_min_dis_to_opp_heavy(c) == 0

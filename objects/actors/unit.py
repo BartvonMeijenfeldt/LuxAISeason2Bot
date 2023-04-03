@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import List, Sequence, Optional
 from math import ceil
 
+import logging
 from objects.actors.actor import Actor
 from lux.config import UnitConfig
 from objects.coordinate import TimeCoordinate, Coordinate
@@ -38,7 +39,9 @@ class Unit(Actor):
         self.id = int(self.unit_id[5:])
         self.x = self.tc.x
         self.y = self.tc.y
-        self.time_to_power_cost = 5 if self.unit_type == "LIGHT" else 50
+        self.is_light = self.unit_type == "LIGHT"
+        self.is_heavy = self.unit_type == "HEAVY"
+        self.time_to_power_cost = 5 if self.is_light else 50
         self.recharge_power = self.unit_cfg.CHARGE
         self.move_power_cost = self.unit_cfg.MOVE_COST
         self.move_time_and_power_cost = self.move_power_cost + self.time_to_power_cost
@@ -64,10 +67,22 @@ class Unit(Actor):
 
         if self.action_queue:
             self._add_action_queue_goal()
+
             if self.is_under_threath(game_state) and self.next_step_is_stationary():
                 self._add_flee_goal(game_state)
 
-        elif self.unit_type == "HEAVY" and self.id <= 20:
+            if self.is_light and self.next_step_walks_into_opponent_heavy(game_state):
+                self._add_factory_rubble_to_clear_goals(game_state)
+                self._add_rubble_goals(game_state, n=10)
+                self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=False)
+                self._add_ore_goals(game_state, n=2, return_to_current_closest_factory=False)
+
+                if game_state.real_env_steps > 500:
+                    self._add_destroy_lichen_goals(game_state, n=10)
+
+                self._add_dummy_goals()
+
+        elif self.is_heavy and self.id <= 20:
             self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
 
         else:
@@ -88,11 +103,22 @@ class Unit(Actor):
 
     def _add_action_queue_goal(self) -> None:
         if not self.prev_step_goal:
-            raise RuntimeError()
+            logging.critical("Action queue found but no prev step goal")
+            return
 
+        prev_step_goal = self.prev_step_goal
+        prev_goal = prev_step_goal.goal if isinstance(prev_step_goal, ActionQueueGoal) else prev_step_goal
         action_plan = UnitActionPlan(original_actions=self.action_queue, actor=self, is_set=True)
-        action_queue_goal = ActionQueueGoal(unit=self, action_plan=action_plan, goal=self.prev_step_goal)
+        action_queue_goal = ActionQueueGoal(unit=self, action_plan=action_plan, goal=prev_goal)
         self.goals.append(action_queue_goal)
+
+    def next_step_walks_into_opponent_heavy(self, game_state: GameState) -> bool:
+        if not self.action_queue:
+            return False
+
+        next_action = self.action_queue[0]
+        next_c = self.tc.add_action(next_action)
+        return game_state.is_opponent_heavy_on_tile(next_c)
 
     def _add_flee_goal(self, game_state: GameState) -> None:
         # TODO, this should be getting all threatening opponents and the flee goal should be adapted to

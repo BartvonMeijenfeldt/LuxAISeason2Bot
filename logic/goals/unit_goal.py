@@ -854,6 +854,9 @@ class ActionQueueGoal(UnitGoal):
         if self.unit.is_under_threath(game_state) and action_plan.actions[0].is_stationary:
             return -1000
 
+        if self.unit.is_light and self.unit.next_step_walks_into_opponent_heavy(game_state):
+            return -1000
+
         return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
 
     @property
