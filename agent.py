@@ -105,10 +105,9 @@ class Agent:
         reserved_goals = set()
 
         for actor in actors:
-            if self._is_out_of_time():
-                break
-
             while True:
+                if self._is_out_of_time():
+                    return final_goals
                 goals = actor_goals[actor]
                 try:
                     goal = actor.get_best_goal(goals, game_state, constraints, power_tracker)
