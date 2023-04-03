@@ -51,6 +51,18 @@ class GameState:
         return self.board.opp_factories
 
     @property
+    def player_nr_lights(self) -> int:
+        return self.board.player_nr_lights
+
+    @property
+    def player_nr_heavies(self) -> int:
+        return self.board.player_nr_heavies
+
+    @property
+    def player_light_heavy_ratio(self) -> float:
+        return self.board.player_light_heavy_ratio
+
+    @property
     def real_env_steps(self):
         """
         the actual env step in the environment, which subtracts the time spent bidding and placing factories
