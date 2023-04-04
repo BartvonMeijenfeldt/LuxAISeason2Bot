@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import List, Sequence, Optional
 from math import ceil
 
+import logging
 from objects.actors.actor import Actor
 from lux.config import UnitConfig
 from objects.coordinate import TimeCoordinate, Coordinate
@@ -38,7 +39,9 @@ class Unit(Actor):
         self.id = int(self.unit_id[5:])
         self.x = self.tc.x
         self.y = self.tc.y
-        self.time_to_power_cost = 5 if self.unit_type == "LIGHT" else 50
+        self.is_light = self.unit_type == "LIGHT"
+        self.is_heavy = self.unit_type == "HEAVY"
+        self.time_to_power_cost = 5 if self.is_light else 50
         self.recharge_power = self.unit_cfg.CHARGE
         self.move_power_cost = self.unit_cfg.MOVE_COST
         self.move_time_and_power_cost = self.move_power_cost + self.time_to_power_cost
@@ -64,10 +67,24 @@ class Unit(Actor):
 
         if self.action_queue:
             self._add_action_queue_goal()
+
             if self.is_under_threath(game_state) and self.next_step_is_stationary():
                 self._add_flee_goal(game_state)
 
-        elif self.unit_type == "HEAVY" and self.id <= 20:
+            if (
+                self.is_light and self.next_step_walks_into_opponent_heavy(game_state)
+            ) or self.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
+                self._add_factory_rubble_to_clear_goals(game_state)
+                self._add_rubble_goals(game_state, n=10)
+                self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=False)
+                self._add_ore_goals(game_state, n=2, return_to_current_closest_factory=False)
+
+                if game_state.real_env_steps > 500:
+                    self._add_destroy_lichen_goals(game_state, n=10)
+
+                self._add_dummy_goals()
+
+        elif self.is_heavy and self.id <= 20:
             self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
 
         else:
@@ -88,11 +105,45 @@ class Unit(Actor):
 
     def _add_action_queue_goal(self) -> None:
         if not self.prev_step_goal:
-            raise RuntimeError()
+            logging.critical("Action queue found but no prev step goal")
+            return
 
+        prev_step_goal = self.prev_step_goal
+        prev_goal = prev_step_goal.goal if isinstance(prev_step_goal, ActionQueueGoal) else prev_step_goal
         action_plan = UnitActionPlan(original_actions=self.action_queue, actor=self, is_set=True)
-        action_queue_goal = ActionQueueGoal(unit=self, action_plan=action_plan, goal=self.prev_step_goal)
+        action_queue_goal = ActionQueueGoal(unit=self, action_plan=action_plan, goal=prev_goal)
         self.goals.append(action_queue_goal)
+
+    def next_step_walks_next_to_opponent_unit_that_can_capture_self(self, game_state: GameState) -> bool:
+        next_action = self.action_queue[0]
+        #  TODO put this in proper function or something
+        next_c = self.tc + next_action.unit_direction
+        return self.is_c_next_to_opponent_that_can_capture_self(c=next_c, game_state=game_state)
+
+    def is_c_next_to_opponent_that_can_capture_self(self, c: Coordinate, game_state: GameState) -> bool:
+        neighboring_opponents = game_state.get_neighboring_opponents(c)
+        if not neighboring_opponents:
+            return False
+
+        strongest_neighboring_opponent = max(neighboring_opponents, key=lambda x: x.is_heavy * 10_000 + x.power)
+        return strongest_neighboring_opponent.can_capture(self)
+
+    def can_capture(self, other: Unit) -> bool:
+        if self.is_stronger_than(other):
+            return True
+        elif other.is_stronger_than(self):
+            return False
+
+        return self.power >= other.power
+
+    def next_step_walks_into_opponent_heavy(self, game_state: GameState) -> bool:
+        if not self.action_queue:
+            return False
+
+        next_action = self.action_queue[0]
+        #  TODO put this in proper function or something
+        next_c = self.tc + next_action.unit_direction
+        return game_state.is_opponent_heavy_on_tile(next_c)
 
     def _add_flee_goal(self, game_state: GameState) -> None:
         # TODO, this should be getting all threatening opponents and the flee goal should be adapted to
@@ -128,7 +179,12 @@ class Unit(Actor):
         factory = game_state.get_closest_player_factory(c=self.tc) if return_to_current_closest_factory else None
 
         ice_goals = [
-            CollectIceGoal(unit=self, pickup_power=pickup_power, dig_c=ice_tile, factory=factory,)
+            CollectIceGoal(
+                unit=self,
+                pickup_power=pickup_power,
+                dig_c=ice_tile,
+                factory=factory,
+            )
             for ice_tile in closest_ice_tiles
             for pickup_power in [False, True]
         ]
@@ -186,6 +242,9 @@ class Unit(Actor):
 
         return False
 
+    def _get_neighboring_opponents(self, game_state: GameState) -> list[Unit]:
+        return game_state.get_neighboring_opponents(self.tc)
+
     def next_step_is_stationary(self) -> bool:
         return self.has_actions_in_queue and self.action_queue[0].is_stationary
 
@@ -207,15 +266,12 @@ class Unit(Actor):
     def get_nr_digs_to_fill_cargo(self) -> int:
         return ceil(self.cargo_space_left / self.resources_gained_per_dig)
 
-    def _get_neighboring_opponents(self, game_state: GameState) -> list[Unit]:
-        neighboring_opponents = []
-
-        for tc in self.tc.neighbors:
-            opponent_on_c = game_state.get_opponent_on_c(tc)
-            if opponent_on_c:
-                neighboring_opponents.append(opponent_on_c)
-
-        return neighboring_opponents
+    def get_danger_tcs(self, game_state) -> dict[TimeCoordinate, float]:
+        return {
+            neighbor_c: 100
+            for neighbor_c in self.tc.neighbors
+            if self.is_c_next_to_opponent_that_can_capture_self(neighbor_c, game_state)
+        }
 
     def is_stronger_than(self, other: Unit) -> bool:
         return self.unit_type == "HEAVY" and other.unit_type == "LIGHT"

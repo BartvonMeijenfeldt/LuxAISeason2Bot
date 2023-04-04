@@ -4,6 +4,7 @@ import logging
 import time
 
 from typing import TYPE_CHECKING, Dict, Any, Sequence
+from copy import copy
 
 from lux.kit import obs_to_game_state
 from lux.config import EnvConfig
@@ -42,7 +43,7 @@ class Agent:
             return dict(faction="AlphaStrike", bid=0)
         else:
             if is_my_turn_to_place_factory(game_state, step):
-                spawn_loc = get_factory_spawn_loc(obs)
+                spawn_loc = get_factory_spawn_loc(game_state.board, obs["board"]["valid_spawns_mask"])
                 return dict(spawn=spawn_loc, metal=150, water=150)
             return dict()
 
@@ -105,13 +106,19 @@ class Agent:
         reserved_goals = set()
 
         for actor in actors:
-            if self._is_out_of_time():
-                break
+            if isinstance(actor, Unit):
+                constraints_with_danger = copy(constraints)
+                unit_danger_coordinates = actor.get_danger_tcs(game_state)
+                constraints_with_danger.add_danger_coordinates(unit_danger_coordinates)
+            else:
+                constraints_with_danger = constraints
 
             while True:
+                if self._is_out_of_time():
+                    return final_goals
                 goals = actor_goals[actor]
                 try:
-                    goal = actor.get_best_goal(goals, game_state, constraints, power_tracker)
+                    goal = actor.get_best_goal(goals, game_state, constraints_with_danger, power_tracker)
                     break
                 except RuntimeError:
                     pass

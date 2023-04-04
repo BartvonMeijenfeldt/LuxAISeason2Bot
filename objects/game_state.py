@@ -51,6 +51,18 @@ class GameState:
         return self.board.opp_factories
 
     @property
+    def player_nr_lights(self) -> int:
+        return self.board.player_nr_lights
+
+    @property
+    def player_nr_heavies(self) -> int:
+        return self.board.player_nr_heavies
+
+    @property
+    def player_light_heavy_ratio(self) -> float:
+        return self.board.player_light_heavy_ratio
+
+    @property
     def real_env_steps(self):
         """
         the actual env step in the environment, which subtracts the time spent bidding and placing factories
@@ -120,3 +132,9 @@ class GameState:
 
     def get_dis_to_closest_opp_heavy(self, c: Coordinate) -> float:
         return self.board.get_min_dis_to_opp_heavy(c=c)
+
+    def is_opponent_heavy_on_tile(self, c: Coordinate) -> bool:
+        return self.board.is_opponent_heavy_on_tile(c=c)
+
+    def get_neighboring_opponents(self, c: Coordinate) -> list[Unit]:
+        return self.board.get_neighboring_opponents(c=c)

@@ -75,9 +75,9 @@ class Coordinate:
         return self.x, self.y
 
     @property
-    def neighbors(self) -> CoordinateList:
+    def neighbors(self) -> list[Coordinate]:
         neighbors = [self + direction for direction in Direction]
-        return CoordinateList(neighbors)
+        return neighbors
 
     def distance_to(self, c: Coordinate) -> int:
         """Manhattan distance to coordinate
@@ -130,6 +130,11 @@ class TimeCoordinate(Coordinate):
 
     def _add_get_new_t_action(self, action: UnitAction) -> int:
         return self.t + action.n
+
+    @property
+    def neighbors(self) -> list[TimeCoordinate]:
+        neighbors = [self + direction for direction in Direction]
+        return neighbors
 
     @property
     def xyt(self) -> tuple[int, int, int]:

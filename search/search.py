@@ -57,6 +57,11 @@ class Graph(metaclass=ABCMeta):
         return power_cost
 
     def _get_danger_cost(self, to_c: TimeCoordinate) -> float:
+        base_danger_cost = self._get_base_danger_cost(to_c)
+        extra_danger = self.constraints.get_danger_cost(to_c)
+        return base_danger_cost + extra_danger
+
+    def _get_base_danger_cost(self, to_c: TimeCoordinate) -> float:
         if self.unit_type == "HEAVY":
             return 0
 

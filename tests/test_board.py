@@ -50,9 +50,11 @@ class TestMinDistancesPlayerFactoryOrLichen(unittest.TestCase):
     def test_factory_and_multiple_lichen(self):
         c = C(3, 8)
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3, id=1)])
-        lichen_tiles = [LT(x=3, y=5, lichen=1, strain=1),
-                        LT(x=3, y=6, lichen=1, strain=1),
-                        LT(x=3, y=7, lichen=1, strain=1)]
+        lichen_tiles = [
+            LT(x=3, y=5, lichen=1, strain=1),
+            LT(x=3, y=6, lichen=1, strain=1),
+            LT(x=3, y=7, lichen=1, strain=1),
+        ]
         expected_distance = 1
 
         tiles = Tiles(lichen=lichen_tiles)
@@ -78,8 +80,7 @@ class TestMinDistancesPlayerFactoryOrLichen(unittest.TestCase):
     def test_both_factory_and_both_lichen_1_distance(self):
         c = C(3, 6)
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3, id=1)], opp=[FactoryPos(3, 10, id=2)])
-        lichen_tiles = [LT(x=3, y=5, lichen=1, strain=1),
-                        LT(x=3, y=6, lichen=1, strain=2)]
+        lichen_tiles = [LT(x=3, y=5, lichen=1, strain=1), LT(x=3, y=6, lichen=1, strain=2)]
         expected_distance = 1
 
         tiles = Tiles(lichen=lichen_tiles)
@@ -93,8 +94,7 @@ class TestMinDistancesPlayerFactoryOrLichen(unittest.TestCase):
     def test_both_factory_and_both_lichen_0_distance(self):
         c = C(3, 6)
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3, id=1)], opp=[FactoryPos(3, 10, id=2)])
-        lichen_tiles = [LT(x=3, y=6, lichen=1, strain=1),
-                        LT(x=3, y=5, lichen=1, strain=2)]
+        lichen_tiles = [LT(x=3, y=6, lichen=1, strain=1), LT(x=3, y=5, lichen=1, strain=2)]
         expected_distance = 0
 
         tiles = Tiles(lichen=lichen_tiles)

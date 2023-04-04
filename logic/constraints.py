@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional, Iterable
+from collections import defaultdict
 from copy import copy
 
 from objects.coordinate import TimeCoordinate
@@ -11,11 +12,13 @@ from objects.coordinate import TimeCoordinate
 class Constraints:
     negative: set[tuple[int, int, int]] = field(default_factory=set)
     negative_t: set[int] = field(default_factory=set)
+    danger_coordinates: defaultdict[tuple[int, int, int], float] = field(default_factory=lambda: defaultdict(lambda: 0))
 
     def __copy__(self) -> Constraints:
         constraints_negative = copy(self.negative)
         constraints_negative_t = copy(self.negative_t)
-        return Constraints(constraints_negative, constraints_negative_t)
+        danger_coordinates = copy(self.danger_coordinates)
+        return Constraints(constraints_negative, constraints_negative_t, danger_coordinates)
 
     @property
     def key(self) -> str:
@@ -34,6 +37,13 @@ class Constraints:
     def add_negative_constraint(self, tc: TimeCoordinate) -> None:
         self.negative.add(tc.xyt)
         self.negative_t.add(tc.t)
+
+    def add_danger_coordinates(self, danger_coordinates: dict[TimeCoordinate, float]):
+        for tc, value in danger_coordinates.items():
+            self.danger_coordinates[tc.xyt] = value
+
+    def get_danger_cost(self, tc: TimeCoordinate) -> float:
+        return self.danger_coordinates[tc.xyt]
 
     @property
     def max_t(self) -> Optional[int]:

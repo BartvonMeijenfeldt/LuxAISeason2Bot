@@ -48,9 +48,7 @@ class Actor(metaclass=ABCMeta):
 
         raise RuntimeError("No best goal was found")
 
-    def _init_priority_queue(
-        self, goals: list[Goal], reserved_goals: Set[str], game_state: GameState
-    ) -> PriorityQueue:
+    def _init_priority_queue(self, goals: list[Goal], reserved_goals: Set[str], game_state: GameState) -> PriorityQueue:
         goals_priority_queue = PriorityQueue()
 
         for goal in goals:

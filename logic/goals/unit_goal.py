@@ -165,7 +165,11 @@ class UnitGoal(Goal):
         self.action_plan.extend(new_actions)
 
     def _get_move_to_plan(
-        self, start_tc: TimeCoordinate, goal: Coordinate, constraints: Constraints, board: Board,
+        self,
+        start_tc: TimeCoordinate,
+        goal: Coordinate,
+        constraints: Constraints,
+        board: Board,
     ) -> list[UnitAction]:
 
         graph = self._get_move_to_graph(board=board, goal=goal, constraints=constraints)
@@ -424,7 +428,12 @@ class CollectGoal(DigGoal):
     def _get_transfer_resources_to_factory_actions(self, board: Board, constraints: Constraints) -> list[UnitAction]:
         return self._get_transfer_plan(start_tc=self.action_plan.final_tc, constraints=constraints, board=board)
 
-    def _get_transfer_plan(self, start_tc: TimeCoordinate, constraints: Constraints, board: Board,) -> list[UnitAction]:
+    def _get_transfer_plan(
+        self,
+        start_tc: TimeCoordinate,
+        constraints: Constraints,
+        board: Board,
+    ) -> list[UnitAction]:
         start = ResourceTimeCoordinate(start_tc.x, start_tc.y, start_tc.t, q=0, resource=self.resource)
         graph = self._get_transfer_graph(board=board, constraints=constraints)
         actions = self._search_graph(graph=graph, start=start)
@@ -620,7 +629,7 @@ class ClearRubbleGoal(DigGoal):
         distance_opp_factory_to_rubble = game_state.board.get_min_distance_to_opp_factory_or_lichen(self.dig_c)
         delta_closer_factory_to_player_mp = min(distance_opp_factory_to_rubble - distance_player_factory_to_rubble, 5)
 
-        distance_player_factory_mp = 121 - distance_player_factory_to_rubble ** 2
+        distance_player_factory_mp = 121 - distance_player_factory_to_rubble**2
 
         benefit_rubble_reduced = distance_player_factory_mp * delta_closer_factory_to_player_mp * 0.005
 
@@ -854,6 +863,12 @@ class ActionQueueGoal(UnitGoal):
         if self.unit.is_under_threath(game_state) and action_plan.actions[0].is_stationary:
             return -1000
 
+        if self.unit.is_light and self.unit.next_step_walks_into_opponent_heavy(game_state):
+            return -1000
+
+        if self.unit.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
+            return -1000
+
         return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
 
     @property
@@ -869,6 +884,12 @@ class ActionQueueGoal(UnitGoal):
 
     def _get_max_benefit(self, game_state: GameState) -> float:
         if self.unit.is_under_threath(game_state) and self.action_plan.actions[0].is_stationary:
+            return -1000
+
+        if self.unit.is_light and self.unit.next_step_walks_into_opponent_heavy(game_state):
+            return -1000
+
+        if self.unit.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
             return -1000
 
         return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
@@ -933,7 +954,12 @@ class EvadeConstraintsGoal(UnitGoal):
         if not self.action_plan.actor_can_carry_out_plan(game_state):
             self._is_valid = False
 
-    def _get_evade_plan(self, start_tc: TimeCoordinate, constraints: Constraints, board: Board,) -> list[UnitAction]:
+    def _get_evade_plan(
+        self,
+        start_tc: TimeCoordinate,
+        constraints: Constraints,
+        board: Board,
+    ) -> list[UnitAction]:
         graph = self._get_evade_constraints_graph(board=board, constraints=constraints)
         actions = self._search_graph(graph=graph, start=start_tc)
         return actions
