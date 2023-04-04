@@ -291,6 +291,9 @@ class Board:
         neighboring_opponents = []
 
         for tc in c.neighbors:
+            if tc.xy == c.xy:
+                continue
+
             opponent_on_c = self.get_opponent_on_c(tc)
             if opponent_on_c:
                 neighboring_opponents.append(opponent_on_c)

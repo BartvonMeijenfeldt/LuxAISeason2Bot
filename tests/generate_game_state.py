@@ -207,7 +207,14 @@ def _generate_factory(team_id: int, pos: FactoryPos, cargo: Optional[dict] = Non
 
     np_pos = np.array([pos.x, pos.y])
 
-    return dict(pos=np_pos, power=pos.p, cargo=cargo, unit_id=f"factory_{pos.id}", strain_id=pos.id, team_id=team_id,)
+    return dict(
+        pos=np_pos,
+        power=pos.p,
+        cargo=cargo,
+        unit_id=f"factory_{pos.id}",
+        strain_id=pos.id,
+        team_id=team_id,
+    )
 
 
 def _get_obs(
@@ -230,7 +237,12 @@ def _get_obs(
     global_id = 0
 
     return dict(
-        units=units, teams=teams, factories=factories, board=board, real_env_steps=real_env_steps, global_id=global_id,
+        units=units,
+        teams=teams,
+        factories=factories,
+        board=board,
+        real_env_steps=real_env_steps,
+        global_id=global_id,
     )
 
 

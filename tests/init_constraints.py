@@ -5,9 +5,7 @@ from logic.constraints import Constraints
 from objects.coordinate import TimeCoordinate as TC
 
 
-def init_constraints(
-    negative_constraints: Optional[List[TC]] = None
-) -> Constraints:
+def init_constraints(negative_constraints: Optional[List[TC]] = None) -> Constraints:
     constraints = Constraints()
     if not negative_constraints:
         negative_constraints = []

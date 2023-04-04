@@ -145,10 +145,10 @@ class Factory(Actor):
         water_cost = self.water_cost()
         goals = []
 
-        if self.can_build_heavy and (game_state.player_light_heavy_ratio >= 10 or game_state.player_nr_heavies == 0):
+        if self.can_build_heavy:
             goals.append(BuildHeavyGoal(self))
 
-        elif self.can_build_light and (game_state.player_light_heavy_ratio < 10 or game_state.player_nr_lights == 0):
+        elif self.can_build_light:
             goals.append(BuildLightGoal(self))
 
         elif self.cargo.water - water_cost > 50 and water_cost < 5:

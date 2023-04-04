@@ -6,9 +6,9 @@ from agent import Agent
 from visualize.interactions import interact
 
 parser = ArgumentParser()
-parser.add_argument('--nr_steps', default=1000, type=int)
-parser.add_argument('--seed', default=212457496, type=int)
-parser.add_argument('--debug_mode', default=False, type=bool)
+parser.add_argument("--nr_steps", default=1000, type=int)
+parser.add_argument("--seed", default=212457496, type=int)
+parser.add_argument("--debug_mode", default=False, type=bool)
 args = parser.parse_args()
 
 env = LuxAI_S2()

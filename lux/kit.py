@@ -72,8 +72,8 @@ def process_obs(player, game_state, step, obs):
 
 
 def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str, prev_steps_goals: Dict[str, Goal]):
-    units = create_units(obs=obs, env_cfg=env_cfg, t=obs['real_env_steps'], prev_step_goals=prev_steps_goals)
-    factories = create_factories(obs=obs, env_cfg=env_cfg, t=obs['real_env_steps'])
+    units = create_units(obs=obs, env_cfg=env_cfg, t=obs["real_env_steps"], prev_step_goals=prev_steps_goals)
+    factories = create_factories(obs=obs, env_cfg=env_cfg, t=obs["real_env_steps"])
     factory_occupancy_map = create_factory_occupancy_map(factories, obs["board"]["rubble"].shape)
 
     player_team = Team(**obs["teams"][player], agent=player) if player in obs["teams"] else None
@@ -91,7 +91,7 @@ def obs_to_game_state(step, env_cfg: EnvConfig, obs, player: str, opp: str, prev
         player_units=units[player],
         opp_units=units[opp],
         player_factories=factories[player],
-        opp_factories=factories[opp]
+        opp_factories=factories[opp],
     )
 
     return GameState(

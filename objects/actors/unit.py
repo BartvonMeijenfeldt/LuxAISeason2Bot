@@ -116,7 +116,8 @@ class Unit(Actor):
 
     def next_step_walks_next_to_opponent_unit_that_can_capture_self(self, game_state: GameState) -> bool:
         next_action = self.action_queue[0]
-        next_c = self.tc.add_action(next_action)
+        #  TODO put this in proper function or something
+        next_c = self.tc + next_action.unit_direction
         return self.is_c_next_to_opponent_that_can_capture_self(c=next_c, game_state=game_state)
 
     def is_c_next_to_opponent_that_can_capture_self(self, c: Coordinate, game_state: GameState) -> bool:
@@ -140,7 +141,8 @@ class Unit(Actor):
             return False
 
         next_action = self.action_queue[0]
-        next_c = self.tc.add_action(next_action)
+        #  TODO put this in proper function or something
+        next_c = self.tc + next_action.unit_direction
         return game_state.is_opponent_heavy_on_tile(next_c)
 
     def _add_flee_goal(self, game_state: GameState) -> None:
@@ -177,7 +179,12 @@ class Unit(Actor):
         factory = game_state.get_closest_player_factory(c=self.tc) if return_to_current_closest_factory else None
 
         ice_goals = [
-            CollectIceGoal(unit=self, pickup_power=pickup_power, dig_c=ice_tile, factory=factory,)
+            CollectIceGoal(
+                unit=self,
+                pickup_power=pickup_power,
+                dig_c=ice_tile,
+                factory=factory,
+            )
             for ice_tile in closest_ice_tiles
             for pickup_power in [False, True]
         ]

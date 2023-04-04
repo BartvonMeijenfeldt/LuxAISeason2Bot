@@ -44,9 +44,7 @@ class FactoryActionPlan(ActionPlan):
         return metal_requested <= self.actor.cargo.metal
 
     def actor_has_enough_water(self) -> bool:
-        power_requested = sum(
-            action.get_water_cost(factory=self.actor) for action in self.actions
-        )
+        power_requested = sum(action.get_water_cost(factory=self.actor) for action in self.actions)
         return power_requested <= self.actor.cargo.water
 
     @property
