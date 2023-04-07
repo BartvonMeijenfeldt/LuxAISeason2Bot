@@ -281,6 +281,13 @@ class Board:
     def is_rubble_tile(self, c: Coordinate) -> bool:
         return self._is_rubble_no_resource[c.x, c.y]
 
+    def is_opponent_lichen_tile(self, c: Coordinate) -> bool:
+        if self.lichen[c.xy] == 0:
+            return False
+
+        lichen_strain = self.lichen_strains[c.xy]
+        return lichen_strain in {f.strain_id for f in self.opp_factories}
+
     def is_resource_tile(self, c: Coordinate) -> bool:
         return self.is_ice_tile(c) or self.is_ore_tile(c)
 
