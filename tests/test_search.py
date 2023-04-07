@@ -67,7 +67,7 @@ class TestMoveToSearch(unittest.TestCase):
     def test_already_there_path(self):
         start = TC(3, 3, 0)
         goal = C(3, 3)
-        state = get_state(board_width=9)
+        state = get_state()
         expected_actions = []
 
         self._test_move_to_search(state=state, start=start, goal=goal, expected_actions=expected_actions)
@@ -76,7 +76,7 @@ class TestMoveToSearch(unittest.TestCase):
 
         start = TC(3, 2, 0)
         goal = C(3, 3)
-        state = get_state(board_width=9)
+        state = get_state()
         expected_actions = [MA(D.DOWN)]
 
         self._test_move_to_search(state=state, start=start, goal=goal, expected_actions=expected_actions)
@@ -88,7 +88,7 @@ class TestMoveToSearch(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(2, 5)])
         expected_actions = [MA(D.DOWN)] * 4
 
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         self._test_move_to_search(state=state, start=start, goal=goal, expected_actions=expected_actions)
 
     def test_around_opponent_factory(self):
@@ -97,7 +97,7 @@ class TestMoveToSearch(unittest.TestCase):
         factory_positions = FactoryPositions(opp=[FactoryPos(2, 5)])
         expected_actions = [MA(D.LEFT)] + [MA(D.DOWN)] * 4 + [MA(D.RIGHT)]
 
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         self._test_move_to_search(state=state, start=start, goal=goal, expected_actions=expected_actions)
 
@@ -109,7 +109,7 @@ class TestMoveToSearch(unittest.TestCase):
         tiles = Tiles(rubble=rubble_tiles)
         expected_actions = [MA(D.DOWN), MA(D.RIGHT)] * 3
 
-        state = get_state(board_width=9, tiles=tiles)
+        state = get_state(tiles=tiles)
 
         self._test_move_to_search(state=state, start=start, goal=goal, expected_actions=expected_actions)
 
@@ -119,7 +119,7 @@ class TestMoveToSearch(unittest.TestCase):
         constraints = init_constraints(negative_constraints=[TC(3, 2, 1)])
         expected_actions = [MA(D.CENTER), MA(D.RIGHT), MA(D.RIGHT), MA(D.RIGHT)]
 
-        state = get_state(board_width=9)
+        state = get_state()
 
         self._test_move_to_search(
             state=state, start=start, goal=goal, expected_actions=expected_actions, constraints=constraints
@@ -132,7 +132,7 @@ class TestMoveToSearch(unittest.TestCase):
 
         expected_actions = [MA(D.RIGHT), MA(D.RIGHT), MA(D.CENTER), MA(D.RIGHT)]
 
-        state = get_state(board_width=9)
+        state = get_state()
 
         self._test_move_to_search(
             state=state, start=start, goal=goal, expected_actions=expected_actions, constraints=constraints
@@ -148,7 +148,7 @@ class TestMoveToSearch(unittest.TestCase):
 
         expected_actions = [MA(D.UP), MA(D.RIGHT), MA(D.RIGHT), MA(D.RIGHT), MA(D.DOWN)]
 
-        state = get_state(board_width=9, tiles=tiles)
+        state = get_state(tiles=tiles)
 
         self._test_move_to_search(
             state=state,
@@ -169,7 +169,7 @@ class TestMoveToSearch(unittest.TestCase):
 
         expected_actions = [MA(D.RIGHT), MA(D.RIGHT), MA(D.RIGHT)]
 
-        state = get_state(board_width=9, tiles=tiles)
+        state = get_state(tiles=tiles)
 
         self._test_move_to_search(
             state=state,
@@ -191,7 +191,7 @@ class TestMoveToSearch(unittest.TestCase):
 
         expected_actions = [MA(D.UP)] + [MA(D.RIGHT)] * 18 + [MA(D.DOWN)]
 
-        state = get_state(board_width=22, tiles=tiles)
+        state = get_state(tiles=tiles)
 
         self._test_move_to_search(
             state=state,
@@ -212,7 +212,7 @@ class TestMoveToSearch(unittest.TestCase):
 
         expected_actions = [MA(D.RIGHT)] * 18
 
-        state = get_state(board_width=22, tiles=tiles)
+        state = get_state(tiles=tiles)
 
         self._test_move_to_search(
             state=state,
@@ -257,7 +257,7 @@ class DigAtSearch(unittest.TestCase):
     def test_already_there_path(self):
         start = DTC(3, 3, 0, 0)
         goal = DC(3, 3, 3)
-        state = get_state(board_width=9)
+        state = get_state()
         expected_actions = [DA()] * 3
 
         self._test_dig_at_search(state=state, start=start, goal=goal, expected_actions=expected_actions)
@@ -265,7 +265,7 @@ class DigAtSearch(unittest.TestCase):
     def test_one_down_path(self):
         start = DTC(3, 2, 0, 0)
         goal = DC(3, 3, 3)
-        state = get_state(board_width=9)
+        state = get_state()
         expected_actions = [MA(D.DOWN)] + [DA()] * 3
 
         self._test_dig_at_search(state=state, start=start, goal=goal, expected_actions=expected_actions)
@@ -276,7 +276,7 @@ class DigAtSearch(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(2, 5)])
         expected_actions = [MA(D.DOWN)] * 4 + [DA()] * 2
 
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         self._test_dig_at_search(state=state, start=start, goal=goal, expected_actions=expected_actions)
 
     def test_around_opponent_factory(self):
@@ -286,7 +286,7 @@ class DigAtSearch(unittest.TestCase):
 
         expected_actions = [MA(D.LEFT)] + [MA(D.DOWN)] * 4 + [MA(D.RIGHT)] + [DA()] * 2
 
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         self._test_dig_at_search(state=state, start=start, goal=goal, expected_actions=expected_actions)
 
@@ -304,7 +304,7 @@ class DigAtSearch(unittest.TestCase):
         tiles = Tiles(rubble=rubble_tiles)
         expected_actions = [MA(D.DOWN), MA(D.RIGHT)] * 3 + [DA()] * 3
 
-        state = get_state(board_width=9, tiles=tiles)
+        state = get_state(tiles=tiles)
 
         self._test_dig_at_search(state=state, start=start, goal=goal, expected_actions=expected_actions)
 
@@ -315,7 +315,7 @@ class DigAtSearch(unittest.TestCase):
 
         expected_actions = [MA(D.CENTER)] + [MA(D.RIGHT)] * 3 + [DA()] * 3
 
-        state = get_state(board_width=9)
+        state = get_state()
 
         self._test_dig_at_search(
             state=state, start=start, goal=goal, expected_actions=expected_actions, constraints=constraints
@@ -327,7 +327,7 @@ class DigAtSearch(unittest.TestCase):
         constraints = init_constraints(negative_constraints=[TC(5, 2, 3)])
         expected_actions = [MA(D.RIGHT), MA(D.RIGHT), MA(D.CENTER), MA(D.RIGHT)] + [DA()] * 3
 
-        state = get_state(board_width=9)
+        state = get_state()
 
         self._test_dig_at_search(
             state=state, start=start, goal=goal, expected_actions=expected_actions, constraints=constraints
@@ -339,7 +339,7 @@ class DigAtSearch(unittest.TestCase):
         constraints = init_constraints(negative_constraints=[TC(5, 2, 4)])
         expected_actions = [MA(D.RIGHT), MA(D.RIGHT), MA(D.CENTER), MA(D.CENTER), MA(D.RIGHT)] + [DA()] * 3
 
-        state = get_state(board_width=9)
+        state = get_state()
 
         self._test_dig_at_search(
             state=state, start=start, goal=goal, expected_actions=expected_actions, constraints=constraints
@@ -353,7 +353,7 @@ class DigAtSearch(unittest.TestCase):
         tiles = Tiles(rubble=rubble_tiles)
         expected_actions = [MA(D.RIGHT)] * 3 + [DA(), MA(D.LEFT), MA(D.RIGHT)] + [DA()] * 2
 
-        state = get_state(board_width=9, tiles=tiles)
+        state = get_state(tiles=tiles)
 
         self._test_dig_at_search(
             state=state, start=start, goal=goal, expected_actions=expected_actions, constraints=constraints
@@ -369,7 +369,7 @@ class DigAtSearch(unittest.TestCase):
 
         expected_actions = [MA(D.UP)] + [MA(D.RIGHT)] * 3 + [MA(D.DOWN)] + [DA()] * 3
 
-        state = get_state(board_width=9, tiles=tiles)
+        state = get_state(tiles=tiles)
 
         self._test_dig_at_search(
             state=state,
@@ -390,7 +390,7 @@ class DigAtSearch(unittest.TestCase):
 
         expected_actions = [MA(D.RIGHT)] * 3 + [DA()] * 3
 
-        state = get_state(board_width=9, tiles=tiles)
+        state = get_state(tiles=tiles)
 
         self._test_dig_at_search(
             state=state,
@@ -412,7 +412,7 @@ class DigAtSearch(unittest.TestCase):
 
         expected_actions = [MA(D.UP)] + [MA(D.RIGHT)] * 18 + [MA(D.DOWN)] + [DA()] * 3
 
-        state = get_state(board_width=22, tiles=tiles)
+        state = get_state(tiles=tiles)
 
         self._test_dig_at_search(
             state=state,
@@ -433,7 +433,7 @@ class DigAtSearch(unittest.TestCase):
 
         expected_actions = [MA(D.RIGHT)] * 18 + [DA()] * 3
 
-        state = get_state(board_width=22, tiles=tiles)
+        state = get_state(tiles=tiles)
 
         self._test_dig_at_search(
             state=state,
@@ -483,7 +483,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
     def test_already_there_path(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         expected_actions = [PA(amount=50, resource=Resource.POWER)]
@@ -492,7 +492,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
     def test_already_there_no_power_available_day(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3, p=0)])
-        state = get_state(board_width=9, factory_positions=factory_positions, real_env_steps=1)
+        state = get_state(factory_positions=factory_positions, real_env_steps=1)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         expected_actions = [MA(D.CENTER), PA(amount=49, resource=Resource.POWER)]
@@ -501,7 +501,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
     def test_already_there_no_power_available_night(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3, p=0)])
-        state = get_state(board_width=9, factory_positions=factory_positions, real_env_steps=31)
+        state = get_state(factory_positions=factory_positions, real_env_steps=31)
 
         start = PTC(x=3, y=3, t=31, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         expected_actions = [MA(D.CENTER), PA(amount=50, resource=Resource.POWER)]
@@ -512,7 +512,7 @@ class TestPowerPickupSearch(unittest.TestCase):
         rubble_tiles = [RT(1, 0, 100), RT(2, 0, 100), RT(0, 1, 100), RT(1, 1, 100), RT(0, 2, 100)]
         tiles = Tiles(rubble=rubble_tiles)
         factory_positions = FactoryPositions(player=[FactoryPos(3, 1, p=0)])
-        state = get_state(board_width=9, factory_positions=factory_positions, tiles=tiles)
+        state = get_state(factory_positions=factory_positions, tiles=tiles)
 
         start = PTC(x=0, y=0, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         expected_actions = [MA(D.RIGHT), MA(D.RIGHT), PA(amount=60, resource=Resource.POWER)]
@@ -521,7 +521,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
     def test_move_to_factory_day(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         start = PTC(x=1, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         expected_actions = [MA(D.RIGHT), PA(amount=50, resource=Resource.POWER)]
@@ -530,7 +530,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
     def test_move_to_factory_night(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         start = PTC(x=1, y=3, t=31, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         expected_actions = [MA(D.RIGHT), PA(amount=51, resource=Resource.POWER)]
@@ -540,13 +540,13 @@ class TestPowerPickupSearch(unittest.TestCase):
     def test_move_take_next_goal_into_account_right(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
         constraints = init_constraints(negative_constraints=[TC(3, 3, 2)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         next_goal_c = C(5, 3)
         expected_actions = [MA(D.RIGHT), PA(amount=50, resource=Resource.POWER)]
 
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         self._test_power_pickup_search(
             state=state,
@@ -559,13 +559,13 @@ class TestPowerPickupSearch(unittest.TestCase):
     def test_move_take_next_goal_into_account_up(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
         constraints = init_constraints(negative_constraints=[TC(3, 3, 2)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         next_goal_c = C(3, 1)
         expected_actions = [MA(D.UP), PA(amount=50, resource=Resource.POWER)]
 
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         self._test_power_pickup_search(
             state=state,
@@ -578,13 +578,13 @@ class TestPowerPickupSearch(unittest.TestCase):
     def test_move_take_next_goal_into_account_down(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
         constraints = init_constraints(negative_constraints=[TC(3, 3, 2)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         next_goal_c = C(3, 5)
         expected_actions = [MA(D.DOWN), PA(amount=50, resource=Resource.POWER)]
 
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         self._test_power_pickup_search(
             state=state,
@@ -597,13 +597,13 @@ class TestPowerPickupSearch(unittest.TestCase):
     def test_move_take_next_goal_into_account_left(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
         constraints = init_constraints(negative_constraints=[TC(3, 3, 2)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         next_goal_c = C(1, 3)
         expected_actions = [MA(D.LEFT), PA(amount=50, resource=Resource.POWER)]
 
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         self._test_power_pickup_search(
             state=state,
@@ -647,7 +647,7 @@ class TestTransferResearchesSearch(unittest.TestCase):
 
     def test_already_there_path(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         start = TC(x=3, y=3, t=1)
         expected_actions = [TA(direction=D.CENTER, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
@@ -656,7 +656,7 @@ class TestTransferResearchesSearch(unittest.TestCase):
 
     def test_next_to_factory_left(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         start = TC(x=1, y=3, t=1)
         expected_actions = [TA(direction=D.RIGHT, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
@@ -665,7 +665,7 @@ class TestTransferResearchesSearch(unittest.TestCase):
 
     def test_next_to_factory_right(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         start = TC(x=5, y=3, t=1)
         expected_actions = [TA(direction=D.LEFT, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
@@ -674,7 +674,7 @@ class TestTransferResearchesSearch(unittest.TestCase):
 
     def test_next_to_factory_up(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         start = TC(x=3, y=1, t=1)
         expected_actions = [TA(direction=D.DOWN, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
@@ -683,7 +683,7 @@ class TestTransferResearchesSearch(unittest.TestCase):
 
     def test_next_to_factory_down(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         start = TC(x=3, y=5, t=1)
         expected_actions = [TA(direction=D.UP, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
@@ -692,7 +692,7 @@ class TestTransferResearchesSearch(unittest.TestCase):
 
     def test_move_to_factory(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
 
         start = TC(x=0, y=3, t=1)
         expected_actions = [MA(D.RIGHT), TA(direction=D.RIGHT, amount=LIGHT_CFG.CARGO_SPACE, resource=Resource.ICE)]
@@ -701,7 +701,7 @@ class TestTransferResearchesSearch(unittest.TestCase):
 
     def test_move_on_factory_and_transfer(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         constraints = init_constraints(negative_constraints=[TC(2, 2, 2), TC(2, 3, 2), TC(2, 4, 2), TC(1, 3, 2)])
 
         start = TC(x=2, y=3, t=1)
@@ -713,7 +713,7 @@ class TestTransferResearchesSearch(unittest.TestCase):
 
     def test_move_away_from_factory_and_transfer(self):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         constraints = init_constraints(negative_constraints=[TC(2, 2, 2), TC(2, 3, 2), TC(2, 4, 2), TC(3, 3, 2)])
 
         start = TC(x=2, y=3, t=1)

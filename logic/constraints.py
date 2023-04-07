@@ -43,6 +43,9 @@ class Constraints:
             self.danger_coordinates[tc.xyt] = value
 
     def get_danger_cost(self, tc: TimeCoordinate) -> float:
+        if not self.danger_coordinates:
+            return 0
+
         return self.danger_coordinates[tc.xyt]
 
     @property

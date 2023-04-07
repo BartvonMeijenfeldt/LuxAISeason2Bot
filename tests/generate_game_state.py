@@ -152,8 +152,8 @@ class Tiles:
     lichen: Sequence[LichenTile] = field(default_factory=list)
 
 
-def _get_board(board_width: int, tiles: Tiles) -> dict:
-    board_shape = (board_width, board_width)
+def _get_board(tiles: Tiles) -> dict:
+    board_shape = (48, 48)
     rubble = np.zeros(board_shape)
     ore = np.zeros(board_shape)
     ice = np.zeros(board_shape)
@@ -218,7 +218,6 @@ def _generate_factory(team_id: int, pos: FactoryPos, cargo: Optional[dict] = Non
 
 
 def _get_obs(
-    board_width: int,
     unit_positions: UnitPositions,
     factory_positions: FactoryPositions,
     tiles: Tiles,
@@ -232,7 +231,7 @@ def _get_obs(
     opp_factory_strains = [factory["strain_id"] for factory in factories[f"player_{OPP_TEAM_ID}"].values()]
     teams = _get_teams(player_factory_strains=player_factory_strains, opp_factory_strains=opp_factory_strains)
 
-    board = _get_board(board_width, tiles)
+    board = _get_board(tiles)
 
     global_id = 0
 
@@ -247,7 +246,6 @@ def _get_obs(
 
 
 def get_state(
-    board_width: int,
     unit_positions: Optional[UnitPositions] = None,
     factory_positions: Optional[FactoryPositions] = None,
     tiles: Optional[Tiles] = None,
@@ -264,7 +262,6 @@ def get_state(
         tiles = Tiles()
 
     obs = _get_obs(
-        board_width=board_width,
         unit_positions=unit_positions,
         factory_positions=factory_positions,
         tiles=tiles,

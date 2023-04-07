@@ -4,8 +4,8 @@ import numpy as np
 
 from typing import Tuple, TYPE_CHECKING
 from itertools import product
-from operator import itemgetter
 from dataclasses import dataclass
+from collections import Counter
 
 from objects.actions.factory_action import WaterAction
 from objects.actors.actor import Actor
@@ -14,13 +14,14 @@ from logic.goals.goal import GoalCollection
 from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal, FactoryGoal
 from distances import (
     get_min_distance_between_positions,
-    get_closest_pos_and_pos_between_positions,
+    get_min_distances_between_positions,
     get_closest_pos_between_pos_and_positions,
     get_positions_on_optimal_path_between_pos_and_pos,
 )
 from image_processing import get_islands
 from positions import init_empty_positions, get_neighboring_positions
 from lux.config import EnvConfig, LIGHT_CONFIG, HEAVY_CONFIG
+from config import CONFIG
 
 if TYPE_CHECKING:
     from objects.game_state import GameState
@@ -63,7 +64,9 @@ class Factory(Actor):
         self.max_nr_tiles_to_water = len(self.lichen_positions) + len(self.can_spread_to_positions)
         self.connected_positions = self._get_empty_or_lichen_connected_positions(board)
         self.nr_connected_positions = len(self.connected_positions)
-        self.rubble_positions_to_clear = self._get_rubble_positions_to_clear(board)
+        # self.rubble_positions_to_clear = self._get_rubble_positions_to_clear(board)
+        self.rubble_positions_pathing = self._get_rubble_positions_to_clear_for_resources(board)
+        self.rubble_positions_values_for_lichen = self._get_rubble_positions_to_clear_for_lichen(board)
 
     def _get_connected_lichen_positions(self, board: Board) -> np.ndarray:
         own_lichen = board.lichen_strains == self.strain_id
@@ -93,32 +96,10 @@ class Factory(Actor):
 
     def _get_can_spread_to_positions(self, board: Board, can_spread_positions: np.ndarray) -> np.ndarray:
         neighboring_positions = get_neighboring_positions(can_spread_positions)
-        is_empty_mask = board.are_positions_empty(neighboring_positions)
+        is_empty_mask = board.are_empty_postions(neighboring_positions)
         return neighboring_positions[is_empty_mask]
 
-    def _get_rubble_positions_to_clear(self, board: Board) -> np.ndarray:
-        if self.nr_connected_positions <= 30:
-            return self._get_rubble_positions_to_clear_for_watering(board)
-        else:
-            return self._get_rubble_positions_to_clear_for_resources(board)
-
-    def _get_rubble_positions_to_clear_for_watering(self, board: Board) -> np.ndarray:
-        distances_to_islands = [
-            (self.min_distance_to_positions(positions), positions) for positions in board.empty_islands
-        ]
-        non_connected_distances_to_islands = [
-            (dis, positions) for dis, positions in distances_to_islands if dis and len(positions) > 2
-        ]
-        if not non_connected_distances_to_islands:
-            return init_empty_positions()
-
-        closest_island_positions = min(non_connected_distances_to_islands, key=itemgetter(0))[1]
-
-        factory_pos, island_pos = get_closest_pos_and_pos_between_positions(self.positions, closest_island_positions)
-        positions = get_positions_on_optimal_path_between_pos_and_pos(a=factory_pos, b=island_pos, board=board)
-        return positions
-
-    def _get_rubble_positions_to_clear_for_resources(self, board: Board) -> np.ndarray:
+    def _get_rubble_positions_to_clear_for_resources(self, board: Board) -> Counter[Tuple[int, int]]:
         closest_2_ice_positions = board.get_n_closest_ice_positions_to_factory(self, n=2)
         closest_2_ore_positions = board.get_n_closest_ore_positions_to_factory(self, n=2)
         closest_resource_positions = np.append(closest_2_ice_positions, closest_2_ore_positions, axis=0)
@@ -130,7 +111,31 @@ class Factory(Actor):
             optimal_positions = get_positions_on_optimal_path_between_pos_and_pos(pos, closest_factory_pos, board)
             positions = np.append(positions, optimal_positions, axis=0)
 
-        return positions
+        rubble_mask = board.are_rubble_positions(positions)
+        rubble_positions = positions[rubble_mask]
+
+        rubble_value_dict = Counter({tuple(pos): CONFIG.RUBBLE_VALUE_CLEAR_FOR_RESOURCE for pos in rubble_positions})
+
+        return rubble_value_dict
+
+    def _get_rubble_positions_to_clear_for_lichen(self, board: Board) -> Counter[Tuple[int, int]]:
+        rubble_positions, distances = self._get_rubble_positions_and_distances_within_max_distance(board)
+        values = self._get_rubbe_positions_to_clear_for_lichen_score(distances)
+        rubble_value_dict = Counter({tuple(pos): value for pos, value in zip(rubble_positions, values)})
+
+        return rubble_value_dict
+
+    def _get_rubbe_positions_to_clear_for_lichen_score(self, distances: np.ndarray) -> np.ndarray:
+        base_score = CONFIG.RUBBLE_VALUE_CLEAR_FOR_LICHEN_BASE
+        distance_penalty = CONFIG.RUBBLE_VALUE_CLEAR_FOR_LICHEN_DISTANCE_PENALTY
+        return base_score - distance_penalty * distances
+
+    def _get_rubble_positions_and_distances_within_max_distance(self, board: Board) -> Tuple[np.ndarray, np.ndarray]:
+        distances = get_min_distances_between_positions(board.rubble_positions, self.can_spread_positions)
+        valid_distance_mask = distances < CONFIG.RUBBLE_CLEAR_FOR_LICHEN_MAX_DISTANCE
+        rubble_postions_within_max_distance = board.rubble_positions[valid_distance_mask]
+        distances_within_max_distance = distances[valid_distance_mask]
+        return rubble_postions_within_max_distance, distances_within_max_distance
 
     def __hash__(self) -> int:
         return hash(self.unit_id)
@@ -138,17 +143,20 @@ class Factory(Actor):
     def __eq__(self, __o: Factory) -> bool:
         return self.unit_id == __o.unit_id
 
-    def min_distance_to_positions(self, positions: np.ndarray) -> int:
-        return get_min_distance_between_positions(self.positions, positions)
+    def min_distance_to_connected_positions(self, positions: np.ndarray) -> int:
+        rel_positions = np.append(self.positions, self.connected_positions, axis=0)
+        return get_min_distance_between_positions(rel_positions, positions)
 
     def generate_goals(self, game_state: GameState) -> GoalCollection:
         water_cost = self.water_cost()
         goals = []
 
-        if self.can_build_heavy:
+        if self.can_build_heavy and game_state.player_nr_heavies / game_state.player_nr_factories < 1:
             goals.append(BuildHeavyGoal(self))
 
-        elif self.can_build_light:
+        elif self.can_build_light and (
+            game_state.player_nr_lights / game_state.player_nr_factories <= 10 or self.power > 1000
+        ):
             goals.append(BuildLightGoal(self))
 
         elif self.cargo.water - water_cost > 50 and water_cost < 5:
@@ -162,11 +170,6 @@ class Factory(Actor):
 
     def _get_dummy_goals(self) -> list[FactoryGoal]:
         return [FactoryNoGoal(self)]
-
-    def get_expected_power_available(self, n=50) -> np.ndarray:
-        # TODO add the expected effect of Lichen
-        expected_increase_power = np.arange(n) * 50
-        return expected_increase_power + self.power
 
     @property
     def daily_charge(self) -> int:
