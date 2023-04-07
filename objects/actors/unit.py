@@ -72,28 +72,10 @@ class Unit(Actor):
             if self.is_under_threath(game_state) and self.next_step_is_stationary():
                 self._add_flee_goal(game_state)
 
-            if (
-                self.is_light and self.next_step_walks_into_opponent_heavy(game_state)
-            ) or self.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
-                self._add_rubble_goals(game_state)
-                self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=False)
-                self._add_ore_goals(game_state, n=2, return_to_current_closest_factory=False)
-
-                if game_state.real_env_steps > 500:
-                    self._add_destroy_lichen_goals(game_state, n=10)
-
-                self._add_dummy_goals()
-
-        elif self.is_heavy and self.id <= 20:
-            self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
-
+            elif self.next_step_walks_into_tile_where_it_might_be_captured(game_state):
+                self._add_base_goals(game_state)
         else:
-            self._add_rubble_goals(game_state)
-            self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=False)
-            self._add_ore_goals(game_state, n=2, return_to_current_closest_factory=False)
-
-            if game_state.real_env_steps > 500:
-                self._add_destroy_lichen_goals(game_state, n=10)
+            self._add_base_goals(game_state)
 
         self._add_dummy_goals()
 
@@ -109,9 +91,15 @@ class Unit(Actor):
 
         prev_step_goal = self.prev_step_goal
         prev_goal = prev_step_goal.goal if isinstance(prev_step_goal, ActionQueueGoal) else prev_step_goal
+        prev_goal.unit = self
         action_plan = UnitActionPlan(original_actions=self.action_queue, actor=self, is_set=True)
         action_queue_goal = ActionQueueGoal(unit=self, action_plan=action_plan, goal=prev_goal)
         self.goals.append(action_queue_goal)
+
+    def next_step_walks_into_tile_where_it_might_be_captured(self, game_state: GameState) -> bool:
+        return (self.is_light and self.next_step_walks_into_opponent_heavy(game_state)) or (
+            self.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state)
+        )
 
     def next_step_walks_next_to_opponent_unit_that_can_capture_self(self, game_state: GameState) -> bool:
         next_action = self.action_queue[0]
@@ -162,6 +150,17 @@ class Unit(Actor):
         ]
 
         self.goals.extend(rubble_goals)
+
+    def _add_base_goals(self, game_state: GameState) -> None:
+        if self.is_light:
+            self._add_rubble_goals(game_state)
+            self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=False)
+            self._add_ore_goals(game_state, n=2, return_to_current_closest_factory=False)
+            if game_state.real_env_steps > 500:
+                self._add_destroy_lichen_goals(game_state, n=10)
+
+        else:
+            self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
 
     def _add_ice_goals(self, game_state: GameState, n: int, return_to_current_closest_factory: bool = True) -> None:
         closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=n)
