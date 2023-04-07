@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from abc import abstractmethod, ABCMeta
 from dataclasses import dataclass, field
@@ -28,6 +28,11 @@ class ActionPlan(metaclass=ABCMeta):
 
     @abstractmethod
     def actor_can_carry_out_plan(self, game_state: GameState) -> bool:
+        ...
+
+    @property
+    @abstractmethod
+    def next_tc(self) -> Optional[TimeCoordinate]:
         ...
 
     @property

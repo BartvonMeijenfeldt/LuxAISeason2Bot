@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Iterator, List
+from typing import TYPE_CHECKING, Iterator, List, Optional
 from dataclasses import dataclass, field
 
 # from objects.actors.factory import Factory
@@ -46,6 +46,16 @@ class FactoryActionPlan(ActionPlan):
     def actor_has_enough_water(self) -> bool:
         power_requested = sum(action.get_water_cost(factory=self.actor) for action in self.actions)
         return power_requested <= self.actor.cargo.water
+
+    @property
+    def next_tc(self) -> Optional[TimeCoordinate]:
+        if not self.actions:
+            return None
+
+        if isinstance(self.actions[0], BuildAction):
+            return TimeCoordinate(*self.actor.center_tc.xy, self.actor.center_tc.t + 1)
+
+        return None
 
     @property
     def time_coordinates(self) -> List[TimeCoordinate]:

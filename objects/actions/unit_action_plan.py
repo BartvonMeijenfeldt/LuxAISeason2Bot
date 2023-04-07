@@ -106,6 +106,14 @@ class UnitActionPlan(ActionPlan):
         return self._final_ptc
 
     @property
+    def next_tc(self) -> TimeCoordinate:
+        if self.is_empty():
+            return self.actor.tc + Direction.CENTER
+
+        first_action = self.primitive_actions[0]
+        return self.actor.tc.add_action(first_action)
+
+    @property
     def time_coordinates(self) -> List[TimeCoordinate]:
         if self.is_empty():
             return [self.actor.tc + Direction.CENTER]
