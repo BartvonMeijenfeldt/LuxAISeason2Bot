@@ -13,6 +13,7 @@ from objects.game_state import GameState
 from objects.actors.factory import Factory
 from objects.actors.unit import Unit
 from objects.actions.action_plan import ActionPlan
+from objects.actions.unit_action_plan import UnitActionPlan
 from logic.early_setup import get_factory_spawn_loc
 from logic.goals.goal import Goal
 from logic.goals.factory_goal import BuildLightGoal
@@ -92,6 +93,10 @@ class Agent:
             logging.warning(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
 
     def resolve_goals(self, game_state: GameState) -> Dict[Actor, Goal]:
+        actor_goals = self._main_resolve_goals(game_state)
+        return self._remove_factories_building_on_top_unit_goal(game_state, actor_goals)
+
+    def _main_resolve_goals(self, game_state: GameState) -> Dict[Actor, Goal]:
         actors = game_state.player_actors
         goal_collections = {actor: actor.generate_goals(game_state) for actor in actors}
         cost_matrix = create_cost_matrix(goal_collections, game_state)
@@ -143,6 +148,24 @@ class Agent:
                     for power_request in power_requests:
                         power_request.t = t
                     power_tracker.update_power_available(power_requests=power_requests)
+
+        return final_goals
+
+    def _remove_factories_building_on_top_unit_goal(
+        self, game_state: GameState, final_goals: Dict[Actor, Goal]
+    ) -> Dict[Actor, Goal]:
+
+        next_tc_units = set()
+        for unit in game_state.player_units:
+            goal = final_goals[unit]
+            action_plan: UnitActionPlan = goal.action_plan  # type: ignore
+            next_tc_units.add(action_plan.next_tc)
+
+        for factory in game_state.player_factories:
+            goal = final_goals[factory]
+            next_tc = goal.action_plan.next_tc
+            if next_tc and next_tc in next_tc_units:
+                del final_goals[factory]
 
         return final_goals
 
