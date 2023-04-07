@@ -14,9 +14,9 @@ DAILY_CHARGE = ENV_CFG.FACTORY_CHARGE
 
 class TestPowerAvailabilityTracker(unittest.TestCase):
     @staticmethod
-    def _get_factories(factory_positions: FactoryPositions, t: int, board_width: int = 9) -> List[Factory]:
+    def _get_factories(factory_positions: FactoryPositions, t: int) -> List[Factory]:
 
-        state = get_state(factory_positions=factory_positions, real_env_steps=t, board_width=board_width)
+        state = get_state(factory_positions=factory_positions, real_env_steps=t)
         return state.board.player_factories
 
     def test_current_power(self):

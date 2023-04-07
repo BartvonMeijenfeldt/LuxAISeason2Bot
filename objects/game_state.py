@@ -59,6 +59,10 @@ class GameState:
         return self.board.player_nr_heavies
 
     @property
+    def player_nr_factories(self) -> int:
+        return self.board.player_nr_factories
+
+    @property
     def player_light_heavy_ratio(self) -> float:
         return self.board.player_light_heavy_ratio
 
@@ -115,12 +119,6 @@ class GameState:
     def get_closest_ore_tile(self, c: Coordinate) -> Coordinate:
         return self.board.get_closest_ore_tile(c=c)
 
-    def get_closest_rubble_tile(self, c: Coordinate) -> Coordinate:
-        return self.board.get_closest_rubble_tile(c=c)
-
-    def get_n_closest_rubble_tiles(self, c: Coordinate, n: int) -> CoordinateList:
-        return self.board.get_n_closest_rubble_tiles(c=c, n=n)
-
     def get_n_closest_opp_lichen_tiles(self, c: Coordinate, n: int) -> CoordinateList:
         return self.board.get_n_closest_opp_lichen_tiles(c=c, n=n)
 
@@ -138,3 +136,9 @@ class GameState:
 
     def get_neighboring_opponents(self, c: Coordinate) -> list[Unit]:
         return self.board.get_neighboring_opponents(c=c)
+
+    def get_importance_removing_rubble_for_pathing(self, c: Coordinate) -> float:
+        return self.board.get_importance_removing_rubble_for_pathing(c)
+
+    def get_importance_removing_rubble_for_lichen_growth(self, c: Coordinate) -> float:
+        return self.board.get_importance_removing_rubble_for_lichen_growth(c)

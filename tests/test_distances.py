@@ -11,7 +11,10 @@ from distances import (
     get_n_closests_positions_between_positions,
     get_distance_between_pos_and_pos,
     get_distances_between_pos_and_positions,
+    get_positions_on_optimal_path_between_pos_and_pos,
 )
+
+from tests.generate_game_state import get_state, Tiles, RubbleTile as RT
 
 
 class TestGetDistancesBetweenPositions(unittest.TestCase):
@@ -269,6 +272,32 @@ class TestGetDistancesBetweenPosAndPositions(unittest.TestCase):
 
         expected = np.array([0, 1])
         self._test_expected(a, b, expected)
+
+
+class TestGetPositionsOnOptimalPathBetweenPosAndPos(unittest.TestCase):
+    def _test_get_positions(self, a: np.ndarray, b: np.ndarray, tiles: Tiles, expected: np.ndarray):
+        game_state = get_state(tiles=tiles)
+        board = game_state.board
+        positions = get_positions_on_optimal_path_between_pos_and_pos(a, b, board)
+        np.testing.assert_equal(expected, positions)
+
+    def test_one_rubble_away(self):
+        rubble_tiles = [RT(24, y, 20) for y in range(48)]
+        tiles = Tiles(rubble=rubble_tiles)
+        start = np.array([23, 24])
+        goal = np.array([25, 24])
+        expected = np.array([[24, 24]])
+
+        self._test_get_positions(start, goal, tiles, expected)
+
+    def test_go_through_lowest(self):
+        rubble_tiles = [RT(24, 46, 1)] + [RT(24, y, 100) for y in range(48) if y != 46]
+        tiles = Tiles(rubble=rubble_tiles)
+        start = np.array([23, 45])
+        goal = np.array([25, 45])
+        expected = np.array([[23, 46], [24, 46], [25, 46]])
+
+        self._test_get_positions(start, goal, tiles, expected)
 
 
 if __name__ == "__main__":

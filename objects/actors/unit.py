@@ -24,6 +24,7 @@ from logic.goals.unit_goal import (
     FleeGoal,
     EvadeConstraintsGoal,
 )
+from config import CONFIG
 
 
 @dataclass
@@ -41,7 +42,7 @@ class Unit(Actor):
         self.y = self.tc.y
         self.is_light = self.unit_type == "LIGHT"
         self.is_heavy = self.unit_type == "HEAVY"
-        self.time_to_power_cost = 5 if self.is_light else 50
+        self.time_to_power_cost = CONFIG.LIGHT_TIME_TO_POWER_COST if self.is_light else CONFIG.HEAVY_TIME_TO_POWER_COST
         self.recharge_power = self.unit_cfg.CHARGE
         self.move_power_cost = self.unit_cfg.MOVE_COST
         self.move_time_and_power_cost = self.move_power_cost + self.time_to_power_cost
@@ -74,8 +75,7 @@ class Unit(Actor):
             if (
                 self.is_light and self.next_step_walks_into_opponent_heavy(game_state)
             ) or self.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
-                self._add_factory_rubble_to_clear_goals(game_state)
-                self._add_rubble_goals(game_state, n=10)
+                self._add_rubble_goals(game_state)
                 self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=False)
                 self._add_ore_goals(game_state, n=2, return_to_current_closest_factory=False)
 
@@ -88,8 +88,7 @@ class Unit(Actor):
             self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
 
         else:
-            self._add_factory_rubble_to_clear_goals(game_state)
-            self._add_rubble_goals(game_state, n=10)
+            self._add_rubble_goals(game_state)
             self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=False)
             self._add_ore_goals(game_state, n=2, return_to_current_closest_factory=False)
 
@@ -153,22 +152,12 @@ class Unit(Actor):
         flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
         self.goals.append(flee_goal)
 
-    def _add_factory_rubble_to_clear_goals(self, game_state: GameState, max_distance: int = 10) -> None:
+    def _add_rubble_goals(self, game_state: GameState, max_distance: int = 10) -> None:
         rubble_positions = game_state.board.get_rubble_to_remove_positions(c=self.tc, max_distance=max_distance)
         rubble_goals = [
             ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=Coordinate(*rubble_pos))
             for rubble_pos in rubble_positions
             if game_state.board.is_rubble_tile(Coordinate(*rubble_pos))
-            for pickup_power in [False, True]
-        ]
-
-        self.goals.extend(rubble_goals)
-
-    def _add_rubble_goals(self, game_state: GameState, n: int) -> None:
-        closest_rubble_tiles = game_state.get_n_closest_rubble_tiles(c=self.tc, n=n)
-        rubble_goals = [
-            ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=rubble_tile)
-            for rubble_tile in closest_rubble_tiles
             for pickup_power in [False, True]
         ]
 

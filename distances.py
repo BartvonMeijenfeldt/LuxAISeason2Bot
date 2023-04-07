@@ -41,7 +41,7 @@ def get_closest_pos_between_pos_and_positions(pos: np.ndarray, positions: np.nda
 
 
 def get_min_distances_between_positions(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    "Return the min distances from a to b"
+    "For each position in a get the min distances to b"
     distances = get_distances_between_positions(a, b)
     min_distances = distances.min(axis=1)
     return min_distances
@@ -76,7 +76,7 @@ def get_positions_on_optimal_path_between_pos_and_pos(a: np.ndarray, b: np.ndarr
     graph = TilesToClearGraph(board=board, goal=goal)
     search = Search(graph=graph)
     try:
-        optimal_actions = search.get_actions_to_complete_goal(start=start)
+        optimal_actions = search.get_actions_to_complete_goal(start=start, budget=500)
     except Exception:
         return init_empty_positions()
 

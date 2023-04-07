@@ -19,6 +19,7 @@ from objects.resource import Resource
 from logic.constraints import Constraints
 from utils import PriorityQueue
 from lux.config import HEAVY_CONFIG
+from config import CONFIG
 
 
 if TYPE_CHECKING:
@@ -103,7 +104,7 @@ class GoalGraph(Graph):
 
 @dataclass
 class TilesToClearGraph(GoalGraph):
-    time_to_power_cost: int = field(init=False, default=50)
+    time_to_power_cost: int = field(init=False, default=CONFIG.HEAVY_TIME_TO_POWER_COST)
     unit_cfg: UnitConfig = field(init=False, default=HEAVY_CONFIG)
     unit_type: str = field(init=False, default="HEAVY")
     constraints: Constraints = field(init=False, default_factory=Constraints)
@@ -344,9 +345,9 @@ class Search:
         self.cost_so_far: dict[Coordinate, float] = {}
         self.graph = graph
 
-    def get_actions_to_complete_goal(self, start: Coordinate) -> List[UnitAction]:
+    def get_actions_to_complete_goal(self, start: Coordinate, budget: int = 100) -> List[UnitAction]:
         self._init_search(start)
-        self._find_optimal_solution()
+        self._find_optimal_solution(budget)
         return self._get_solution_actions()
 
     def _init_search(self, start_tc: Coordinate) -> None:
@@ -359,11 +360,11 @@ class Search:
         self.cost_so_far[start] = 0
         self.frontier.put(start, 0)
 
-    def _find_optimal_solution(self) -> None:
+    def _find_optimal_solution(self, budget: int) -> None:
         for i in itertools.count():
             if self.frontier.is_empty():
                 raise NoSolutionError
-            if i > 100:
+            if i > budget:
                 raise SolutionNotFoundWithinBudgetError
 
             current_node = self.frontier.pop()

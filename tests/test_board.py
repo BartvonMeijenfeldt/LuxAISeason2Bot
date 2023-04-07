@@ -14,7 +14,7 @@ class TestMinDistancesPlayerFactoryOrLichen(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
         expected_distance = 2
 
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         distance = board.get_min_distance_to_player_factory_or_lichen(c)
@@ -26,7 +26,7 @@ class TestMinDistancesPlayerFactoryOrLichen(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3, id=1), FactoryPos(3, 9, id=2)])
         expected_distance = 1
 
-        state = get_state(board_width=12, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         distance = board.get_min_distance_to_player_factory_or_lichen(c)
@@ -40,7 +40,7 @@ class TestMinDistancesPlayerFactoryOrLichen(unittest.TestCase):
         expected_distance = 1
 
         tiles = Tiles(lichen=lichen_tiles)
-        state = get_state(board_width=9, tiles=tiles, factory_positions=factory_positions)
+        state = get_state(tiles=tiles, factory_positions=factory_positions)
         board = state.board
 
         distance = board.get_min_distance_to_player_factory_or_lichen(c)
@@ -58,7 +58,7 @@ class TestMinDistancesPlayerFactoryOrLichen(unittest.TestCase):
         expected_distance = 1
 
         tiles = Tiles(lichen=lichen_tiles)
-        state = get_state(board_width=9, tiles=tiles, factory_positions=factory_positions)
+        state = get_state(tiles=tiles, factory_positions=factory_positions)
         board = state.board
 
         distance = board.get_min_distance_to_player_factory_or_lichen(c)
@@ -70,7 +70,7 @@ class TestMinDistancesPlayerFactoryOrLichen(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3, id=1)], opp=[FactoryPos(3, 10, id=2)])
         expected_distance = 4
 
-        state = get_state(board_width=12, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         distance = board.get_min_distance_to_player_factory_or_lichen(c)
@@ -84,7 +84,7 @@ class TestMinDistancesPlayerFactoryOrLichen(unittest.TestCase):
         expected_distance = 1
 
         tiles = Tiles(lichen=lichen_tiles)
-        state = get_state(board_width=12, tiles=tiles, factory_positions=factory_positions)
+        state = get_state(tiles=tiles, factory_positions=factory_positions)
         board = state.board
 
         distance = board.get_min_distance_to_player_factory_or_lichen(c)
@@ -98,7 +98,7 @@ class TestMinDistancesPlayerFactoryOrLichen(unittest.TestCase):
         expected_distance = 0
 
         tiles = Tiles(lichen=lichen_tiles)
-        state = get_state(board_width=12, tiles=tiles, factory_positions=factory_positions)
+        state = get_state(tiles=tiles, factory_positions=factory_positions)
         board = state.board
 
         distance = board.get_min_distance_to_player_factory_or_lichen(c)
@@ -112,7 +112,7 @@ class TestMinDistancesPlayerFactory(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
         expected_distance = 2
 
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         distance = board.get_min_distance_to_any_player_factory(c)
@@ -124,7 +124,7 @@ class TestMinDistancesPlayerFactory(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3, id=1), FactoryPos(3, 9)])
         expected_distance = 1
 
-        state = get_state(board_width=12, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         distance = board.get_min_distance_to_any_player_factory(c)
@@ -136,7 +136,7 @@ class TestMinDistancesPlayerFactory(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)], opp=[FactoryPos(3, 10)])
         expected_distance = 4
 
-        state = get_state(board_width=12, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         distance = board.get_min_distance_to_any_player_factory(c)
@@ -148,7 +148,7 @@ class TestMinDistancesPlayerFactory(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 5)])
         expected_distance = 0
 
-        state = get_state(board_width=12, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         distance = board.get_min_distance_to_any_player_factory(c)
@@ -160,7 +160,7 @@ class TestMinDistancesPlayerFactory(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 6)])
         expected_distance = 0
 
-        state = get_state(board_width=12, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         distance = board.get_min_distance_to_any_player_factory(c)
@@ -172,7 +172,7 @@ class TestMinDistancesPlayerFactory(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 6)])
         expected_distance = 0
 
-        state = get_state(board_width=12, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         distance = board.get_min_distance_to_any_player_factory(c)
@@ -186,7 +186,7 @@ class TestClosestPlayerFactoryTile(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)])
         expected_tile = C(3, 4)
 
-        state = get_state(board_width=9, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         closest_tile = board.get_closest_player_factory_tile(c)
@@ -197,7 +197,7 @@ class TestClosestPlayerFactoryTile(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3, id=1), FactoryPos(3, 9)])
         expected_tile = C(4, 9)
 
-        state = get_state(board_width=12, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         closest_tile = board.get_closest_player_factory_tile(c)
@@ -208,7 +208,7 @@ class TestClosestPlayerFactoryTile(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 3)], opp=[FactoryPos(3, 10)])
         expected_tile = C(3, 4)
 
-        state = get_state(board_width=12, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         closest_tile = board.get_closest_player_factory_tile(c)
@@ -219,7 +219,7 @@ class TestClosestPlayerFactoryTile(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 5)])
         expected_tile = c
 
-        state = get_state(board_width=12, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         closest_tile = board.get_closest_player_factory_tile(c)
@@ -230,7 +230,7 @@ class TestClosestPlayerFactoryTile(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 6)])
         expected_tile = c
 
-        state = get_state(board_width=12, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         closest_tile = board.get_closest_player_factory_tile(c)
@@ -241,7 +241,7 @@ class TestClosestPlayerFactoryTile(unittest.TestCase):
         factory_positions = FactoryPositions(player=[FactoryPos(3, 6)])
         expected_tile = c
 
-        state = get_state(board_width=12, factory_positions=factory_positions)
+        state = get_state(factory_positions=factory_positions)
         board = state.board
 
         closest_tile = board.get_closest_player_factory_tile(c)
