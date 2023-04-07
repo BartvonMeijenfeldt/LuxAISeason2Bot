@@ -157,10 +157,15 @@ class Factory(Actor):
 
     def _get_rubble_positions_to_clear_for_lichen(self, board: Board) -> Counter[Tuple[int, int]]:
         rubble_positions, distances = self._get_rubble_positions_and_distances_within_max_distance(board)
-        values = CONFIG.RUBBLE_VALUE_CLEAR_FOR_WATER_BASE - distances
+        values = self._get_rubbe_positions_to_clear_for_lichen_score(distances)
         rubble_value_dict = Counter({tuple(pos): value for pos, value in zip(rubble_positions, values)})
 
         return rubble_value_dict
+
+    def _get_rubbe_positions_to_clear_for_lichen_score(self, distances: np.ndarray) -> np.ndarray:
+        base_score = CONFIG.RUBBLE_VALUE_CLEAR_FOR_LICHEN_BASE
+        distance_penalty = CONFIG.RUBBLE_VALUE_CLEAR_FOR_LICHEN_DISTANCE_PENALTY
+        return base_score - distance_penalty * distances
 
     def _get_rubble_positions_and_distances_within_max_distance(self, board: Board) -> Tuple[np.ndarray, np.ndarray]:
         distances = get_min_distances_between_positions(board.rubble_positions, self.can_spread_positions)

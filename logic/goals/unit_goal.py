@@ -636,34 +636,18 @@ class ClearRubbleGoal(DigGoal):
 
     def _get_benefit_removing_rubble_for_lichen_growth(self, rubble_removed: int, game_state: GameState) -> float:
         importance_lichen = game_state.get_importance_removing_rubble_for_lichen_growth(self.dig_c)
-        importance_rubble_removed = rubble_removed * importance_lichen
+        score_lichen_removed = self._get_score_rubble_removed(rubble_removed, game_state)
+        return importance_lichen * score_lichen_removed
 
+    def _get_score_rubble_removed(self, rubble_removed: int, game_state: GameState) -> float:
+        if not self._clears_rubble(rubble_removed, game_state):
+            return rubble_removed
+
+        return rubble_removed + CONFIG.RUBBLE_CLEAR_FOR_LICHEN_BONUS_CLEARING
+
+    def _clears_rubble(self, rubble_removed: int, game_state: GameState) -> bool:
         rubble_at_pos = game_state.board.rubble[self.dig_c.xy]
-        if rubble_removed < rubble_at_pos:
-            return importance_rubble_removed
-
-        return CONFIG.RUBBLE_CLEAR_FOR_LICHEN_MULTIPLIER_CLEARING * importance_rubble_removed
-
-        # distance_player_factory_to_rubble = game_state.board.get_min_distance_to_player_factory_or_lichen(self.dig_c)
-        # distance_opp_factory_to_rubble = game_state.board.get_min_distance_to_opp_factory_or_lichen(self.dig_c)
-        # delta_closer_factory_to_player_mp = min(distance_opp_factory_to_rubble - distance_player_factory_to_rubble, 5)
-
-        # distance_player_factory_mp = 121 - distance_player_factory_to_rubble**2
-
-        # benefit_rubble_reduced = distance_player_factory_mp * delta_closer_factory_to_player_mp * 0.005
-
-        # if game_state.board.is_rubble_to_remove_c(self.dig_c):
-        #     benefit_rubble_reduced += 5
-
-        # bonus_clear_rubble = 50 * benefit_rubble_reduced
-
-        # rubble_removed_benefit = benefit_rubble_reduced * rubble_removed
-
-        # rubble_at_pos = game_state.board.rubble[self.dig_c.xy]
-        # if rubble_removed == rubble_at_pos:
-        #     return rubble_removed_benefit + bonus_clear_rubble
-        # else:
-        #     return rubble_removed_benefit
+        return rubble_removed >= rubble_at_pos
 
     def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         min_cost_digging, max_nr_digs = self._get_min_cost_and_steps_max_nr_digs(game_state)
