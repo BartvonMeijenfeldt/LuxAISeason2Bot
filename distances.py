@@ -70,8 +70,8 @@ def get_distances_between_pos_and_positions(pos: np.ndarray, positions: np.ndarr
 
 
 def get_positions_on_optimal_path_between_pos_and_pos(a: np.ndarray, b: np.ndarray, board: Board) -> np.ndarray:
-    start = Coordinate(a[0], a[1])
-    goal = Coordinate(b[0], b[1])
+    start = Coordinate(*a)
+    goal = Coordinate(*b)
 
     graph = TilesToClearGraph(board=board, goal=goal)
     search = Search(graph=graph)

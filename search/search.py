@@ -104,12 +104,16 @@ class GoalGraph(Graph):
 
 @dataclass
 class TilesToClearGraph(GoalGraph):
-    time_to_power_cost: int = field(init=False, default=CONFIG.HEAVY_TIME_TO_POWER_COST)
+    time_to_power_cost: int = field(init=False, default=CONFIG.OPTIMAL_PATH_TIME_TO_POWER_COST)
     unit_cfg: UnitConfig = field(init=False, default=HEAVY_CONFIG)
     unit_type: str = field(init=False, default="HEAVY")
     constraints: Constraints = field(init=False, default_factory=Constraints)
     goal: Coordinate
     _potential_actions = [MoveAction(direction) for direction in Direction if direction != direction.CENTER]
+
+    def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
+        action_power_cost = self.get_power_cost(action=action, to_c=to_c)
+        return action_power_cost + self.time_to_power_cost
 
     def get_valid_action_nodes(self, c: TimeCoordinate) -> Generator[Tuple[UnitAction, TimeCoordinate], None, None]:
         for action in self.potential_actions(c=c):
