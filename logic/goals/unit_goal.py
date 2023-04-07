@@ -53,6 +53,10 @@ class UnitGoal(Goal):
     solution_hash: dict[str, UnitActionPlan] = field(init=False, default_factory=dict)
 
     @abstractmethod
+    def is_completed(self, game_state: GameState) -> bool:
+        ...
+
+    @abstractmethod
     def generate_action_plan(
         self,
         game_state: GameState,
@@ -374,6 +378,9 @@ class CollectGoal(DigGoal):
     # quantity: Optional[int] = None
     resource: Resource = field(init=False)
 
+    def is_completed(self, game_state: GameState) -> bool:
+        return False
+
     def generate_action_plan(
         self,
         game_state: GameState,
@@ -503,6 +510,7 @@ class CollectGoal(DigGoal):
         return cost, nr_steps
 
 
+# TODO consolidate this one with the postions one
 @lru_cache(256)
 def get_actions_a_to_b(
     a: Coordinate, b: Coordinate, game_state: GameState, unit_type: str, time_to_power_cost: int, unit_cfg: UnitConfig
@@ -556,6 +564,9 @@ class CollectOreGoal(CollectGoal):
 class ClearRubbleGoal(DigGoal):
     def __repr__(self) -> str:
         return f"clear_rubble_[{self.dig_c}]"
+
+    def is_completed(self, game_state: GameState) -> bool:
+        return not game_state.is_rubble_tile(self.dig_c)
 
     @property
     def key(self) -> str:
@@ -662,6 +673,9 @@ class ClearRubbleGoal(DigGoal):
 class DestroyLichenGoal(DigGoal):
     def __repr__(self) -> str:
         return f"destroy_lichen[{self.dig_c}]"
+
+    def is_completed(self, game_state: GameState) -> bool:
+        return not game_state.is_opponent_lichen_tile(self.dig_c)
 
     @property
     def key(self) -> str:
@@ -784,6 +798,9 @@ class FleeGoal(UnitGoal):
     _is_valid = True
     benefit_fleeing = 1000
 
+    def is_completed(self, game_state: GameState) -> bool:
+        return not self.unit.is_under_threath(game_state)
+
     def generate_action_plan(
         self,
         game_state: GameState,
@@ -853,6 +870,9 @@ class ActionQueueGoal(UnitGoal):
     action_plan: UnitActionPlan
     _is_valid = True
 
+    def is_completed(self, game_state: GameState) -> bool:
+        return self.goal.is_completed(game_state)
+
     def generate_action_plan(
         self,
         game_state: GameState,
@@ -905,6 +925,9 @@ class UnitNoGoal(UnitGoal):
     # TODO, what should be the value of losing a unit?
     PENALTY_VIOLATING_CONSTRAINT = -10_000
 
+    def is_completed(self, game_state: GameState) -> bool:
+        return True
+
     def generate_action_plan(
         self,
         game_state: GameState,
@@ -936,6 +959,9 @@ class EvadeConstraintsGoal(UnitGoal):
     _value = None
     # Always valid even if a constraint is invalidated, but with a negative score then
     _is_valid = True
+
+    def is_completed(self, game_state: GameState) -> bool:
+        return True
 
     def generate_action_plan(
         self,

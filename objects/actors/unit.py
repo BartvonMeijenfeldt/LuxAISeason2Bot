@@ -57,6 +57,8 @@ class Unit(Actor):
         self.lichen_removed_per_dig = self.unit_cfg.DIG_LICHEN_REMOVED
         self.has_actions_in_queue = len(self.action_queue) > 0
         self.agent_id = f"player_{self.team_id}"
+        if self.prev_step_goal:
+            self.prev_step_goal.unit = self
 
     def generate_goals(self, game_state: GameState) -> GoalCollection:
         goals = self._generate_goals(game_state)
@@ -66,7 +68,7 @@ class Unit(Actor):
     def _generate_goals(self, game_state: GameState) -> List[UnitGoal]:
         self._init_goals()
 
-        if self.action_queue:
+        if self.action_queue and self.prev_step_goal and not self.prev_step_goal.is_completed(game_state):
             self._add_action_queue_goal()
 
             if self.is_under_threath(game_state) and self.next_step_is_stationary():
@@ -91,7 +93,6 @@ class Unit(Actor):
 
         prev_step_goal = self.prev_step_goal
         prev_goal = prev_step_goal.goal if isinstance(prev_step_goal, ActionQueueGoal) else prev_step_goal
-        prev_goal.unit = self
         action_plan = UnitActionPlan(original_actions=self.action_queue, actor=self, is_set=True)
         action_queue_goal = ActionQueueGoal(unit=self, action_plan=action_plan, goal=prev_goal)
         self.goals.append(action_queue_goal)
@@ -108,12 +109,18 @@ class Unit(Actor):
         return self.is_c_next_to_opponent_that_can_capture_self(c=next_c, game_state=game_state)
 
     def is_c_next_to_opponent_that_can_capture_self(self, c: Coordinate, game_state: GameState) -> bool:
+        strongest_neighboring_opponent = self.get_strongest_neighboring_opponent(c, game_state)
+        if not strongest_neighboring_opponent:
+            return False
+        return strongest_neighboring_opponent.can_capture(self)
+
+    def get_strongest_neighboring_opponent(self, c: Coordinate, game_state: GameState) -> Optional[Unit]:
         neighboring_opponents = game_state.get_neighboring_opponents(c)
         if not neighboring_opponents:
-            return False
+            return None
 
         strongest_neighboring_opponent = max(neighboring_opponents, key=lambda x: x.is_heavy * 10_000 + x.power)
-        return strongest_neighboring_opponent.can_capture(self)
+        return strongest_neighboring_opponent
 
     def can_capture(self, other: Unit) -> bool:
         if self.is_stronger_than(other):
