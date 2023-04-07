@@ -99,43 +99,6 @@ class Factory(Actor):
         is_empty_mask = board.are_empty_postions(neighboring_positions)
         return neighboring_positions[is_empty_mask]
 
-    # def _get_rubble_positions_to_clear(self, board: Board) -> dict[Tuple[int, int], Tuple[float, float]]:
-    #     # if self.nr_connected_positions <= 30:
-    #     #     return self._get_rubble_positions_to_connect_to_empty_space(board)
-    #     # else:
-    #     tiles_on_path_to_resources = self._get_rubble_positions_to_clear_for_resources(board)
-    #     tiles_next_to_connected_positions = self._get_rubble_positions_next_to_connected(board)
-
-    #     tiles_to_path_and_lichen_values = defaultdict(lambda: (0.0, 0.0))
-
-    #     for xy, path_value in tiles_on_path_to_resources.items():
-    #         current_tuple = tiles_to_path_and_lichen_values[xy]
-    #         new_tuple = (path_value, current_tuple[1])
-    #         tiles_to_path_and_lichen_values[xy] = new_tuple
-
-    #     for xy, lichen_value in tiles_next_to_connected_positions.items():
-    #         current_tuple = tiles_to_path_and_lichen_values[xy]
-    #         new_tuple = (current_tuple[0], lichen_value)
-    #         tiles_to_path_and_lichen_values[xy] = new_tuple
-
-    #     return tiles_to_path_and_lichen_values
-
-    # def _get_rubble_positions_to_connect_to_empty_space(self, board: Board) -> np.ndarray:
-    #     distances_to_islands = [
-    #         (self.min_distance_to_connected_positions(positions), positions) for positions in board.empty_islands
-    #     ]
-    #     non_connected_distances_to_islands = [
-    #         (dis, positions) for dis, positions in distances_to_islands if dis and len(positions) > 2
-    #     ]
-    #     if not non_connected_distances_to_islands:
-    #         return init_empty_positions()
-
-    #     closest_island_positions = min(non_connected_distances_to_islands, key=itemgetter(0))[1]
-
-    #     factory_pos, island_pos = get_closest_pos_and_pos_between_positions(self.positions, closest_island_positions)
-    #     positions = get_positions_on_optimal_path_between_pos_and_pos(a=factory_pos, b=island_pos, board=board)
-    #     return positions
-
     def _get_rubble_positions_to_clear_for_resources(self, board: Board) -> Counter[Tuple[int, int]]:
         closest_2_ice_positions = board.get_n_closest_ice_positions_to_factory(self, n=2)
         closest_2_ore_positions = board.get_n_closest_ore_positions_to_factory(self, n=2)
