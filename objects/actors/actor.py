@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
-from typing import Set, TYPE_CHECKING
+from typing import Set, TYPE_CHECKING, Iterable
 from dataclasses import dataclass
 
 
@@ -24,12 +24,13 @@ class Actor(metaclass=ABCMeta):
     # TODO should remove the action_queu_goal here and let it automatically be generated in generate goals
     def get_best_goal(
         self,
-        goals: list[Goal],
+        goals: Iterable[Goal],
         game_state: GameState,
         constraints: Constraints,
         factory_power_availability_tracker: PowerAvailabilityTracker,
         reserved_goals: Set[str] = set(),
     ) -> Goal:
+        goals = list(goals)
         # goals = self.generate_goals(game_state)
         priority_queue = self._init_priority_queue(goals, reserved_goals, game_state)
 

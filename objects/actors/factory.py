@@ -147,15 +147,17 @@ class Factory(Actor):
         rel_positions = np.append(self.positions, self.connected_positions, axis=0)
         return get_min_distance_between_positions(rel_positions, positions)
 
-    def generate_goals(self, game_state: GameState) -> GoalCollection:
+    def generate_goals(self, game_state: GameState, can_build: bool = True) -> GoalCollection:
         water_cost = self.water_cost()
         goals = []
 
-        if self.can_build_heavy and game_state.player_nr_heavies / game_state.player_nr_factories < 1:
+        if can_build and self.can_build_heavy and game_state.player_nr_heavies / game_state.player_nr_factories < 1:
             goals.append(BuildHeavyGoal(self))
 
-        elif self.can_build_light and (
-            game_state.player_nr_lights / game_state.player_nr_factories <= 10 or self.power > 1000
+        elif (
+            can_build
+            and self.can_build_light
+            and (game_state.player_nr_lights / game_state.player_nr_factories <= 10 or self.power > 1000)
         ):
             goals.append(BuildLightGoal(self))
 

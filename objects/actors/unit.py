@@ -22,6 +22,8 @@ from logic.goals.unit_goal import (
     UnitNoGoal,
     ActionQueueGoal,
     FleeGoal,
+    TransferIceGoal,
+    TransferOreGoal,
     EvadeConstraintsGoal,
 )
 from config import CONFIG
@@ -69,13 +71,15 @@ class Unit(Actor):
         self._init_goals()
 
         if self.action_queue and self.prev_step_goal and not self.prev_step_goal.is_completed(game_state):
-            self._add_action_queue_goal()
-
             if self.is_under_threath(game_state) and self.next_step_is_stationary():
                 self._add_flee_goal(game_state)
+                self._add_relevant_transfer_goals(game_state)
 
             elif self.next_step_walks_into_tile_where_it_might_be_captured(game_state):
                 self._add_base_goals(game_state)
+            else:
+                self._add_action_queue_goal()
+
         else:
             self._add_base_goals(game_state)
 
@@ -106,9 +110,15 @@ class Unit(Actor):
         next_action = self.action_queue[0]
         #  TODO put this in proper function or something
         next_c = self.tc + next_action.unit_direction
+        if game_state.is_player_factory_tile(next_c):
+            return False
+
         return self.is_c_next_to_opponent_that_can_capture_self(c=next_c, game_state=game_state)
 
     def is_c_next_to_opponent_that_can_capture_self(self, c: Coordinate, game_state: GameState) -> bool:
+        if game_state.is_player_factory_tile(c):
+            return False
+
         strongest_neighboring_opponent = self.get_strongest_neighboring_opponent(c, game_state)
         if not strongest_neighboring_opponent:
             return False
@@ -163,8 +173,9 @@ class Unit(Actor):
             self._add_rubble_goals(game_state)
             self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
             self._add_ore_goals(game_state, n=2, return_to_current_closest_factory=True)
+            self._add_relevant_transfer_goals(game_state)
             if game_state.real_env_steps > 500:
-                self._add_destroy_lichen_goals(game_state, n=30)
+                self._add_destroy_lichen_goals(game_state, n=10)
 
         else:
             self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
@@ -211,6 +222,22 @@ class Unit(Actor):
         none_goals = [UnitNoGoal(self), EvadeConstraintsGoal(self)]
         self.goals.extend(none_goals)
 
+    def _add_relevant_transfer_goals(self, game_state: GameState) -> None:
+        if self.cargo.ice:
+            self._add_transfer_ice_goal(game_state)
+        if self.cargo.ore:
+            self._add_transfer_ore_goal(game_state)
+
+    def _add_transfer_ice_goal(self, game_state: GameState, return_to_current_closest_factory: bool = True) -> None:
+        factory = game_state.get_closest_player_factory(c=self.tc) if return_to_current_closest_factory else None
+        goal = TransferIceGoal(self, factory)
+        self.goals.append(goal)
+
+    def _add_transfer_ore_goal(self, game_state: GameState, return_to_current_closest_factory: bool = True) -> None:
+        factory = game_state.get_closest_player_factory(c=self.tc) if return_to_current_closest_factory else None
+        goal = TransferOreGoal(self, factory)
+        self.goals.append(goal)
+
     def _filter_goals(self, goals: Sequence[UnitGoal], game_state: GameState) -> List[UnitGoal]:
         return [
             goal
@@ -229,13 +256,11 @@ class Unit(Actor):
         return self._is_under_threath
 
     def _get_is_under_threath(self, game_state: GameState) -> bool:
+        if self.is_on_factory(game_state):
+            return False
+
         neighboring_opponents = self._get_neighboring_opponents(game_state)
-
-        for opponent in neighboring_opponents:
-            if not self.is_stronger_than(opponent) and self.is_not_on_factory(game_state):
-                return True
-
-        return False
+        return any(not self.is_stronger_than(opponent) for opponent in neighboring_opponents)
 
     def _get_neighboring_opponents(self, game_state: GameState) -> list[Unit]:
         return game_state.get_neighboring_opponents(self.tc)
@@ -243,8 +268,8 @@ class Unit(Actor):
     def next_step_is_stationary(self) -> bool:
         return self.has_actions_in_queue and self.action_queue[0].is_stationary
 
-    def is_not_on_factory(self, game_state: GameState) -> bool:
-        return not game_state.is_player_factory_tile(self.tc)
+    def is_on_factory(self, game_state: GameState) -> bool:
+        return game_state.is_player_factory_tile(self.tc)
 
     def get_quantity_resource_in_cargo(self, resource: Resource) -> int:
         if resource.name == "ICE":

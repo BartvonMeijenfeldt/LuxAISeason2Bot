@@ -499,7 +499,7 @@ class CollectGoal(DigGoal):
 
     def _get_min_cost_and_steps_transfer_resource(self, game_state: GameState) -> tuple[float, int]:
         nr_steps_to_closest_factory = game_state.board.get_min_distance_to_any_player_factory(self.dig_c)
-        nr_steps_next_to_closest_factory = nr_steps_to_closest_factory - 1
+        nr_steps_next_to_closest_factory = max(nr_steps_to_closest_factory - 1, 0)
         nr_steps_transfer = 1
         nr_steps = nr_steps_next_to_closest_factory + nr_steps_transfer
 
@@ -529,9 +529,90 @@ def get_actions_a_to_b(
 
 
 @dataclass
+class TransferResourceGoal(UnitGoal):
+    factory: Optional[Factory] = field(default=None)
+    resource: Resource = field(init=False)
+
+    def is_completed(self, game_state: GameState) -> bool:
+        return self.unit.get_quantity_resource_in_cargo(self.resource) == 0
+
+    def generate_action_plan(
+        self,
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerAvailabilityTracker,
+    ) -> UnitActionPlan:
+        if constraints is None:
+            constraints = Constraints()
+
+        self._is_valid = True
+        self._init_action_plan()
+        self._add_transfer_resources_to_factory_actions(board=game_state.board, constraints=constraints)
+        return self.action_plan
+
+    def _add_transfer_resources_to_factory_actions(self, board: Board, constraints: Constraints) -> None:
+        actions = self._get_transfer_resources_to_factory_actions(board=board, constraints=constraints)
+        self.action_plan.extend(actions=actions)
+
+    def _get_transfer_resources_to_factory_actions(self, board: Board, constraints: Constraints) -> list[UnitAction]:
+        return self._get_transfer_plan(start_tc=self.action_plan.final_tc, constraints=constraints, board=board)
+
+    def _get_transfer_plan(
+        self,
+        start_tc: TimeCoordinate,
+        constraints: Constraints,
+        board: Board,
+    ) -> list[UnitAction]:
+        start = ResourceTimeCoordinate(start_tc.x, start_tc.y, start_tc.t, q=0, resource=self.resource)
+        graph = self._get_transfer_graph(board=board, constraints=constraints)
+        actions = self._search_graph(graph=graph, start=start)
+        return actions
+
+    def _get_transfer_graph(self, board: Board, constraints: Constraints) -> TransferResourceGraph:
+        graph = TransferResourceGraph(
+            unit_type=self.unit.unit_type,
+            board=board,
+            time_to_power_cost=self.unit.time_to_power_cost,
+            unit_cfg=self.unit.unit_cfg,
+            constraints=constraints,
+            resource=self.resource,
+            factory=self.factory,
+        )
+
+        return graph
+
+    def _get_max_benefit(self, game_state: GameState) -> float:
+        nr_resources_unit = self.unit.get_quantity_resource_in_cargo(self.resource)
+        benefit_resource = self.get_benefit_resource(game_state)
+        return benefit_resource * nr_resources_unit
+
+    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        return self._get_max_benefit(game_state)
+
+    @abstractmethod
+    def get_benefit_resource(self, game_state: GameState) -> float:
+        ...
+
+    def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+        min_cost_transfer, min_steps_transfer = self._get_min_cost_and_steps_transfer_resource(game_state)
+        return min_cost_transfer, min_steps_transfer
+
+    def _get_min_cost_and_steps_transfer_resource(self, game_state: GameState) -> tuple[float, int]:
+        nr_steps_to_closest_factory = game_state.board.get_min_distance_to_any_player_factory(self.unit.tc)
+        nr_steps_next_to_closest_factory = max(nr_steps_to_closest_factory - 1, 0)
+        nr_steps_transfer = 1
+        nr_steps = nr_steps_next_to_closest_factory + nr_steps_transfer
+
+        move_cost = nr_steps_next_to_closest_factory * self.unit.move_time_and_power_cost
+        transfer_cost = self.unit.time_to_power_cost
+        cost = move_cost + transfer_cost
+
+        return cost, nr_steps
+
+
+@dataclass
 class CollectIceGoal(CollectGoal):
     resource = Resource.ICE
-    benefit_resource = 40
 
     def __repr__(self) -> str:
         return f"collect_ice_[{self.dig_c}]"
@@ -541,24 +622,60 @@ class CollectIceGoal(CollectGoal):
         return str(self)
 
     def get_benefit_resource(self, game_state: GameState) -> float:
-        return self.benefit_resource
+        return get_benefit_ice(game_state)
+
+
+@dataclass
+class TransferIceGoal(TransferResourceGoal):
+    resource = Resource.ICE
+
+    def __repr__(self) -> str:
+        return f"transfer_ice_[{self.unit}]"
+
+    @property
+    def key(self) -> str:
+        return str(self)
+
+    def get_benefit_resource(self, game_state: GameState) -> float:
+        return get_benefit_ice(game_state)
+
+
+def get_benefit_ice(game_state: GameState) -> float:
+    return CONFIG.BENEFIT_ICE
 
 
 @dataclass
 class CollectOreGoal(CollectGoal):
     resource = Resource.ORE
-    benefit_resource = 160
 
     def __repr__(self) -> str:
         return f"collect_ore_[{self.dig_c}]"
 
+    @property
+    def key(self) -> str:
+        return str(self)
+
     def get_benefit_resource(self, game_state: GameState) -> float:
-        time_importance = 1 - game_state.real_env_steps / 950
-        return time_importance * self.benefit_resource
+        return get_benefit_ore(game_state)
+
+
+@dataclass
+class TransferOreGoal(TransferResourceGoal):
+    resource = Resource.ORE
+
+    def __repr__(self) -> str:
+        return f"transfer_ore_[{self.unit}]"
 
     @property
     def key(self) -> str:
         return str(self)
+
+    def get_benefit_resource(self, game_state: GameState) -> float:
+        return get_benefit_ore(game_state)
+
+
+def get_benefit_ore(game_state: GameState) -> float:
+    return CONFIG.BASE_BENEFIT_ORE - game_state.real_env_steps * CONFIG.BENEFIT_ORE_REDUCTION_PER_T
 
 
 class ClearRubbleGoal(DigGoal):
@@ -796,7 +913,6 @@ class DestroyLichenGoal(DigGoal):
 class FleeGoal(UnitGoal):
     opp_c: TimeCoordinate
     _is_valid = True
-    benefit_fleeing = 1000
 
     def is_completed(self, game_state: GameState) -> bool:
         return not self.unit.is_under_threath(game_state)
@@ -843,10 +959,10 @@ class FleeGoal(UnitGoal):
             return
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        return self.benefit_fleeing
+        return CONFIG.BENEFIT_FLEEING
 
     def __repr__(self) -> str:
-        return f"Flee_Goal_{self.unit.unit_id}"
+        return f"No_Goal_{self.unit.unit_id}"
 
     @property
     def key(self) -> str:
@@ -859,7 +975,7 @@ class FleeGoal(UnitGoal):
         return min_cost, min_steps
 
     def _get_max_benefit(self, game_state: GameState) -> float:
-        return self.benefit_fleeing
+        return CONFIG.BENEFIT_FLEEING
 
 
 @dataclass
@@ -939,6 +1055,9 @@ class UnitNoGoal(UnitGoal):
         return self.action_plan
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        if len(action_plan) == 0 and self.unit.is_under_threath(game_state):
+            return -CONFIG.COST_POTENTIALLY_LOSING_UNIT
+
         return 0.0 if not self._invalidates_constraint else self.PENALTY_VIOLATING_CONSTRAINT
 
     def __repr__(self) -> str:
@@ -1005,6 +1124,9 @@ class EvadeConstraintsGoal(UnitGoal):
         return graph
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        if len(action_plan) == 0 and self.unit.is_under_threath(game_state):
+            return -CONFIG.COST_POTENTIALLY_LOSING_UNIT
+
         return 0.0
 
     def __repr__(self) -> str:
