@@ -157,11 +157,17 @@ class Agent:
 
         next_tc_units = set()
         for unit in game_state.player_units:
+            if unit not in final_goals:
+                continue
+
             goal = final_goals[unit]
             action_plan: UnitActionPlan = goal.action_plan  # type: ignore
             next_tc_units.add(action_plan.next_tc)
 
         for factory in game_state.player_factories:
+            if factory not in final_goals:
+                continue
+
             goal = final_goals[factory]
             next_tc = goal.action_plan.next_tc
             if next_tc and next_tc in next_tc_units:

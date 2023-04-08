@@ -164,7 +164,7 @@ class Unit(Actor):
             self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
             self._add_ore_goals(game_state, n=2, return_to_current_closest_factory=True)
             if game_state.real_env_steps > 500:
-                self._add_destroy_lichen_goals(game_state, n=30)
+                self._add_destroy_lichen_goals(game_state, n=10)
 
         else:
             self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
