@@ -94,7 +94,7 @@ class Agent:
 
     def resolve_goals(self, game_state: GameState) -> Dict[Actor, Goal]:
         actor_goals = self._main_resolve_goals(game_state)
-        return self._remove_factories_building_on_top_unit_goal(game_state, actor_goals)
+        return self._factories_change_actions_building_on_top_of_unit(game_state, actor_goals)
 
     def _main_resolve_goals(self, game_state: GameState) -> Dict[Actor, Goal]:
         actors = game_state.player_actors
@@ -151,9 +151,11 @@ class Agent:
 
         return final_goals
 
-    def _remove_factories_building_on_top_unit_goal(
+    def _factories_change_actions_building_on_top_of_unit(
         self, game_state: GameState, final_goals: Dict[Actor, Goal]
     ) -> Dict[Actor, Goal]:
+
+        power_tracker = self.get_power_tracker(game_state.player_actors)
 
         next_tc_units = set()
         for unit in game_state.player_units:
@@ -171,7 +173,10 @@ class Agent:
             goal = final_goals[factory]
             next_tc = goal.action_plan.next_tc
             if next_tc and next_tc in next_tc_units:
-                del final_goals[factory]
+                goal_collection = factory.generate_goals(game_state, can_build=False)
+                goals = [g for goals in goal_collection.goals_dict.values() for g in goals]
+                goal = factory.get_best_goal(goals, game_state, Constraints(), power_tracker)
+                final_goals[factory] = goal
 
         return final_goals
 
