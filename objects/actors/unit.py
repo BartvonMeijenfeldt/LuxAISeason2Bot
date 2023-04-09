@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Sequence, Optional
+from functools import lru_cache
 from math import ceil
 
 import logging
@@ -11,6 +12,7 @@ from objects.game_state import GameState
 from objects.resource import Resource
 from objects.actions.unit_action import UnitAction
 from objects.actions.unit_action_plan import UnitActionPlan
+from objects.cargo import UnitCargo
 from logic.goals.goal import GoalCollection
 from logic.goals.unit_goal import (
     UnitGoal,
@@ -35,13 +37,21 @@ class Unit(Actor):
     tc: TimeCoordinate
     unit_cfg: UnitConfig
     action_queue: List[UnitAction]
-    prev_step_goal: Optional[UnitGoal]
-    _is_under_threath: Optional[bool] = field(init=False, default=None)
+    goal: Optional[UnitGoal] = field(init=False, default=None)
 
     def __post_init__(self) -> None:
+        self._set_unit_final_variables()
+        self._set_unit_state_variables()
+
+    def update_state(self, tc: TimeCoordinate, power: int, cargo: UnitCargo, action_queue: List[UnitAction]) -> None:
+        self.tc = tc
+        self.power = power
+        self.cargo = cargo
+        self.action_queue = action_queue
+        self._set_unit_state_variables()
+
+    def _set_unit_final_variables(self) -> None:
         self.id = int(self.unit_id[5:])
-        self.x = self.tc.x
-        self.y = self.tc.y
         self.is_light = self.unit_type == "LIGHT"
         self.is_heavy = self.unit_type == "HEAVY"
         self.time_to_power_cost = CONFIG.LIGHT_TIME_TO_POWER_COST if self.is_light else CONFIG.HEAVY_TIME_TO_POWER_COST
@@ -57,10 +67,12 @@ class Unit(Actor):
         self.rubble_removed_per_dig = self.unit_cfg.DIG_RUBBLE_REMOVED
         self.resources_gained_per_dig = self.unit_cfg.DIG_RESOURCE_GAIN
         self.lichen_removed_per_dig = self.unit_cfg.DIG_LICHEN_REMOVED
+
+    def _set_unit_state_variables(self) -> None:
+        self.x = self.tc.x
+        self.y = self.tc.y
         self.has_actions_in_queue = len(self.action_queue) > 0
         self.agent_id = f"player_{self.team_id}"
-        if self.prev_step_goal:
-            self.prev_step_goal.unit = self
 
     def generate_goals(self, game_state: GameState) -> GoalCollection:
         goals = self._generate_goals(game_state)
@@ -70,7 +82,7 @@ class Unit(Actor):
     def _generate_goals(self, game_state: GameState) -> List[UnitGoal]:
         self._init_goals()
 
-        if self.action_queue and self.prev_step_goal and not self.prev_step_goal.is_completed(game_state):
+        if self.action_queue and self.goal and not self.goal.is_completed(game_state):
             if self.is_under_threath(game_state) and self.next_step_is_stationary():
                 self._add_flee_goal(game_state)
                 self._add_relevant_transfer_goals(game_state)
@@ -91,11 +103,11 @@ class Unit(Actor):
         self.goals = []
 
     def _add_action_queue_goal(self) -> None:
-        if not self.prev_step_goal:
+        if not self.goal:
             logging.critical("Action queue found but no prev step goal")
             return
 
-        prev_step_goal = self.prev_step_goal
+        prev_step_goal = self.goal
         prev_goal = prev_step_goal.goal if isinstance(prev_step_goal, ActionQueueGoal) else prev_step_goal
         action_plan = UnitActionPlan(original_actions=self.action_queue, actor=self, is_set=True)
         action_queue_goal = ActionQueueGoal(unit=self, action_plan=action_plan, goal=prev_goal)
@@ -113,16 +125,20 @@ class Unit(Actor):
         if game_state.is_player_factory_tile(next_c):
             return False
 
-        return self.is_c_next_to_opponent_that_can_capture_self(c=next_c, game_state=game_state)
+        return self.is_next_c_next_to_opponent_that_can_capture_self(c=next_c, game_state=game_state)
 
-    def is_c_next_to_opponent_that_can_capture_self(self, c: Coordinate, game_state: GameState) -> bool:
+    def is_next_c_next_to_opponent_that_can_capture_self(self, c: Coordinate, game_state: GameState) -> bool:
         if game_state.is_player_factory_tile(c):
             return False
 
         strongest_neighboring_opponent = self.get_strongest_neighboring_opponent(c, game_state)
         if not strongest_neighboring_opponent:
             return False
-        return strongest_neighboring_opponent.can_capture(self)
+
+        if self.tc.xy == c.xy:
+            return strongest_neighboring_opponent.can_capture_opponent_stationary(self)
+        else:
+            return strongest_neighboring_opponent.can_capture_opponent_moving(self)
 
     def get_strongest_neighboring_opponent(self, c: Coordinate, game_state: GameState) -> Optional[Unit]:
         neighboring_opponents = game_state.get_neighboring_opponents(c)
@@ -132,13 +148,11 @@ class Unit(Actor):
         strongest_neighboring_opponent = max(neighboring_opponents, key=lambda x: x.is_heavy * 10_000 + x.power)
         return strongest_neighboring_opponent
 
-    def can_capture(self, other: Unit) -> bool:
-        if self.is_stronger_than(other):
-            return True
-        elif other.is_stronger_than(self):
-            return False
+    def can_capture_opponent_stationary(self, other: Unit) -> bool:
+        return not other.is_stronger_than(self)
 
-        return self.power >= other.power
+    def can_capture_opponent_moving(self, other: Unit) -> bool:
+        return self.is_stronger_than(other) or (not other.is_stronger_than(self) and self.power >= other.power)
 
     def next_step_walks_into_opponent_heavy(self, game_state: GameState) -> bool:
         if not self.action_queue:
@@ -174,9 +188,8 @@ class Unit(Actor):
             self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
             self._add_ore_goals(game_state, n=2, return_to_current_closest_factory=True)
             self._add_relevant_transfer_goals(game_state)
-            if game_state.real_env_steps > 500:
+            if game_state.real_env_steps >= CONFIG.START_STEP_DESTROYING_LICHEN:
                 self._add_destroy_lichen_goals(game_state, n=10)
-
         else:
             self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
 
@@ -243,24 +256,17 @@ class Unit(Actor):
             goal
             for goal in goals
             if not (
-                self.unit_type == "LIGHT"
-                and isinstance(goal, DigGoal)
-                and game_state.get_dis_to_closest_opp_heavy(goal.dig_c) <= 1
+                self.is_light and isinstance(goal, DigGoal) and game_state.get_dis_to_closest_opp_heavy(goal.dig_c) <= 1
             )
         ]
 
+    @lru_cache(8)
     def is_under_threath(self, game_state: GameState) -> bool:
-        if self._is_under_threath is None:
-            self._is_under_threath = self._get_is_under_threath(game_state)
-
-        return self._is_under_threath
-
-    def _get_is_under_threath(self, game_state: GameState) -> bool:
         if self.is_on_factory(game_state):
             return False
 
         neighboring_opponents = self._get_neighboring_opponents(game_state)
-        return any(not self.is_stronger_than(opponent) for opponent in neighboring_opponents)
+        return any(opponent.can_capture_opponent_stationary(self) for opponent in neighboring_opponents)
 
     def _get_neighboring_opponents(self, game_state: GameState) -> list[Unit]:
         return game_state.get_neighboring_opponents(self.tc)
@@ -272,29 +278,20 @@ class Unit(Actor):
         return game_state.is_player_factory_tile(self.tc)
 
     def get_quantity_resource_in_cargo(self, resource: Resource) -> int:
-        if resource.name == "ICE":
-            return self.cargo.ice
-        elif resource.name == "ORE":
-            return self.cargo.ore
-        elif resource.name == "WATER":
-            return self.cargo.water
-        elif resource.name == "METAL":
-            return self.cargo.metal
-        else:
-            raise ValueError("Unexpexcted resoruce")
+        return self.cargo.get_resource(resource)
 
     def get_nr_digs_to_fill_cargo(self) -> int:
         return ceil(self.cargo_space_left / self.resources_gained_per_dig)
 
     def get_danger_tcs(self, game_state) -> dict[TimeCoordinate, float]:
         return {
-            neighbor_c: 100
+            neighbor_c: 10_000
             for neighbor_c in self.tc.neighbors
-            if self.is_c_next_to_opponent_that_can_capture_self(neighbor_c, game_state)
+            if self.is_next_c_next_to_opponent_that_can_capture_self(neighbor_c, game_state)
         }
 
     def is_stronger_than(self, other: Unit) -> bool:
-        return self.unit_type == "HEAVY" and other.unit_type == "LIGHT"
+        return self.is_heavy and other.is_light
 
     def __hash__(self) -> int:
         return hash(str(self))

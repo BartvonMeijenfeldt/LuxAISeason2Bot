@@ -34,11 +34,11 @@ class Agent:
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         np.random.seed(0)
         self.env_cfg: EnvConfig = env_cfg
-        self.prev_steps_goals: dict[str, Goal] = {}
+        self.prev_step_actors: dict[str, Actor] = {}
         self.DEBUG_MODE = debug_mode
 
     def early_setup(self, step: int, obs, remainingOverageTime: int = 60):
-        game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_steps_goals)
+        game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_step_actors)
 
         if step == 0:
             return dict(faction="AlphaStrike", bid=0)
@@ -58,10 +58,11 @@ class Agent:
         """
         self._set_time()
 
-        game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_steps_goals)
+        game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_step_actors)
         actor_goals = self.resolve_goals(game_state)
 
-        self._update_prev_step_goals(actor_goals)
+        self._store_actors(game_state)
+        self._set_goals(actor_goals)
         actions = self.get_actions(actor_goals)
 
         self._log_time_taken(game_state.real_env_steps, game_state.player_team.team_id)
@@ -219,6 +220,9 @@ class Agent:
         else:
             raise ValueError("Actor is not Factory nor Unit!")
 
-    def _update_prev_step_goals(self, actor_goal_collections: Dict[Actor, Goal]) -> None:
-        for unit, goal in actor_goal_collections.items():
-            self.prev_steps_goals[unit.unit_id] = goal
+    def _store_actors(self, game_state: GameState) -> None:
+        self.prev_step_actors = {actor.unit_id: actor for actor in game_state.actors}
+
+    def _set_goals(self, actor_goal_collections: Dict[Actor, Goal]) -> None:
+        for actor, goal in actor_goal_collections.items():
+            actor.set_goal(goal)
