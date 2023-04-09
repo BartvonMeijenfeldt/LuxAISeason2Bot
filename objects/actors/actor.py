@@ -1,13 +1,13 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
-from typing import Set, TYPE_CHECKING, Iterable
-from dataclasses import dataclass
+from typing import Set, TYPE_CHECKING, Iterable, Optional
+from dataclasses import dataclass, field
 
 
 from utils import PriorityQueue
 
 if TYPE_CHECKING:
-    from objects.cargo import UnitCargo
+    from objects.cargo import Cargo
     from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
     from logic.goals.goal import Goal, GoalCollection
     from logic.constraints import Constraints
@@ -19,9 +19,9 @@ class Actor(metaclass=ABCMeta):
     team_id: int
     unit_id: str
     power: int
-    cargo: UnitCargo
+    cargo: Cargo
+    goal: Optional[Goal] = field(init=False, default=None)
 
-    # TODO should remove the action_queu_goal here and let it automatically be generated in generate goals
     def get_best_goal(
         self,
         goals: Iterable[Goal],
@@ -61,6 +61,9 @@ class Actor(metaclass=ABCMeta):
             goals_priority_queue.put(goal, priority)
 
         return goals_priority_queue
+
+    def set_goal(self, goal: Goal) -> None:
+        self.goal = goal
 
     @abstractmethod
     def generate_goals(self, game_state: GameState) -> GoalCollection:

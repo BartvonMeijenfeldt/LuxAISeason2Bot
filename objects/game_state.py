@@ -31,12 +31,24 @@ class GameState:
         return f"Gamestate [t={self.real_env_steps}]"
 
     @property
+    def actors(self) -> Sequence[Actor]:
+        return self.units + self.factories
+
+    @property
+    def units(self) -> list[Unit]:
+        return self.player_units + self.opp_units
+
+    @property
     def player_units(self) -> list[Unit]:
         return self.board.player_units
 
     @property
     def opp_units(self) -> list[Unit]:
         return self.board.opp_units
+
+    @property
+    def factories(self) -> list[Factory]:
+        return self.player_factories + self.opp_factories
 
     @property
     def player_factories(self) -> list[Factory]:

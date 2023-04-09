@@ -7,6 +7,7 @@ from itertools import product
 from dataclasses import dataclass
 from collections import Counter
 
+from objects.cargo import Cargo
 from objects.actions.factory_action import WaterAction
 from objects.actors.actor import Actor
 from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
@@ -26,7 +27,6 @@ from config import CONFIG
 if TYPE_CHECKING:
     from objects.game_state import GameState
     from objects.board import Board
-    from objects.cargo import UnitCargo
 
 
 @dataclass
@@ -36,24 +36,19 @@ class Factory(Actor):
     env_cfg: EnvConfig
     radius = 1
 
-    def __init__(
-        self,
-        team_id: int,
-        unit_id: str,
-        power: int,
-        cargo: UnitCargo,
-        strain_id: int,
-        center_tc: TimeCoordinate,
-        env_cfg: EnvConfig,
-    ) -> None:
-        super().__init__(team_id, unit_id, power, cargo)
-        self.strain_id = strain_id
-        self.env_cfg = env_cfg
+    def __post_init__(self) -> None:
+        self._set_unit_state_variables()
 
-        self.center_tc = center_tc
+    def _set_unit_state_variables(self) -> None:
         self.x = self.center_tc.x
         self.y = self.center_tc.y
         self.positions = np.array([[self.x + x, self.y + y] for x, y in product(range(-1, 2), range(-1, 2))])
+
+    def update_state(self, center_tc: TimeCoordinate, power: int, cargo: Cargo) -> None:
+        self.center_tc = center_tc
+        self.power = power
+        self.cargo = cargo
+        self._set_unit_state_variables()
 
     def set_positions(self, board: Board) -> None:
         self.lichen_positions = np.argwhere(board.lichen_strains == self.strain_id)
@@ -64,7 +59,6 @@ class Factory(Actor):
         self.max_nr_tiles_to_water = len(self.lichen_positions) + len(self.can_spread_to_positions)
         self.connected_positions = self._get_empty_or_lichen_connected_positions(board)
         self.nr_connected_positions = len(self.connected_positions)
-        # self.rubble_positions_to_clear = self._get_rubble_positions_to_clear(board)
         self.rubble_positions_pathing = self._get_rubble_positions_to_clear_for_resources(board)
         self.rubble_positions_values_for_lichen = self._get_rubble_positions_to_clear_for_lichen(board)
 
@@ -214,21 +208,6 @@ class Factory(Actor):
     @property
     def coordinates(self) -> CoordinateList:
         return CoordinateList([Coordinate(x, y) for x in self.pos_x_range for y in self.pos_y_range])
-
-    def is_on_factory(self, c: Coordinate) -> bool:
-        return c in self.coordinates
-
-    def min_dis_to(self, c: Coordinate) -> int:
-        return self.coordinates.min_dis_to(c)
-
-    def dis_to_tiles(self, c: Coordinate) -> list[int]:
-        return self.coordinates.dis_to_tiles(c)
-
-    def get_all_closest_factory_tiles(self, c: Coordinate) -> CoordinateList:
-        return self.coordinates.get_all_closest_tiles(c)
-
-    def get_closest_factory_tile(self, c: Coordinate) -> Coordinate:
-        return self.coordinates.get_closest_tile(c)
 
     def __repr__(self) -> str:
         return f"Factory[id={self.unit_id}, center={self.center_tc.xy}]"
