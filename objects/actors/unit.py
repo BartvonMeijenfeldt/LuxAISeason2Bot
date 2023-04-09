@@ -12,7 +12,7 @@ from objects.game_state import GameState
 from objects.resource import Resource
 from objects.actions.unit_action import UnitAction
 from objects.actions.unit_action_plan import UnitActionPlan
-from objects.cargo import UnitCargo
+from objects.cargo import Cargo
 from logic.goals.goal import GoalCollection
 from logic.goals.unit_goal import (
     UnitGoal,
@@ -43,7 +43,7 @@ class Unit(Actor):
         self._set_unit_final_variables()
         self._set_unit_state_variables()
 
-    def update_state(self, tc: TimeCoordinate, power: int, cargo: UnitCargo, action_queue: List[UnitAction]) -> None:
+    def update_state(self, tc: TimeCoordinate, power: int, cargo: Cargo, action_queue: List[UnitAction]) -> None:
         self.tc = tc
         self.power = power
         self.cargo = cargo

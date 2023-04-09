@@ -1,7 +1,7 @@
 import numpy as np
 
 from collections import defaultdict
-from objects.cargo import UnitCargo
+from objects.cargo import Cargo
 from typing import Dict, List
 
 from lux.config import EnvConfig
@@ -109,7 +109,7 @@ def create_units(obs, env_cfg: EnvConfig, t: int, prev_step_actors: Dict[str, Ac
             team_id = unit_data["team_id"]
             power = unit_data["power"]
             unit_type = unit_data["unit_type"]
-            cargo = UnitCargo(**unit_data["cargo"])
+            cargo = Cargo(**unit_data["cargo"])
             tc = TimeCoordinate(*unit_data["pos"], t=t)
             unit_cfg = env_cfg.get_unit_config(unit_data["unit_type"])
             action_queue = [UnitAction.from_array(action) for action in unit_data["action_queue"]]
@@ -142,7 +142,7 @@ def create_factories(obs, env_cfg, t: int, prev_step_actors: Dict[str, Actor]) -
             team_id = factory_data["team_id"]
             unit_id = factory_data["unit_id"]
             power = factory_data["power"]
-            cargo = UnitCargo(**factory_data["cargo"])
+            cargo = Cargo(**factory_data["cargo"])
             strain_id = factory_data["strain_id"]
             center_tc = TimeCoordinate(*factory_data["pos"], t=t)
 

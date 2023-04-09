@@ -7,7 +7,7 @@ from itertools import product
 from dataclasses import dataclass
 from collections import Counter
 
-from objects.cargo import UnitCargo
+from objects.cargo import Cargo
 from objects.actions.factory_action import WaterAction
 from objects.actors.actor import Actor
 from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
@@ -44,7 +44,7 @@ class Factory(Actor):
         self.y = self.center_tc.y
         self.positions = np.array([[self.x + x, self.y + y] for x, y in product(range(-1, 2), range(-1, 2))])
 
-    def update_state(self, center_tc: TimeCoordinate, power: int, cargo: UnitCargo) -> None:
+    def update_state(self, center_tc: TimeCoordinate, power: int, cargo: Cargo) -> None:
         self.center_tc = center_tc
         self.power = power
         self.cargo = cargo

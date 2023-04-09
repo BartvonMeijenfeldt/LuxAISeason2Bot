@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from utils import PriorityQueue
 
 if TYPE_CHECKING:
-    from objects.cargo import UnitCargo
+    from objects.cargo import Cargo
     from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
     from logic.goals.goal import Goal, GoalCollection
     from logic.constraints import Constraints
@@ -19,7 +19,7 @@ class Actor(metaclass=ABCMeta):
     team_id: int
     unit_id: str
     power: int
-    cargo: UnitCargo
+    cargo: Cargo
     goal: Optional[Goal] = field(init=False, default=None)
 
     def get_best_goal(

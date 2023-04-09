@@ -4,7 +4,7 @@ from objects.resource import Resource
 
 
 @dataclass
-class UnitCargo:
+class Cargo:
     ice: int = 0
     ore: int = 0
     water: int = 0
