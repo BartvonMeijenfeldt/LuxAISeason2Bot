@@ -48,8 +48,8 @@ class Board:
         self.is_empty_array = self._get_is_empty_array()
         self.empty_islands = get_islands(self.is_empty_array)
 
-        self.player_factory_tiles_set = {c.xy for factory in self.player_factories for c in factory.coordinates}
-        self.opp_factory_tiles_set = {c.xy for factory in self.opp_factories for c in factory.coordinates}
+        self.player_factory_tiles_set = {tuple(pos) for factory in self.player_factories for pos in factory.positions}
+        self.opp_factory_tiles_set = {tuple(pos) for factory in self.opp_factories for pos in factory.positions}
         self.player_lights = [light for light in self.player_units if light.is_light]
         self.player_heavies = [heavy for heavy in self.player_units if heavy.is_heavy]
         self.opp_lights = [light for light in self.opp_units if light.is_light]
@@ -92,11 +92,11 @@ class Board:
                 distance_to_player_factory_tiles.reshape(self.size, self.size, -1, order="F"), axis=2
             )
 
-        self._min_distance_to_opp_heavies = self._get_min_dis_to_opponent_heavies()
-        self._min_distance_to_player_factory_or_lichen = self._get_dis_to_coordinates_array(
+        self._min_distance_to_opp_heavies = self._get_min_dis_tiles_to_opponent_heavies()
+        self._min_distance_to_player_factory_or_lichen = self._get_min_dis_tiles_to_positions(
             self.player_factories_or_lichen_tiles
         )
-        self._min_distance_to_opp_factory_or_lichen = self._get_dis_to_coordinates_array(
+        self._min_distance_to_opp_factory_or_lichen = self._get_min_dis_tiles_to_positions(
             self.opp_factories_or_lichen_tiles
         )
 
@@ -141,21 +141,22 @@ class Board:
     def are_rubble_positions(self, positions: np.ndarray) -> np.ndarray:
         return self._is_rubble_no_resource[positions[:, 0], positions[:, 1]]
 
-    def _get_min_dis_to_opponent_heavies(self) -> np.ndarray:
-        tiles_heavy = np.array([[heavy.x, heavy.y] for heavy in self.opp_heavies]).transpose()
-        return self._get_min_distance_tiles_to_coordinates(tiles_heavy)
+    def _get_min_dis_tiles_to_opponent_heavies(self) -> np.ndarray:
+        heavy_positions = np.array([[heavy.x, heavy.y] for heavy in self.opp_heavies])
+        return self._get_min_distance_tiles_to_positions(heavy_positions)
 
-    def _get_dis_to_coordinates_array(self, coordinates: CoordinateList) -> np.ndarray:
-        tiles_coordinates = coordinates.to_array()
-        return self._get_min_distance_tiles_to_coordinates(tiles_coordinates)
+    def _get_min_dis_tiles_to_positions(self, positions: CoordinateList) -> np.ndarray:
+        tiles_positions = positions.to_positions()
+        return self._get_min_distance_tiles_to_positions(tiles_positions)
 
-    def _get_min_distance_tiles_to_coordinates(self, tiles_coordinates: np.ndarray) -> np.ndarray:
-        if not tiles_coordinates.shape[0]:
+    def _get_min_distance_tiles_to_positions(self, tiles_positions: np.ndarray) -> np.ndarray:
+        if not tiles_positions.shape[0]:
             return np.full((self.size, self.size), np.inf)
 
+        tiles_positions = tiles_positions.transpose()
         tiles_xy = self._get_tiles_xy_array()
 
-        diff = tiles_xy[..., None] - tiles_coordinates[None, ...]
+        diff = tiles_xy[..., None] - tiles_positions[None, ...]
         abs_dis_xy = np.abs(diff)
         abs_dis = np.sum(abs_dis_xy, axis=2)
         return np.min(abs_dis, axis=2)
@@ -174,7 +175,7 @@ class Board:
 
     def _get_player_factory_tiles_array(self) -> np.ndarray:
         """dimensions (xy: 2, factory_tile: 9, factory: nr_factories)"""
-        factory_tiles_pos = np.array([[[c.x, c.y] for c in factory.coordinates] for factory in self.player_factories])
+        factory_tiles_pos = np.array([[pos for pos in factory.positions] for factory in self.player_factories])
         return factory_tiles_pos.transpose()
 
     def _get_distance_tiles_factories(self, tiles_xy: np.ndarray, player_factories_xy: np.ndarray) -> np.ndarray:
