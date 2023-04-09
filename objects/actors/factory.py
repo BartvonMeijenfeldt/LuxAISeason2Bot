@@ -209,20 +209,5 @@ class Factory(Actor):
     def coordinates(self) -> CoordinateList:
         return CoordinateList([Coordinate(x, y) for x in self.pos_x_range for y in self.pos_y_range])
 
-    def is_on_factory(self, c: Coordinate) -> bool:
-        return c in self.coordinates
-
-    def min_dis_to(self, c: Coordinate) -> int:
-        return self.coordinates.min_dis_to(c)
-
-    def dis_to_tiles(self, c: Coordinate) -> list[int]:
-        return self.coordinates.dis_to_tiles(c)
-
-    def get_all_closest_factory_tiles(self, c: Coordinate) -> CoordinateList:
-        return self.coordinates.get_all_closest_tiles(c)
-
-    def get_closest_factory_tile(self, c: Coordinate) -> Coordinate:
-        return self.coordinates.get_closest_tile(c)
-
     def __repr__(self) -> str:
         return f"Factory[id={self.unit_id}, center={self.center_tc.xy}]"
