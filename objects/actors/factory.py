@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from typing import Tuple, TYPE_CHECKING
+from typing import Tuple, TYPE_CHECKING, Optional
 from itertools import product
 from dataclasses import dataclass, field
 from collections import Counter
@@ -12,7 +12,9 @@ from objects.cargo import Cargo
 from objects.actions.factory_action import WaterAction
 from objects.actors.actor import Actor
 from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
-from logic.goals.goal import GoalCollection
+from logic.constraints import Constraints
+from objects.actions.action_plan import ActionPlan
+from objects.actions.factory_action_plan import FactoryActionPlan
 from logic.goals.unit_goal import ActionQueueGoal, ClearRubbleGoal
 from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal, FactoryGoal
 from distances import (
@@ -21,6 +23,7 @@ from distances import (
     get_min_distances_between_positions,
     get_closest_pos_between_pos_and_positions,
     get_positions_on_optimal_path_between_pos_and_pos,
+    get_closest_pos_and_pos_between_positions,
 )
 from image_processing import get_islands
 from positions import init_empty_positions, get_neighboring_positions
@@ -28,6 +31,7 @@ from lux.config import EnvConfig, LIGHT_CONFIG, HEAVY_CONFIG
 from config import CONFIG
 
 if TYPE_CHECKING:
+    from logic.goal_resolution.power_availabilty_tracker import PowerTracker
     from objects.game_state import GameState
     from objects.board import Board
     from objects.actors.unit import Unit
@@ -46,6 +50,8 @@ class Factory(Actor):
     env_cfg: EnvConfig
     radius = 1
     units: set[Unit] = field(init=False, default_factory=set)
+    goal: Optional[FactoryGoal] = field(init=False, default=None)
+    private_action_plan: Optional[FactoryActionPlan] = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self._set_unit_state_variables()
@@ -65,28 +71,42 @@ class Factory(Actor):
         self.lichen_positions = np.argwhere(board.lichen_strains == self.strain_id)
         self.nr_lichen_tiles = len(self.lichen_positions)
         self.connected_lichen_positions = self._get_connected_lichen_positions(board)
-        self.nr_connected_lichen_tiles = len(self.lichen_positions)
-        self.spreadable_lichen_positions = self._get_spreadable_lichen_positions(board, self.connected_lichen_positions)
+        self.spreadable_lichen_positions = self._get_spreadable_lichen_positions(board)
+        self.non_spreadable_connected_lichen_positions = self._get_not_spreadable_connected_lichen_positions(board)
         self.can_spread_positions = np.append(self.positions, self.spreadable_lichen_positions, axis=0)
-        self.nr_can_spread_positions = len(self.can_spread_positions)
+
         self.can_spread_to_positions = self._get_can_spread_to_positions(board, self.can_spread_positions)
-        self.max_nr_tiles_to_water = len(self.connected_lichen_positions) + len(self.can_spread_to_positions)
         self.connected_positions = self._get_empty_or_lichen_connected_positions(board)
-        self.nr_connected_positions = len(self.connected_positions)
+
         self.rubble_positions_pathing = self._get_rubble_positions_to_clear_for_resources(board)
         self.rubble_positions_values_for_lichen = self._get_rubble_positions_to_clear_for_lichen(board)
+        self.rubble_positions_next_to_can_spread_pos = self._get_rubble_positions_next_to_can_spread_pos(board)
+        self.rubble_positions_next_to_can_not_spread_lichen = self._get_rubble_next_to_can_not_spread_lichen(board)
+
+        self.nr_connected_lichen_tiles = len(self.lichen_positions)
+        self.nr_can_spread_positions = len(self.can_spread_positions)
+        self.nr_connected_positions = len(self.connected_positions)
+        self.max_nr_tiles_to_water = len(self.connected_lichen_positions) + len(self.can_spread_to_positions)
 
     def _get_connected_lichen_positions(self, board: Board) -> np.ndarray:
         own_lichen = board.lichen_strains == self.strain_id
         return self._get_connected_positions(own_lichen)
 
-    def _get_spreadable_lichen_positions(self, board: Board, connected_lichen_positions: np.ndarray) -> np.ndarray:
-        if not connected_lichen_positions.shape[0]:
+    def _get_spreadable_lichen_positions(self, board: Board) -> np.ndarray:
+        if not self.connected_lichen_positions.shape[0]:
             return init_empty_positions()
 
-        lichen_available = board.lichen[connected_lichen_positions[:, 0], connected_lichen_positions[:, 1]]
+        lichen_available = board.lichen[self.connected_lichen_positions[:, 0], self.connected_lichen_positions[:, 1]]
         can_spread_mask = lichen_available >= EnvConfig.MIN_LICHEN_TO_SPREAD
-        return connected_lichen_positions[can_spread_mask]
+        return self.connected_lichen_positions[can_spread_mask]
+
+    def _get_not_spreadable_connected_lichen_positions(self, board: Board) -> np.ndarray:
+        if not self.connected_lichen_positions.shape[0]:
+            return init_empty_positions()
+
+        lichen_available = board.lichen[self.connected_lichen_positions[:, 0], self.connected_lichen_positions[:, 1]]
+        can_not_spread_mask = lichen_available < EnvConfig.MIN_LICHEN_TO_SPREAD
+        return self.connected_lichen_positions[can_not_spread_mask]
 
     def _get_empty_or_lichen_connected_positions(self, board: Board) -> np.ndarray:
         is_empty_or_own_lichen = (board.lichen_strains == self.strain_id) | (board.is_empty_array)
@@ -133,6 +153,23 @@ class Factory(Actor):
 
         return rubble_value_dict
 
+    def _get_rubble_positions_next_to_can_spread_pos(self, board: Board) -> np.ndarray:
+        distances = get_min_distances_between_positions(board.rubble_positions, self.can_spread_positions)
+        valid_distance_mask = distances == 1
+        rubble_positions_next_to_can_spread_pos = board.rubble_positions[valid_distance_mask]
+        return rubble_positions_next_to_can_spread_pos
+
+    def _get_rubble_next_to_can_not_spread_lichen(self, board: Board) -> np.ndarray:
+        if not board.rubble_positions.shape[0] or not self.non_spreadable_connected_lichen_positions.shape[0]:
+            return init_empty_positions()
+
+        distances_valid = get_min_distances_between_positions(
+            board.rubble_positions, self.non_spreadable_connected_lichen_positions
+        )
+        valid_distance_mask = distances_valid == 1
+        rubble_positions = board.rubble_positions[valid_distance_mask]
+        return rubble_positions
+
     def _get_rubbe_positions_to_clear_for_lichen_score(self, distances: np.ndarray) -> np.ndarray:
         base_score = CONFIG.RUBBLE_VALUE_CLEAR_FOR_LICHEN_BASE
         distance_penalty = CONFIG.RUBBLE_VALUE_CLEAR_FOR_LICHEN_DISTANCE_PENALTY
@@ -158,31 +195,35 @@ class Factory(Actor):
         rel_positions = np.append(self.positions, self.connected_positions, axis=0)
         return get_min_distance_between_positions(rel_positions, positions)
 
-    def generate_goals(self, game_state: GameState, can_build: bool = True) -> GoalCollection:
-        water_cost = self.water_cost
-        goals = []
+    # TODO Can build should be put into the constraints
+    def set_goal(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker, can_build: bool = True
+    ) -> FactoryActionPlan:
+        goal = self.get_goal(game_state, can_build)
+        action_plan = goal.generate_and_evaluate_action_plan(game_state, constraints, power_tracker)
+        self.goal = goal
+        self.private_action_plan = action_plan
+        return action_plan
 
+    def get_goal(self, game_state: GameState, can_build: bool = True) -> FactoryGoal:
+        water_cost = self.water_cost
         if can_build and self.can_build_heavy and game_state.player_nr_heavies / game_state.player_nr_factories < 1:
-            goals.append(BuildHeavyGoal(self))
+            return BuildHeavyGoal(self)
 
         elif (
             can_build
             and self.can_build_light
             and (game_state.player_nr_lights / game_state.player_nr_factories <= 10 or self.power > 1000)
         ):
-            goals.append(BuildLightGoal(self))
+            return BuildLightGoal(self)
 
         elif self.cargo.water - water_cost > 50 and water_cost < 5:
-            goals.append(WaterGoal(self))
+            return WaterGoal(self)
 
         elif game_state.env_steps > 750 and self.can_water() and self.cargo.water - water_cost > game_state.steps_left:
-            goals.append(WaterGoal(self))
+            return WaterGoal(self)
 
-        goals += self._get_dummy_goals()
-        return GoalCollection(goals)
-
-    def _get_dummy_goals(self) -> list[FactoryGoal]:
-        return [FactoryNoGoal(self)]
+        return FactoryNoGoal(self)
 
     @property
     def daily_charge(self) -> int:
@@ -304,37 +345,74 @@ class Factory(Actor):
         return nr_positions
 
     @property
-    def unassigned_units(self) -> list[Unit]:
-        return [unit for unit in self.units if not unit.private_action_queue]
+    def available_units(self) -> list[Unit]:
+        # TODO some checks to see if there is enough power or some other mechanic to set units as unavailable
+        return [unit for unit in self.units if not unit.private_action_plan]
 
     @property
     def has_unassigned_units(self) -> bool:
-        return any(not unit.private_action_queue for unit in self.units)
+        return any(not unit.private_action_plan for unit in self.units)
 
-    def schedule_units(self, strategy: Strategy, game_state: GameState) -> None:
+    def schedule_unit(
+        self, strategy: Strategy, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> ActionPlan:
         if strategy == Strategy.INCREASE_LICHEN:
-            self.schedule_strategy_increase_lichen(game_state)
+            action_plan = self.schedule_strategy_increase_lichen(game_state, constraints, power_tracker)
         elif strategy == Strategy.INCREASE_UNITS:
-            self.schedule_strategy_increase_units(game_state)
+            action_plan = self.schedule_strategy_increase_units(game_state, constraints, power_tracker)
         elif strategy == Strategy.COLLECT_ICE:
-            self.schedule_strategy_collect_ice(game_state)
+            action_plan = self.schedule_strategy_collect_ice(game_state, constraints, power_tracker)
         else:
             raise ValueError("Strategy is not a known strategy")
 
-    def schedule_strategy_increase_lichen(self, game_state: GameState) -> None:
+        return action_plan
+
+    def schedule_strategy_increase_lichen(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> ActionPlan:
         if not self.enough_water_collection_for_next_turns(game_state):
-            self.schedule_strategy_collect_ice(game_state)
+            return self.schedule_strategy_collect_ice(game_state, constraints, power_tracker)
         else:
-            self.schedule_dig_neighboring_rubble(game_state)
+            return self._schedule_dig_rubble_for_lichen(game_state, constraints, power_tracker)
 
-    def schedule_dig_neighboring_rubble(self, game_state: GameState) -> None:
-        # Find Best rubble spot not being digged
-        # best = next to can spread position & fewest rubble
-        # second_best = next to highest non-spread lichen position & fewest rubble
+    def _schedule_dig_rubble_for_lichen(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> ActionPlan:
+        rubble_pos = self._get_most_suitable_dig_pos_for_lichen(game_state)
+        unit = self._get_closest_available_unit_to_pos(rubble_pos)
+        # TODO, check if the unit can do this
+        # try:
+        goal = unit.generate_clear_rubble_goal(game_state, Coordinate(*rubble_pos), constraints, power_tracker)
+        # except:
+        # ...
+        # Something about the unit being unassignable?
 
-        # Find closest light unit next to it
-        # Schedule this job
-        ...
+        unit.set_goal(goal)
+        unit.set_private_action_queue(goal.action_plan)
+        return goal.action_plan
+
+    def _get_closest_available_unit_to_pos(self, pos: np.ndarray) -> Unit:
+        c = Coordinate(*pos)
+        unit = min(self.available_units, key=lambda u: c.distance_to(u.tc))
+        return unit
+
+    def _get_most_suitable_dig_pos_for_lichen(self, game_state: GameState) -> np.ndarray:
+        rubble_positions_favorite = {tuple(pos) for pos in self.rubble_positions_next_to_can_spread_pos}
+        valid_rubble_positions = rubble_positions_favorite - game_state.positions_in_dig_goals
+        if valid_rubble_positions:
+            # TODO Pick best e.g. lowest rubble or optimally given units closeby
+            pos = np.array(list(valid_rubble_positions)[0])
+            return pos
+
+        rubble_positions_second_favorite = {tuple(pos) for pos in self.rubble_positions_next_to_can_not_spread_lichen}
+        valid_rubble_positions = rubble_positions_second_favorite - game_state.positions_in_dig_goals
+
+        if valid_rubble_positions:
+            pos = np.array(list(valid_rubble_positions)[0])
+            return pos
+
+        # TODO, handle this either catch it or find another pos
+        raise ValueError("No suitable pos")
 
     def enough_water_collection_for_next_turns(self, game_state: GameState) -> bool:
         water_collection = self.get_water_collection_per_step(game_state)
@@ -342,10 +420,23 @@ class Factory(Actor):
         water_cost_next_n_turns = CONFIG.ENOUGH_WATER_COLLECTION_NR_TURNS * self.water_cost
         return water_available_next_n_turns < water_cost_next_n_turns
 
-    def schedule_strategy_increase_units(self, game_state: GameState) -> None:
+    def schedule_strategy_increase_units(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> ActionPlan:
         # Collect Ore / Clear Path to Ore / Supply Power to heavy on Ore
         ...
 
-    def schedule_strategy_collect_ice(self, game_state: GameState) -> None:
+    def schedule_strategy_collect_ice(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> ActionPlan:
         # Collect Ice / Clear Path to Ice / Supply Power to heavy on Ice
-        ...
+        ice_positions = {tuple(pos) for pos in game_state.board.ice_positions}
+        valid_ice_positions = ice_positions - game_state.positions_in_dig_goals
+        valid_ice_positions = np.array([np.array(pos) for pos in valid_ice_positions])
+        ice_pos, _ = get_closest_pos_and_pos_between_positions(valid_ice_positions, self.positions)
+        unit = self._get_closest_available_unit_to_pos(ice_pos)
+
+        goal = unit.generate_collect_ice_goal(game_state, Coordinate(*ice_pos), constraints, power_tracker, self)
+        unit.set_goal(goal)
+        unit.set_private_action_queue(goal.action_plan)
+        return goal.action_plan

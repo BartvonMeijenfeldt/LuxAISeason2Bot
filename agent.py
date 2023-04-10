@@ -20,7 +20,7 @@ from logic.goals.goal import Goal
 from logic.goals.factory_goal import BuildLightGoal
 from logic.constraints import Constraints
 from logic.goal_resolution.goal_resolution import resolve_goal_conflicts, create_cost_matrix
-from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
+from logic.goal_resolution.power_availabilty_tracker import PowerTracker
 
 logging.basicConfig(level=logging.WARN)
 
@@ -63,11 +63,11 @@ class Agent:
         scheduler = Scheduler()
         scheduler.schedule_goals(game_state)
 
-        actor_goals = self.resolve_goals(game_state)
+        # actor_goals = self.resolve_goals(game_state)
 
+        # self._set_goals(actor_goals)
         self._store_actors(game_state)
-        self._set_goals(actor_goals)
-        actions = self.get_actions(actor_goals)
+        actions = self.get_actions(game_state)
 
         self._log_time_taken(game_state.real_env_steps, game_state.player_team.team_id)
 
@@ -186,9 +186,9 @@ class Agent:
         return final_goals
 
     @staticmethod
-    def get_power_tracker(actors: Sequence[Actor]) -> PowerAvailabilityTracker:
+    def get_power_tracker(actors: Sequence[Actor]) -> PowerTracker:
         factories = [factory for factory in actors if isinstance(factory, Factory)]
-        return PowerAvailabilityTracker(factories)
+        return PowerTracker(factories)
 
     @staticmethod
     def _actor_importance_key(actor: Actor) -> int:
@@ -209,12 +209,25 @@ class Agent:
         else:
             raise ValueError(f"{actor} is not of type Unit or Factory")
 
-    def get_actions(self, actor_goal_collections: Dict[Actor, Goal]) -> Dict[str, Any]:
-        return {
-            actor.unit_id: goal.action_plan.to_lux_output()
-            for actor, goal in actor_goal_collections.items()
-            if self._is_new_action_plan(actor, goal.action_plan)
-        }
+    def get_actions(self, game_state: GameState) -> Dict[str, Any]:
+        actions = {}
+
+        for factory in game_state.player_factories:
+            # TODO, prive_action_plan should probably never be None. It should be initialized with an empty actionplan
+            if factory.private_action_plan:
+                actions[factory.unit_id] = factory.private_action_plan.to_lux_output()
+
+        for unit in game_state.player_units:
+            if not unit.action_queue:
+                if unit.private_action_plan:
+                    actions[unit.unit_id] = unit.private_action_plan.to_lux_output()
+                    unit.set_action_queue(unit.private_action_plan)
+            elif unit.private_action_plan:
+                if not unit.action_queue[0].next_step_equal(unit.private_action_plan.primitive_actions[0]):
+                    actions[unit.unit_id] = unit.private_action_plan.to_lux_output()
+                    unit.set_action_queue(unit.private_action_plan)
+
+        return actions
 
     def _is_new_action_plan(self, actor: Actor, plan: ActionPlan) -> bool:
         if isinstance(actor, Factory):

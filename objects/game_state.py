@@ -176,3 +176,7 @@ class GameState:
     @property
     def opp_nr_lichen_tiles(self) -> int:
         return self.board.opp_nr_lichen_tiles
+
+    @property
+    def positions_in_dig_goals(self) -> set[tuple]:
+        return self.board.positions_in_dig_goals

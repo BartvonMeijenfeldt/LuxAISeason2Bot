@@ -38,7 +38,13 @@ class UnitActionPlan(ActionPlan):
     def __add__(self, other) -> UnitActionPlan:
         other = list(other)
         new_actions = self.original_actions + other
-        return replace(self, original_actions=new_actions)
+        new_action_plan = replace(self, original_actions=new_actions)
+        new_action_plan.__post_init__()
+        return new_action_plan
+
+    def step(self) -> None:
+        self.original_actions = self.primitive_actions[1:]
+        self.__post_init__()
 
     def append(self, action: UnitAction) -> None:
         self.original_actions.append(action)

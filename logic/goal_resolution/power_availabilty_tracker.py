@@ -8,7 +8,7 @@ from objects.actors.factory import Factory
 
 
 @dataclass
-class PowerAvailabilityTracker:
+class PowerTracker:
     factories: List[Factory]
 
     def __post_init__(self) -> None:

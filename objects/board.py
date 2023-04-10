@@ -7,6 +7,7 @@ from collections import defaultdict, Counter
 from functools import reduce
 
 from objects.coordinate import Coordinate, CoordinateList
+from logic.goals.unit_goal import DigGoal
 from image_processing import get_islands
 from distances import (
     get_distances_between_pos_and_positions,
@@ -337,3 +338,7 @@ class Board:
                 neighboring_opponents.append(opponent_on_c)
 
         return neighboring_opponents
+
+    @property
+    def positions_in_dig_goals(self) -> set[tuple]:
+        return {unit.goal.dig_c.xy for unit in self.player_units if isinstance(unit.goal, DigGoal)}

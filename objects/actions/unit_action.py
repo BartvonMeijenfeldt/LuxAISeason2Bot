@@ -4,7 +4,7 @@ import numpy as np
 
 from typing import TYPE_CHECKING, TypeVar
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import floor
 
 from objects.actions.action import Action
@@ -21,6 +21,11 @@ if TYPE_CHECKING:
 
 class UnitAction(Action):
     n: int
+
+    def next_step_equal(self, other: UnitAction) -> bool:
+        self_one_step = replace(self, n=1)
+        other_one_step = replace(other, n=1)
+        return self_one_step == other_one_step
 
     @abstractmethod
     def to_lux_output(self) -> np.ndarray:

@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from objects.board import Board
     from lux.config import UnitConfig
     from objects.actions.unit_action import UnitAction
-    from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
+    from logic.goal_resolution.power_availabilty_tracker import PowerTracker
 
 
 @dataclass
@@ -61,7 +61,7 @@ class UnitGoal(Goal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         ...
 
@@ -107,7 +107,7 @@ class UnitGoal(Goal):
     def _get_pickup_power_graph(
         self,
         board: Board,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
         constraints: Constraints,
         next_goal_c: Optional[Coordinate] = None,
     ) -> PickupPowerGraph:
@@ -145,7 +145,7 @@ class UnitGoal(Goal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
         next_goal_c: Optional[Coordinate] = None,
     ) -> None:
         if self.unit.power == self.unit.battery_capacity:
@@ -393,7 +393,7 @@ class CollectGoal(DigGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         if constraints is None:
             constraints = Constraints()
@@ -548,7 +548,7 @@ class TransferResourceGoal(UnitGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         if constraints is None:
             constraints = Constraints()
@@ -725,7 +725,7 @@ class ClearRubbleGoal(DigGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         self._init_action_plan()
 
@@ -840,7 +840,7 @@ class DestroyLichenGoal(DigGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         self._init_action_plan()
 
@@ -965,7 +965,7 @@ class FleeGoal(UnitGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         self._init_action_plan()
         constraints = self._add_flee_constraints(constraints)
@@ -1028,6 +1028,9 @@ class FleeGoal(UnitGoal):
         return 0
 
 
+# TODO REMOVE THIS
+# This one is really annoying in my new setup, I am considering this one as removed now
+# Rewrite to scheduler does not use any ActionQueueGoals
 @dataclass
 class ActionQueueGoal(UnitGoal):
     """Goal currently in action queue"""
@@ -1043,7 +1046,7 @@ class ActionQueueGoal(UnitGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         self.set_validity_plan(constraints)
         return self.action_plan
@@ -1104,7 +1107,7 @@ class UnitNoGoal(UnitGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         self._init_action_plan()
         self._invalidates_constraint = constraints.any_tc_violates_constraint(self.action_plan.time_coordinates)
@@ -1148,7 +1151,7 @@ class EvadeConstraintsGoal(UnitGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         self._init_action_plan()
         if constraints.any_tc_violates_constraint(self.action_plan.time_coordinates):

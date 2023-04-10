@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from objects.board import Board
     from lux.config import UnitConfig
     from objects.actors.factory import Factory
-    from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
+    from logic.goal_resolution.power_availabilty_tracker import PowerTracker
 
 
 @dataclass
@@ -176,7 +176,7 @@ class EvadeConstraintsGraph(Graph):
 
 @dataclass
 class PickupPowerGraph(Graph):
-    factory_power_availability_tracker: PowerAvailabilityTracker
+    factory_power_availability_tracker: PowerTracker
     next_goal_c: Optional[Coordinate] = field(default=None)
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
 

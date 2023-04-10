@@ -1,10 +1,13 @@
 from __future__ import annotations
+
+import logging
+
 from dataclasses import dataclass, field
-from typing import List, Sequence, Optional
+from typing import List, Sequence, Optional, TYPE_CHECKING, Iterable
 from functools import lru_cache
 from math import ceil
 
-import logging
+from utils import PriorityQueue
 from objects.actors.actor import Actor
 from lux.config import UnitConfig
 from objects.coordinate import TimeCoordinate, Coordinate
@@ -14,6 +17,8 @@ from objects.actions.unit_action import UnitAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.cargo import Cargo
 from logic.goals.goal import GoalCollection
+from logic.goal_resolution.power_availabilty_tracker import PowerTracker
+from logic.constraints import Constraints
 from logic.goals.unit_goal import (
     UnitGoal,
     DigGoal,
@@ -30,6 +35,9 @@ from logic.goals.unit_goal import (
 )
 from config import CONFIG
 
+if TYPE_CHECKING:
+    from objects.actors.factory import Factory
+
 
 @dataclass
 class Unit(Actor):
@@ -37,8 +45,10 @@ class Unit(Actor):
     tc: TimeCoordinate
     unit_cfg: UnitConfig
     action_queue: List[UnitAction] = field(init=False, default_factory=list)
-    private_action_queue: List[UnitAction] = field(init=False, default_factory=list)
     goal: Optional[UnitGoal] = field(init=False, default=None)
+    # TODO remove the None part, always empty action plan at least
+    private_action_plan: Optional[UnitActionPlan] = field(init=False, default=None)
+    can_be_assigned: bool = field(init=False)
 
     def __post_init__(self) -> None:
         self._set_unit_final_variables()
@@ -48,6 +58,10 @@ class Unit(Actor):
         self.tc = tc
         self.power = power
         self.cargo = cargo
+        if self._last_step_action_from_queue_was_carried_out(action_queue):
+            if self.private_action_plan:
+                self.private_action_plan.step()
+
         self.action_queue = action_queue
         self._set_unit_state_variables()
 
@@ -73,7 +87,11 @@ class Unit(Actor):
         self.x = self.tc.x
         self.y = self.tc.y
         self.has_actions_in_queue = len(self.action_queue) > 0
+        self.can_be_assigned = not self.has_actions_in_queue
         self.agent_id = f"player_{self.team_id}"
+
+    def _last_step_action_from_queue_was_carried_out(self, action_queue: list[UnitAction]) -> bool:
+        return self.action_queue != action_queue
 
     def generate_goals(self, game_state: GameState) -> GoalCollection:
         goals = self._generate_goals(game_state)
@@ -172,6 +190,60 @@ class Unit(Actor):
         flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
         self.goals.append(flee_goal)
 
+    def generate_clear_rubble_goal(
+        self, game_state: GameState, c: Coordinate, constraints: Constraints, power_tracker: PowerTracker
+    ) -> ClearRubbleGoal:
+        rubble_goals = self._get_clear_rubble_goals(c)
+        goal = self.get_best_goal(rubble_goals, game_state, constraints, power_tracker)
+        return goal  # type: ignore
+
+    def get_best_goal(
+        self,
+        goals: Iterable[UnitGoal],
+        game_state: GameState,
+        constraints: Constraints,
+        factory_power_availability_tracker: PowerTracker,
+    ) -> UnitGoal:
+        goals = list(goals)
+        # goals = self.generate_goals(game_state)
+        priority_queue = self._init_priority_queue(goals, game_state)
+
+        while not priority_queue.is_empty():
+            goal: UnitGoal = priority_queue.pop()
+
+            goal.generate_and_evaluate_action_plan(game_state, constraints, factory_power_availability_tracker)
+            if not goal.is_valid:
+                continue
+
+            priority = -1 * goal.value
+            priority_queue.put(goal, priority)
+
+            if goal == priority_queue[0]:
+                return goal
+
+        # TODO Find something smarter than can_be_assigned = False
+        # this is done to make units who can not fullfill the goal unavailable to the factory
+        # But all we know is that it could not fullfill that goal, potentially it could fullfill other goals
+        self.can_be_assigned = False
+        raise RuntimeError("No best goal was found")
+
+    def _init_priority_queue(self, goals: list[UnitGoal], game_state: GameState) -> PriorityQueue:
+        goals_priority_queue = PriorityQueue()
+
+        for goal in goals:
+            best_value = goal.get_best_value_per_step(game_state)
+            priority = -1 * best_value
+            goals_priority_queue.put(goal, priority)
+
+        return goals_priority_queue
+
+    def _get_clear_rubble_goals(self, c: Coordinate) -> list[ClearRubbleGoal]:
+        rubble_goals = [
+            ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=c) for pickup_power in [False, True]
+        ]
+
+        return rubble_goals
+
     def _add_rubble_goals(self, game_state: GameState, max_distance: int = 10) -> None:
         rubble_positions = game_state.board.get_rubble_to_remove_positions(c=self.tc, max_distance=max_distance)
         rubble_goals = [
@@ -193,6 +265,26 @@ class Unit(Actor):
                 self._add_destroy_lichen_goals(game_state, n=10)
         else:
             self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
+
+    def generate_collect_ice_goal(
+        self,
+        game_state: GameState,
+        c: Coordinate,
+        constraints: Constraints,
+        power_tracker: PowerTracker,
+        factory: Factory,
+    ) -> ClearRubbleGoal:
+        ice_goals = self._get_clear_ice_goals(c, factory)
+        goal = self.get_best_goal(ice_goals, game_state, constraints, power_tracker)
+        return goal  # type: ignore
+
+    def _get_clear_ice_goals(self, c: Coordinate, factory: Factory) -> list[CollectIceGoal]:
+        ice_goals = [
+            CollectIceGoal(unit=self, pickup_power=pickup_power, dig_c=c, factory=factory)
+            for pickup_power in [False, True]
+        ]
+
+        return ice_goals
 
     def _add_ice_goals(self, game_state: GameState, n: int, return_to_current_closest_factory: bool = True) -> None:
         closest_ice_tiles = game_state.get_n_closest_ice_tiles(c=self.tc, n=n)
@@ -319,3 +411,9 @@ class Unit(Actor):
     @property
     def metal(self) -> int:
         return self.cargo.metal
+
+    def set_private_action_queue(self, action_plan: UnitActionPlan) -> None:
+        self.private_action_plan = action_plan
+
+    def set_action_queue(self, action_plan: UnitActionPlan) -> None:
+        self.action_queue = action_plan.actions

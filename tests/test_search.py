@@ -3,7 +3,7 @@ import unittest
 from typing import Optional, Sequence
 
 from logic.constraints import Constraints
-from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
+from logic.goal_resolution.power_availabilty_tracker import PowerTracker
 from objects.coordinate import (
     Coordinate as C,
     DigCoordinate as DC,
@@ -466,7 +466,7 @@ class TestPowerPickupSearch(unittest.TestCase):
         )
         unit_cfg = ENV_CFG.get_unit_config(unit_type)
 
-        power_availability_tracker = PowerAvailabilityTracker(state.board.player_factories)
+        power_availability_tracker = PowerTracker(state.board.player_factories)
 
         pick_up_power_graph = PickupPowerGraph(
             board=state.board,

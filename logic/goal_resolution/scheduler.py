@@ -4,6 +4,8 @@ from abc import ABCMeta, abstractmethod
 
 from objects.game_state import GameState
 from objects.actors.factory import Factory, Strategy
+from logic.constraints import Constraints
+from logic.goal_resolution.power_availabilty_tracker import PowerTracker
 from lux.config import EnvConfig
 
 
@@ -122,18 +124,34 @@ class Scheduler:
     ]
 
     def schedule_goals(self, game_state: GameState):
-        while True:
-            # Get highest priority goal of all factories
-            # Then tell this factory to assign somebody to this strategy
-            # Then rerun the loop
-            # Until all units have been assigned / they can not be assigned
+        constraints = Constraints()
+        power_tracker = PowerTracker(game_state.player_factories)
+        for factory in game_state.player_factories:
+            action_plan = factory.set_goal(game_state, constraints, power_tracker)
+            constraints.add_negative_constraints(action_plan.time_coordinates)
+            power_tracker.update_power_available(action_plan.get_power_requests(game_state))
+
+        # while True:
+        i = 0
+        while i < 10:
             scores = self._score_strategies(game_state)
             if not scores:
                 break
 
-            factory, highest_priority_strategy = max(scores, key=scores.get)
-            factory.schedule_unit(strategy=highest_priority_strategy, game_state=game_state)
-            pass
+            factory, strategy = self._get_highest_priority_factory_and_strategy(scores)
+            try:
+                action_plan = factory.schedule_unit(strategy, game_state, constraints, power_tracker)
+            except Exception:
+                i += 1
+                continue
+
+            constraints.add_negative_constraints(action_plan.time_coordinates)
+            power_tracker.update_power_available(action_plan.get_power_requests(game_state))
+
+    def _get_highest_priority_factory_and_strategy(
+        self, scores: Dict[Tuple[Factory, Strategy], float]
+    ) -> Tuple[Factory, Strategy]:
+        return max(scores, key=scores.get)  # type: ignore
 
     def _score_strategies(self, game_state: GameState) -> Dict[Tuple[Factory, Strategy], float]:
         scores = dict()
