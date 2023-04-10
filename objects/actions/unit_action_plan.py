@@ -6,7 +6,7 @@ from search.search import Search
 from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
 from objects.direction import Direction
 from search.search import MoveToGraph
-from objects.actions.unit_action import DigAction
+from objects.actions.unit_action import DigAction, MoveAction
 from objects.actions.action_plan import ActionPlan, PowerRequest
 
 if TYPE_CHECKING:
@@ -82,6 +82,9 @@ class UnitActionPlan(ActionPlan):
     def nr_primitive_actions(self) -> int:
         return len(self.primitive_actions)
 
+    def is_first_action_move_center(self) -> bool:
+        return self.actions[0] == MoveAction(Direction.CENTER)
+
     def get_power_requests(self, game_state: GameState) -> List[PowerRequest]:
         return [
             self._create_power_request(action, tc, game_state)
@@ -121,6 +124,10 @@ class UnitActionPlan(ActionPlan):
 
     @property
     def time_coordinates(self) -> List[TimeCoordinate]:
+        # TODO, there should be some difference between empty and not set yet
+        # Maybe every unit that is not planning to do anything needs to add something about I am not doing anything next step
+        # Then we can also say that if the action_queue is empty and the first action does nothing
+        # We don't update the action queue
         if self.is_empty():
             return [self.actor.tc + Direction.CENTER]
 

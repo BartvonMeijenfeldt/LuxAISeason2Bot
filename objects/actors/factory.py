@@ -15,7 +15,7 @@ from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
 from logic.constraints import Constraints
 from objects.actions.action_plan import ActionPlan
 from objects.actions.factory_action_plan import FactoryActionPlan
-from logic.goals.unit_goal import ActionQueueGoal, ClearRubbleGoal
+from logic.goals.unit_goal import ClearRubbleGoal
 from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal, FactoryGoal
 from distances import (
     get_min_distance_between_positions,
@@ -331,12 +331,7 @@ class Factory(Actor):
 
         for unit in self.units:
             goal = unit.goal
-            if isinstance(goal, ClearRubbleGoal) or (
-                isinstance(goal, ActionQueueGoal) and isinstance(goal.goal, ClearRubbleGoal)
-            ):
-                if isinstance(goal, ActionQueueGoal):
-                    goal = goal.goal
-
+            if isinstance(goal, ClearRubbleGoal):
                 dig_pos = np.array(goal.dig_c.xy)  # type: ignore
                 dis = get_min_distance_between_pos_and_positions(dig_pos, self.can_spread_positions)
                 if dis == 1:
@@ -346,6 +341,11 @@ class Factory(Actor):
 
     @property
     def available_units(self) -> list[Unit]:
+        # TODO some checks to see if there is enough power or some other mechanic to set units as unavailable
+        return [unit for unit in self.units if not unit.private_action_plan and unit.can_be_assigned]
+
+    @property
+    def unassigned_units(self) -> list[Unit]:
         # TODO some checks to see if there is enough power or some other mechanic to set units as unavailable
         return [unit for unit in self.units if not unit.private_action_plan]
 
@@ -388,7 +388,7 @@ class Factory(Actor):
         # Something about the unit being unassignable?
 
         unit.set_goal(goal)
-        unit.set_private_action_queue(goal.action_plan)
+        unit.set_private_action_plan(goal.action_plan)
         return goal.action_plan
 
     def _get_closest_available_unit_to_pos(self, pos: np.ndarray) -> Unit:
@@ -418,13 +418,22 @@ class Factory(Actor):
         water_collection = self.get_water_collection_per_step(game_state)
         water_available_next_n_turns = self.water + CONFIG.ENOUGH_WATER_COLLECTION_NR_TURNS * water_collection
         water_cost_next_n_turns = CONFIG.ENOUGH_WATER_COLLECTION_NR_TURNS * self.water_cost
-        return water_available_next_n_turns < water_cost_next_n_turns
+        return water_available_next_n_turns > water_cost_next_n_turns
 
     def schedule_strategy_increase_units(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> ActionPlan:
         # Collect Ore / Clear Path to Ore / Supply Power to heavy on Ore
-        ...
+        ore_positions = {tuple(pos) for pos in game_state.board.ore_positions}
+        valid_ore_positions = ore_positions - game_state.positions_in_dig_goals
+        valid_ore_positions = np.array([np.array(pos) for pos in valid_ore_positions])
+        ore_pos, _ = get_closest_pos_and_pos_between_positions(valid_ore_positions, self.positions)
+        unit = self._get_closest_available_unit_to_pos(ore_pos)
+
+        goal = unit.generate_collect_ore_goal(game_state, Coordinate(*ore_pos), constraints, power_tracker, self)
+        unit.set_goal(goal)
+        unit.set_private_action_plan(goal.action_plan)
+        return goal.action_plan
 
     def schedule_strategy_collect_ice(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
@@ -438,5 +447,5 @@ class Factory(Actor):
 
         goal = unit.generate_collect_ice_goal(game_state, Coordinate(*ice_pos), constraints, power_tracker, self)
         unit.set_goal(goal)
-        unit.set_private_action_queue(goal.action_plan)
+        unit.set_private_action_plan(goal.action_plan)
         return goal.action_plan

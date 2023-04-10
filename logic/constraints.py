@@ -70,6 +70,13 @@ class Constraints:
     def tc_in_negative_constraints(self, tc: TimeCoordinate) -> bool:
         return tc.xyt in self.negative
 
+    def any_tc_in_negative_constraints(self, tcs: Iterable[TimeCoordinate]) -> bool:
+        tcs_set = {tc.xyt for tc in tcs}
+        if self.negative & tcs_set:
+            return True
+
+        return False
+
     def can_not_add_negative_constraint(self, tc: TimeCoordinate) -> bool:
         return self.tc_in_negative_constraints(tc)
 

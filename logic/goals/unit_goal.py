@@ -17,7 +17,7 @@ from search.search import (
     Graph,
     TransferResourceGraph,
 )
-from objects.actions.unit_action import DigAction
+from objects.actions.unit_action import DigAction, MoveAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.direction import Direction
 from objects.resource import Resource
@@ -1031,66 +1031,66 @@ class FleeGoal(UnitGoal):
 # TODO REMOVE THIS
 # This one is really annoying in my new setup, I am considering this one as removed now
 # Rewrite to scheduler does not use any ActionQueueGoals
-@dataclass
-class ActionQueueGoal(UnitGoal):
-    """Goal currently in action queue"""
+# @dataclass
+# class ActionQueueGoal(UnitGoal):
+#     """Goal currently in action queue"""
 
-    goal: UnitGoal
-    action_plan: UnitActionPlan
-    _is_valid = True
+#     goal: UnitGoal
+#     action_plan: UnitActionPlan
+#     _is_valid = True
 
-    def is_completed(self, game_state: GameState) -> bool:
-        return self.goal.is_completed(game_state)
+#     def is_completed(self, game_state: GameState) -> bool:
+#         return self.goal.is_completed(game_state)
 
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        factory_power_availability_tracker: PowerTracker,
-    ) -> UnitActionPlan:
-        self.set_validity_plan(constraints)
-        return self.action_plan
+#     def generate_action_plan(
+#         self,
+#         game_state: GameState,
+#         constraints: Constraints,
+#         factory_power_availability_tracker: PowerTracker,
+#     ) -> UnitActionPlan:
+#         self.set_validity_plan(constraints)
+#         return self.action_plan
 
-    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        if self.unit.is_under_threath(game_state) and action_plan.actions[0].is_stationary:
-            return -1000
+#     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+#         if self.unit.is_under_threath(game_state) and action_plan.actions[0].is_stationary:
+#             return -1000
 
-        if self.unit.is_light and self.unit.next_step_walks_into_opponent_heavy(game_state):
-            return -1000
+#         if self.unit.is_light and self.unit.next_step_walks_into_opponent_heavy(game_state):
+#             return -1000
 
-        if self.unit.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
-            return -1000
+#         if self.unit.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
+#             return -1000
 
-        return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
+#         return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
 
-    @property
-    def key(self) -> str:
-        # This will cause trouble when we allow goal switching, those goals will have the same ID
-        # Can probably be solved by just picking the highest one / returning highest one by the goal collection
-        return self.goal.key
+#     @property
+#     def key(self) -> str:
+#         # This will cause trouble when we allow goal switching, those goals will have the same ID
+#         # Can probably be solved by just picking the highest one / returning highest one by the goal collection
+#         return self.goal.key
 
-    def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
-        cost = self.get_cost_action_plan(self.action_plan, game_state)
-        min_steps = self.action_plan.nr_time_steps
-        return cost, min_steps
+#     def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+#         cost = self.get_cost_action_plan(self.action_plan, game_state)
+#         min_steps = self.action_plan.nr_time_steps
+#         return cost, min_steps
 
-    def _get_max_benefit(self, game_state: GameState) -> float:
-        if self.unit.is_under_threath(game_state) and self.action_plan.actions[0].is_stationary:
-            return -1000
+#     def _get_max_benefit(self, game_state: GameState) -> float:
+#         if self.unit.is_under_threath(game_state) and self.action_plan.actions[0].is_stationary:
+#             return -1000
 
-        if self.unit.is_light and self.unit.next_step_walks_into_opponent_heavy(game_state):
-            return -1000
+#         if self.unit.is_light and self.unit.next_step_walks_into_opponent_heavy(game_state):
+#             return -1000
 
-        if self.unit.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
-            return -1000
+#         if self.unit.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
+#             return -1000
 
-        return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
+#         return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
 
-    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
-        return self.goal.quantity_ice_to_transfer(game_state)
+#     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+#         return self.goal.quantity_ice_to_transfer(game_state)
 
-    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
-        return self.goal.quantity_ore_to_transfer(game_state)
+#     def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+#         return self.goal.quantity_ore_to_transfer(game_state)
 
 
 class UnitNoGoal(UnitGoal):
@@ -1109,7 +1109,7 @@ class UnitNoGoal(UnitGoal):
         constraints: Constraints,
         factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
-        self._init_action_plan()
+        self.action_plan = UnitActionPlan(actor=self.unit, original_actions=[MoveAction(Direction.CENTER)])
         self._invalidates_constraint = constraints.any_tc_violates_constraint(self.action_plan.time_coordinates)
         return self.action_plan
 
@@ -1156,6 +1156,8 @@ class EvadeConstraintsGoal(UnitGoal):
         self._init_action_plan()
         if constraints.any_tc_violates_constraint(self.action_plan.time_coordinates):
             self._add_evade_actions(game_state, constraints)
+        else:
+            self.action_plan = UnitActionPlan(actor=self.unit, original_actions=[MoveAction(Direction.CENTER)])
         return self.action_plan
 
     def _add_evade_actions(self, game_state: GameState, constraints: Constraints):
