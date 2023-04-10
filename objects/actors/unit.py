@@ -36,7 +36,8 @@ class Unit(Actor):
     unit_type: str  # "LIGHT" or "HEAVY"
     tc: TimeCoordinate
     unit_cfg: UnitConfig
-    action_queue: List[UnitAction]
+    action_queue: List[UnitAction] = field(init=False, default_factory=list)
+    private_action_queue: List[UnitAction] = field(init=False, default_factory=list)
     goal: Optional[UnitGoal] = field(init=False, default=None)
 
     def __post_init__(self) -> None:
@@ -294,7 +295,7 @@ class Unit(Actor):
         return self.is_heavy and other.is_light
 
     def __hash__(self) -> int:
-        return hash(str(self))
+        return self.id
 
     def __str__(self) -> str:
         out = f"[{self.team_id}] {self.unit_id} {self.unit_type} at {self.tc}"
@@ -302,3 +303,19 @@ class Unit(Actor):
 
     def __repr__(self) -> str:
         return f"Unit[id={self.unit_id}]"
+
+    @property
+    def ice(self) -> int:
+        return self.cargo.ice
+
+    @property
+    def water(self) -> int:
+        return self.cargo.water
+
+    @property
+    def ore(self) -> int:
+        return self.cargo.ore
+
+    @property
+    def metal(self) -> int:
+        return self.cargo.metal

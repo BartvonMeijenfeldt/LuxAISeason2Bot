@@ -160,3 +160,19 @@ class GameState:
 
     def is_opponent_lichen_tile(self, c: Coordinate) -> bool:
         return self.board.is_opponent_lichen_tile(c)
+
+    @property
+    def player_water(self) -> int:
+        return self.board.player_water
+
+    @property
+    def opp_water(self) -> int:
+        return self.board.opp_water
+
+    @property
+    def player_nr_lichen_tiles(self) -> int:
+        return self.board.player_nr_lichen_tiles
+
+    @property
+    def opp_nr_lichen_tiles(self) -> int:
+        return self.board.opp_nr_lichen_tiles

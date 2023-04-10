@@ -34,6 +34,11 @@ def get_closest_pos_and_pos_between_positions(a: np.ndarray, b: np.ndarray) -> T
     return pos_a, pos_b
 
 
+def get_min_distance_between_pos_and_positions(pos: np.ndarray, positions: np.ndarray) -> int:
+    distances = get_distances_between_pos_and_positions(pos=pos, positions=positions)
+    return distances.min()
+
+
 def get_closest_pos_between_pos_and_positions(pos: np.ndarray, positions: np.ndarray) -> np.ndarray:
     distances = get_distances_between_pos_and_positions(pos=pos, positions=positions)
     index_closest = np.argmin(distances)

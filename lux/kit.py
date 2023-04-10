@@ -106,18 +106,19 @@ def create_units(obs, env_cfg: EnvConfig, t: int, prev_step_actors: Dict[str, Ac
     for agent in obs["units"]:
         for unit_data in obs["units"][agent].values():
             unit_id = unit_data["unit_id"]
-            team_id = unit_data["team_id"]
             power = unit_data["power"]
-            unit_type = unit_data["unit_type"]
             cargo = Cargo(**unit_data["cargo"])
             tc = TimeCoordinate(*unit_data["pos"], t=t)
-            unit_cfg = env_cfg.get_unit_config(unit_data["unit_type"])
-            action_queue = [UnitAction.from_array(action) for action in unit_data["action_queue"]]
 
             if unit_id in prev_step_actors:
                 unit: Unit = prev_step_actors[unit_id]  # type: ignore
+                action_queue = [UnitAction.from_array(action) for action in unit_data["action_queue"]]
                 unit.update_state(tc=tc, power=power, cargo=cargo, action_queue=action_queue)
             else:
+                team_id = unit_data["team_id"]
+                unit_type = unit_data["unit_type"]
+                unit_cfg = env_cfg.get_unit_config(unit_data["unit_type"])
+
                 unit = Unit(
                     team_id=team_id,
                     unit_id=unit_id,
@@ -126,7 +127,6 @@ def create_units(obs, env_cfg: EnvConfig, t: int, prev_step_actors: Dict[str, Ac
                     unit_type=unit_type,
                     tc=tc,
                     unit_cfg=unit_cfg,
-                    action_queue=action_queue,
                 )
 
             units[agent].append(unit)

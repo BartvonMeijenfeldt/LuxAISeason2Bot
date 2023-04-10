@@ -197,6 +197,14 @@ class UnitGoal(Goal):
         nr_original_primitive_actions = len(self.action_plan.primitive_actions)
         return potential_action_plan.primitive_actions[nr_original_primitive_actions:nr_valid_primitive_actions]
 
+    @abstractmethod
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        ...
+
+    @abstractmethod
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        ...
+
 
 @dataclass
 class DigGoal(UnitGoal):
@@ -624,6 +632,12 @@ class CollectIceGoal(CollectGoal):
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ice(game_state)
 
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return self._get_resources_collected_by_n_digs(self.action_plan.nr_digs, game_state)
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
 
 @dataclass
 class TransferIceGoal(TransferResourceGoal):
@@ -638,6 +652,12 @@ class TransferIceGoal(TransferResourceGoal):
 
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ice(game_state)
+
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return self.unit.ice
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
 
 
 def get_benefit_ice(game_state: GameState) -> float:
@@ -658,6 +678,12 @@ class CollectOreGoal(CollectGoal):
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ore(game_state)
 
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return self._get_resources_collected_by_n_digs(self.action_plan.nr_digs, game_state)
+
 
 @dataclass
 class TransferOreGoal(TransferResourceGoal):
@@ -672,6 +698,12 @@ class TransferOreGoal(TransferResourceGoal):
 
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ore(game_state)
+
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return self.unit.ore
 
 
 def get_benefit_ore(game_state: GameState) -> float:
@@ -785,6 +817,12 @@ class ClearRubbleGoal(DigGoal):
         min_steps = max_nr_digs + min_steps_go_to_c
 
         return min_cost, min_steps
+
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
 
 
 class DestroyLichenGoal(DigGoal):
@@ -908,6 +946,12 @@ class DestroyLichenGoal(DigGoal):
 
         return min_cost, min_steps
 
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
 
 @dataclass
 class FleeGoal(UnitGoal):
@@ -977,6 +1021,12 @@ class FleeGoal(UnitGoal):
     def _get_max_benefit(self, game_state: GameState) -> float:
         return CONFIG.BENEFIT_FLEEING
 
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
 
 @dataclass
 class ActionQueueGoal(UnitGoal):
@@ -1033,6 +1083,12 @@ class ActionQueueGoal(UnitGoal):
 
         return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
 
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return self.goal.quantity_ice_to_transfer(game_state)
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return self.goal.quantity_ore_to_transfer(game_state)
+
 
 class UnitNoGoal(UnitGoal):
     _value = None
@@ -1072,6 +1128,12 @@ class UnitNoGoal(UnitGoal):
     @property
     def key(self) -> str:
         return str(self)
+
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
 
 
 class EvadeConstraintsGoal(UnitGoal):
@@ -1141,3 +1203,9 @@ class EvadeConstraintsGoal(UnitGoal):
     @property
     def key(self) -> str:
         return str(self)
+
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0

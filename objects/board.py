@@ -70,9 +70,21 @@ class Board:
         for factory in self.player_factories + self.opp_factories:
             factory.set_positions(self)
 
+        assigned_units = set().union(*[factory.units for factory in self.player_factories])
+
+        for unit in self.player_units:
+            if unit not in assigned_units:
+                closest_factory = min(self.player_factories, key=lambda f: unit.tc.distance_to(f.center_tc))
+                closest_factory.add_unit(unit)
+
         self.rubble_to_remove_for_pathing = self._get_rubble_to_remove_for_pathing()
         self.rubble_to_remove_for_lichen_growth = self._get_rubble_to_remove_for_lichen_growth()
         self.rubble_to_remove_positions = self._get_rubble_to_remove_positions()
+
+        self.player_water = sum(factory.water for factory in self.player_factories)
+        self.opp_water = sum(factory.water for factory in self.opp_factories)
+        self.player_nr_lichen_tiles = sum(factory.nr_lichen_tiles for factory in self.player_factories)
+        self.opp_nr_lichen_tiles = sum(factory.nr_lichen_tiles for factory in self.opp_factories)
 
         self.player_factory_tiles = self._get_factory_tiles(self.player_factories)
         self.opp_factory_tiles = self._get_factory_tiles(self.opp_factories)

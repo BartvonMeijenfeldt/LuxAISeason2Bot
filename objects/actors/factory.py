@@ -4,17 +4,20 @@ import numpy as np
 
 from typing import Tuple, TYPE_CHECKING
 from itertools import product
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from collections import Counter
+from enum import Enum, auto
 
 from objects.cargo import Cargo
 from objects.actions.factory_action import WaterAction
 from objects.actors.actor import Actor
 from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
 from logic.goals.goal import GoalCollection
+from logic.goals.unit_goal import ActionQueueGoal, ClearRubbleGoal
 from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal, FactoryGoal
 from distances import (
     get_min_distance_between_positions,
+    get_min_distance_between_pos_and_positions,
     get_min_distances_between_positions,
     get_closest_pos_between_pos_and_positions,
     get_positions_on_optimal_path_between_pos_and_pos,
@@ -27,6 +30,13 @@ from config import CONFIG
 if TYPE_CHECKING:
     from objects.game_state import GameState
     from objects.board import Board
+    from objects.actors.unit import Unit
+
+
+class Strategy(Enum):
+    INCREASE_LICHEN = auto()
+    COLLECT_ICE = auto()
+    INCREASE_UNITS = auto()
 
 
 @dataclass
@@ -35,6 +45,7 @@ class Factory(Actor):
     center_tc: TimeCoordinate
     env_cfg: EnvConfig
     radius = 1
+    units: set[Unit] = field(init=False, default_factory=set)
 
     def __post_init__(self) -> None:
         self._set_unit_state_variables()
@@ -52,11 +63,14 @@ class Factory(Actor):
 
     def set_positions(self, board: Board) -> None:
         self.lichen_positions = np.argwhere(board.lichen_strains == self.strain_id)
+        self.nr_lichen_tiles = len(self.lichen_positions)
         self.connected_lichen_positions = self._get_connected_lichen_positions(board)
+        self.nr_connected_lichen_tiles = len(self.lichen_positions)
         self.spreadable_lichen_positions = self._get_spreadable_lichen_positions(board, self.connected_lichen_positions)
         self.can_spread_positions = np.append(self.positions, self.spreadable_lichen_positions, axis=0)
+        self.nr_can_spread_positions = len(self.can_spread_positions)
         self.can_spread_to_positions = self._get_can_spread_to_positions(board, self.can_spread_positions)
-        self.max_nr_tiles_to_water = len(self.lichen_positions) + len(self.can_spread_to_positions)
+        self.max_nr_tiles_to_water = len(self.connected_lichen_positions) + len(self.can_spread_to_positions)
         self.connected_positions = self._get_empty_or_lichen_connected_positions(board)
         self.nr_connected_positions = len(self.connected_positions)
         self.rubble_positions_pathing = self._get_rubble_positions_to_clear_for_resources(board)
@@ -137,12 +151,15 @@ class Factory(Actor):
     def __eq__(self, __o: Factory) -> bool:
         return self.unit_id == __o.unit_id
 
+    def add_unit(self, unit: Unit) -> None:
+        self.units.add(unit)
+
     def min_distance_to_connected_positions(self, positions: np.ndarray) -> int:
         rel_positions = np.append(self.positions, self.connected_positions, axis=0)
         return get_min_distance_between_positions(rel_positions, positions)
 
     def generate_goals(self, game_state: GameState, can_build: bool = True) -> GoalCollection:
-        water_cost = self.water_cost()
+        water_cost = self.water_cost
         goals = []
 
         if can_build and self.can_build_heavy and game_state.player_nr_heavies / game_state.player_nr_factories < 1:
@@ -179,11 +196,12 @@ class Factory(Actor):
     def can_build_light(self) -> bool:
         return self.power >= LIGHT_CONFIG.POWER_COST and self.cargo.metal >= LIGHT_CONFIG.METAL_COST
 
+    @property
     def water_cost(self) -> int:
         return WaterAction.get_water_cost(self)
 
     def can_water(self):
-        return self.cargo.water >= self.water_cost()
+        return self.cargo.water >= self.water_cost
 
     @property
     def pos_slice(self) -> Tuple[slice, slice]:
@@ -209,5 +227,125 @@ class Factory(Actor):
     def coordinates(self) -> CoordinateList:
         return CoordinateList([Coordinate(x, y) for x in self.pos_x_range for y in self.pos_y_range])
 
+    @property
+    def water(self) -> int:
+        return self.cargo.water
+
+    @property
+    def ice(self) -> int:
+        return self.cargo.ice
+
+    @property
+    def ore(self) -> int:
+        return self.cargo.ore
+
+    @property
+    def metal(self) -> int:
+        return self.cargo.metal
+
     def __repr__(self) -> str:
         return f"Factory[id={self.unit_id}, center={self.center_tc.xy}]"
+
+    def get_ice_collection_per_step(self, game_state: GameState) -> float:
+        ice_collection_per_step = 0
+
+        for unit in self.units:
+            goal = unit.goal
+
+            if goal:
+                quantity_ice = goal.quantity_ice_to_transfer(game_state)
+                nr_steps = max(goal.action_plan.nr_primitive_actions, 1)
+                ice_collection_per_step_unit = quantity_ice / nr_steps
+                ice_collection_per_step += ice_collection_per_step_unit
+
+        return ice_collection_per_step
+
+    def get_water_collection_per_step(self, game_state: GameState) -> float:
+        ice_collection_per_step = self.get_ice_collection_per_step(game_state)
+        water_collection_per_step = ice_collection_per_step / EnvConfig.ICE_WATER_RATIO
+        return water_collection_per_step
+
+    def get_ore_collection_per_step(self, game_state: GameState) -> float:
+        ore_collection_per_step = 0
+
+        for unit in self.units:
+            goal = unit.goal
+
+            if goal:
+                quantity_ore = goal.quantity_ore_to_transfer(game_state)
+                nr_steps = max(goal.action_plan.nr_primitive_actions, 1)
+                ore_collection_per_step_unit = quantity_ore / nr_steps
+                ore_collection_per_step += ore_collection_per_step_unit
+
+        return ore_collection_per_step
+
+    def get_metal_collection_per_step(self, game_state: GameState) -> float:
+        ore_collection_per_step = self.get_ore_collection_per_step(game_state)
+        metal_collection_per_step = ore_collection_per_step / EnvConfig.ORE_METAL_RATIO
+        return metal_collection_per_step
+
+    @property
+    def nr_can_spread_to_positions_being_cleared(self) -> int:
+        nr_positions = 0
+
+        for unit in self.units:
+            goal = unit.goal
+            if isinstance(goal, ClearRubbleGoal) or (
+                isinstance(goal, ActionQueueGoal) and isinstance(goal.goal, ClearRubbleGoal)
+            ):
+                if isinstance(goal, ActionQueueGoal):
+                    goal = goal.goal
+
+                dig_pos = np.array(goal.dig_c.xy)  # type: ignore
+                dis = get_min_distance_between_pos_and_positions(dig_pos, self.can_spread_positions)
+                if dis == 1:
+                    nr_positions += 1
+
+        return nr_positions
+
+    @property
+    def unassigned_units(self) -> list[Unit]:
+        return [unit for unit in self.units if not unit.private_action_queue]
+
+    @property
+    def has_unassigned_units(self) -> bool:
+        return any(not unit.private_action_queue for unit in self.units)
+
+    def schedule_units(self, strategy: Strategy, game_state: GameState) -> None:
+        if strategy == Strategy.INCREASE_LICHEN:
+            self.schedule_strategy_increase_lichen(game_state)
+        elif strategy == Strategy.INCREASE_UNITS:
+            self.schedule_strategy_increase_units(game_state)
+        elif strategy == Strategy.COLLECT_ICE:
+            self.schedule_strategy_collect_ice(game_state)
+        else:
+            raise ValueError("Strategy is not a known strategy")
+
+    def schedule_strategy_increase_lichen(self, game_state: GameState) -> None:
+        if not self.enough_water_collection_for_next_turns(game_state):
+            self.schedule_strategy_collect_ice(game_state)
+        else:
+            self.schedule_dig_neighboring_rubble(game_state)
+
+    def schedule_dig_neighboring_rubble(self, game_state: GameState) -> None:
+        # Find Best rubble spot not being digged
+        # best = next to can spread position & fewest rubble
+        # second_best = next to highest non-spread lichen position & fewest rubble
+
+        # Find closest light unit next to it
+        # Schedule this job
+        ...
+
+    def enough_water_collection_for_next_turns(self, game_state: GameState) -> bool:
+        water_collection = self.get_water_collection_per_step(game_state)
+        water_available_next_n_turns = self.water + CONFIG.ENOUGH_WATER_COLLECTION_NR_TURNS * water_collection
+        water_cost_next_n_turns = CONFIG.ENOUGH_WATER_COLLECTION_NR_TURNS * self.water_cost
+        return water_available_next_n_turns < water_cost_next_n_turns
+
+    def schedule_strategy_increase_units(self, game_state: GameState) -> None:
+        # Collect Ore / Clear Path to Ore / Supply Power to heavy on Ore
+        ...
+
+    def schedule_strategy_collect_ice(self, game_state: GameState) -> None:
+        # Collect Ice / Clear Path to Ice / Supply Power to heavy on Ice
+        ...
