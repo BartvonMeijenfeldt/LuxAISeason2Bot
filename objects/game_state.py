@@ -186,4 +186,4 @@ class GameState:
 
     @property
     def positions_in_heavy_dig_goals(self) -> set[tuple]:
-        return self.positions_in_heavy_dig_goals
+        return self.board.positions_in_heavy_dig_goals

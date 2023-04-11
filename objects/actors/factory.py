@@ -457,7 +457,7 @@ class Factory(Actor):
         #    Find closest position next to factory with no heavy on it
         #         Put heavy on it, potentially remove light on it
         if self.heavy_available_units:
-            self._schedule_heavy_on_ice(self)
+            return self._schedule_heavy_on_ice(game_state, constraints, power_tracker)
         else:
             ice_positions = {tuple(pos) for pos in game_state.board.ice_positions}
             valid_ice_positions = ice_positions - game_state.positions_in_dig_goals
@@ -473,12 +473,17 @@ class Factory(Actor):
     def _schedule_heavy_on_ice(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> ActionPlan:
-        valid_ice_positions = self.closest_ice_positions_set - game_state.positions_in_heavy_dig_goals
+        valid_ice_positions_set = self.closest_ice_positions_set - game_state.positions_in_heavy_dig_goals
+        valid_ice_positions = np.array([tuple(pos) for pos in valid_ice_positions_set])
+
+        # Use get_best_max_value to find best unit here and also in the case of lights
 
         heavy_available_positions = np.array([tuple(heavy.tc.xy) for heavy in self.heavy_available_units])
         heavy_pos, ice_pos = get_closest_pos_and_pos_between_positions(heavy_available_positions, valid_ice_positions)
-        heavy_unit = game_state.get_player_unit_on_c(heavy_pos)
+        heavy_unit: Unit = game_state.get_player_unit_on_c(Coordinate(*heavy_pos))  # type: ignore
         goal = heavy_unit.generate_collect_ice_goal(game_state, Coordinate(*ice_pos), constraints, power_tracker, self)
         heavy_unit.set_goal(goal)
         heavy_unit.set_private_action_plan(goal.action_plan)
+
+        # probably remove light unit, if there is one on that goal
         return goal.action_plan
