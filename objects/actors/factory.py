@@ -24,6 +24,7 @@ from distances import (
     get_closest_pos_between_pos_and_positions,
     get_positions_on_optimal_path_between_pos_and_pos,
     get_closest_pos_and_pos_between_positions,
+    get_closest_positions_between_positions,
 )
 from image_processing import get_islands
 from positions import init_empty_positions, get_neighboring_positions
@@ -68,6 +69,11 @@ class Factory(Actor):
         self._set_unit_state_variables()
 
     def set_positions(self, board: Board) -> None:
+        closest_ice_positions = get_closest_positions_between_positions(board.ice_positions, self.positions)
+        self.closest_ice_positions_set = {tuple(pos) for pos in closest_ice_positions}
+        closest_ore_positions = get_closest_positions_between_positions(board.ore_positions, self.positions)
+        self.closest_ore_positions = {tuple(pos) for pos in closest_ore_positions}
+
         self.lichen_positions = np.argwhere(board.lichen_strains == self.strain_id)
         self.nr_lichen_tiles = len(self.lichen_positions)
         self.connected_lichen_positions = self._get_connected_lichen_positions(board)
@@ -345,6 +351,14 @@ class Factory(Actor):
         return [unit for unit in self.units if not unit.private_action_plan and unit.can_be_assigned]
 
     @property
+    def heavy_available_units(self) -> list[Unit]:
+        return [unit for unit in self.available_units if unit.is_heavy]
+
+    @property
+    def light_available_units(self) -> list[Unit]:
+        return [unit for unit in self.available_units if unit.is_light]
+
+    @property
     def unassigned_units(self) -> list[Unit]:
         # TODO some checks to see if there is enough power or some other mechanic to set units as unavailable
         return [unit for unit in self.units if not unit.private_action_plan]
@@ -439,13 +453,32 @@ class Factory(Actor):
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> ActionPlan:
         # Collect Ice / Clear Path to Ice / Supply Power to heavy on Ice
-        ice_positions = {tuple(pos) for pos in game_state.board.ice_positions}
-        valid_ice_positions = ice_positions - game_state.positions_in_dig_goals
-        valid_ice_positions = np.array([np.array(pos) for pos in valid_ice_positions])
-        ice_pos, _ = get_closest_pos_and_pos_between_positions(valid_ice_positions, self.positions)
-        unit = self._get_closest_available_unit_to_pos(ice_pos)
+        # If heavy available:
+        #    Find closest position next to factory with no heavy on it
+        #         Put heavy on it, potentially remove light on it
+        if self.heavy_available_units:
+            self._schedule_heavy_on_ice(self)
+        else:
+            ice_positions = {tuple(pos) for pos in game_state.board.ice_positions}
+            valid_ice_positions = ice_positions - game_state.positions_in_dig_goals
+            valid_ice_positions = np.array([np.array(pos) for pos in valid_ice_positions])
+            ice_pos, _ = get_closest_pos_and_pos_between_positions(valid_ice_positions, self.positions)
+            unit = self._get_closest_available_unit_to_pos(ice_pos)
 
-        goal = unit.generate_collect_ice_goal(game_state, Coordinate(*ice_pos), constraints, power_tracker, self)
-        unit.set_goal(goal)
-        unit.set_private_action_plan(goal.action_plan)
+            goal = unit.generate_collect_ice_goal(game_state, Coordinate(*ice_pos), constraints, power_tracker, self)
+            unit.set_goal(goal)
+            unit.set_private_action_plan(goal.action_plan)
+            return goal.action_plan
+
+    def _schedule_heavy_on_ice(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> ActionPlan:
+        valid_ice_positions = self.closest_ice_positions_set - game_state.positions_in_heavy_dig_goals
+
+        heavy_available_positions = np.array([tuple(heavy.tc.xy) for heavy in self.heavy_available_units])
+        heavy_pos, ice_pos = get_closest_pos_and_pos_between_positions(heavy_available_positions, valid_ice_positions)
+        heavy_unit = game_state.get_player_unit_on_c(heavy_pos)
+        goal = heavy_unit.generate_collect_ice_goal(game_state, Coordinate(*ice_pos), constraints, power_tracker, self)
+        heavy_unit.set_goal(goal)
+        heavy_unit.set_private_action_plan(goal.action_plan)
         return goal.action_plan

@@ -113,8 +113,11 @@ class GameState:
     def is_opponent_factory_tile(self, c: Coordinate) -> bool:
         return self.board.is_opponent_factory_tile(c)
 
+    def get_player_unit_on_c(self, c: Coordinate) -> Optional[Unit]:
+        return self.board.get_player_unit_on_c(c)
+
     def get_opponent_on_c(self, c: Coordinate) -> Optional[Unit]:
-        return self.board.get_opponent_on_c(c)
+        return self.board.get_opp_unit_on_c(c)
 
     def get_closest_player_factory(self, c: Coordinate) -> Factory:
         return self.board.get_closest_player_factory(c=c)
@@ -180,3 +183,7 @@ class GameState:
     @property
     def positions_in_dig_goals(self) -> set[tuple]:
         return self.board.positions_in_dig_goals
+
+    @property
+    def positions_in_heavy_dig_goals(self) -> set[tuple]:
+        return self.positions_in_heavy_dig_goals

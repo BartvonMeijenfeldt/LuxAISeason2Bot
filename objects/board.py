@@ -56,7 +56,8 @@ class Board:
         self.opp_lights = [light for light in self.opp_units if light.is_light]
         self.opp_heavies = [heavy for heavy in self.opp_units if heavy.is_heavy]
 
-        self._pos_tuple_to_opponent = defaultdict(lambda: None, {opp.tc.xy: opp for opp in self.opp_units})
+        self._pos_tuple_to_player_unit = defaultdict(lambda: None, {unit.tc.xy: unit for unit in self.player_units})
+        self._pos_tuple_to_opp_unit = defaultdict(lambda: None, {unit.tc.xy: unit for unit in self.opp_units})
 
         self.player_nr_lights = len(self.player_lights)
         self.player_nr_heavies = len(self.player_heavies)
@@ -262,8 +263,11 @@ class Board:
     def is_off_the_board(self, c: Coordinate) -> bool:
         return not self.is_off_the_board(c=c)
 
-    def get_opponent_on_c(self, c: Coordinate) -> Optional[Unit]:
-        return self._pos_tuple_to_opponent[c.xy]
+    def get_player_unit_on_c(self, c: Coordinate) -> Optional[Unit]:
+        return self._pos_tuple_to_player_unit[c.xy]
+
+    def get_opp_unit_on_c(self, c: Coordinate) -> Optional[Unit]:
+        return self._pos_tuple_to_opp_unit[c.xy]
 
     def get_n_closest_ore_positions_to_factory(self, factory: Factory, n: int) -> np.ndarray:
         return get_n_closests_positions_between_positions(self.ore_positions, factory.positions, n)
@@ -333,7 +337,7 @@ class Board:
             if tc.xy == c.xy:
                 continue
 
-            opponent_on_c = self.get_opponent_on_c(tc)
+            opponent_on_c = self.get_opp_unit_on_c(tc)
             if opponent_on_c:
                 neighboring_opponents.append(opponent_on_c)
 
@@ -342,3 +346,7 @@ class Board:
     @property
     def positions_in_dig_goals(self) -> set[tuple]:
         return {unit.goal.dig_c.xy for unit in self.player_units if isinstance(unit.goal, DigGoal)}
+
+    @property
+    def positions_in_heavy_dig_goals(self) -> set[tuple]:
+        return {unit.goal.dig_c.xy for unit in self.player_units if unit.is_heavy and isinstance(unit.goal, DigGoal)}
