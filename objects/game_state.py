@@ -152,11 +152,11 @@ class GameState:
     def get_neighboring_opponents(self, c: Coordinate) -> list[Unit]:
         return self.board.get_neighboring_opponents(c=c)
 
-    def get_importance_removing_rubble_for_pathing(self, c: Coordinate) -> float:
-        return self.board.get_importance_removing_rubble_for_pathing(c)
+    # def get_importance_removing_rubble_for_pathing(self, c: Coordinate) -> float:
+    #     return self.board.get_importance_removing_rubble_for_pathing(c)
 
-    def get_importance_removing_rubble_for_lichen_growth(self, c: Coordinate) -> float:
-        return self.board.get_importance_removing_rubble_for_lichen_growth(c)
+    # def get_importance_removing_rubble_for_lichen_growth(self, c: Coordinate) -> float:
+    #     return self.board.get_importance_removing_rubble_for_lichen_growth(c)
 
     def is_rubble_tile(self, c: Coordinate) -> bool:
         return self.board.is_rubble_tile(c)

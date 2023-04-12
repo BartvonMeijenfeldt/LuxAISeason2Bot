@@ -776,8 +776,8 @@ class ClearRubbleGoal(DigGoal):
 
     def _get_benefit_n_digs(self, n_digs: int, game_state: GameState) -> float:
         rubble_removed = self._get_rubble_removed(n_digs, game_state)
-        benefit_rubble_removed = self._get_benefit_removing_rubble(rubble_removed, game_state)
-        return benefit_rubble_removed
+        # benefit_rubble_removed = self._get_benefit_removing_rubble(rubble_removed, game_state)
+        return rubble_removed
 
     def _get_rubble_removed(self, n_digs: int, game_state: GameState) -> int:
         max_rubble_removed = self.unit.rubble_removed_per_dig * n_digs
@@ -785,14 +785,14 @@ class ClearRubbleGoal(DigGoal):
         rubble_removed = min(max_rubble_removed, rubble_at_pos)
         return rubble_removed
 
-    def _get_benefit_removing_rubble(self, rubble_removed: int, game_state: GameState) -> float:
-        benefit_pathing = self._get_benefit_removing_rubble_pathing(rubble_removed, game_state)
-        benefit_lichen = self._get_benefit_removing_rubble_for_lichen_growth(rubble_removed, game_state)
-        return benefit_pathing + benefit_lichen
+    # def _get_benefit_removing_rubble(self, rubble_removed: int, game_state: GameState) -> float:
+    #     benefit_pathing = self._get_benefit_removing_rubble_pathing(rubble_removed, game_state)
+    #     benefit_lichen = self._get_benefit_removing_rubble_for_lichen_growth(rubble_removed, game_state)
+    #     return benefit_pathing + benefit_lichen
 
-    def _get_benefit_removing_rubble_pathing(self, rubble_removed: int, game_state: GameState) -> float:
-        importance_pathing = game_state.get_importance_removing_rubble_for_pathing(self.dig_c)
-        return rubble_removed * importance_pathing
+    # def _get_benefit_removing_rubble_pathing(self, rubble_removed: int, game_state: GameState) -> float:
+    #     importance_pathing = game_state.get_importance_removing_rubble_for_pathing(self.dig_c)
+    #     return rubble_removed * importance_pathing
 
     def _get_benefit_removing_rubble_for_lichen_growth(self, rubble_removed: int, game_state: GameState) -> float:
         importance_lichen = game_state.get_importance_removing_rubble_for_lichen_growth(self.dig_c)
@@ -1114,7 +1114,7 @@ class UnitNoGoal(UnitGoal):
         return self.action_plan
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        if len(action_plan) == 0 and self.unit.is_under_threath(game_state):
+        if action_plan.actions[0].is_stationary and self.unit.is_under_threath(game_state):
             return -CONFIG.COST_POTENTIALLY_LOSING_UNIT
 
         return 0.0 if not self._invalidates_constraint else self.PENALTY_VIOLATING_CONSTRAINT
@@ -1191,7 +1191,7 @@ class EvadeConstraintsGoal(UnitGoal):
         return graph
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        if len(action_plan) == 0 and self.unit.is_under_threath(game_state):
+        if action_plan.actions[0].is_stationary and self.unit.is_under_threath(game_state):
             return -CONFIG.COST_POTENTIALLY_LOSING_UNIT
 
         return 0.0

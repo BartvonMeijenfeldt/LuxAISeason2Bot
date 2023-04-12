@@ -17,49 +17,54 @@ from lux.config import EnvConfig
 from objects.direction import Direction
 
 
-class FactoryRatio(metaclass=ABCMeta):
+class FactoryValues(metaclass=ABCMeta):
     threshold: float
     upper_threshold: bool
     strategy: Strategy
 
     @abstractmethod
-    def compute_ratio(self, factory: Factory, game_state: GameState) -> float:
+    def compute_value(self, factory: Factory, game_state: GameState) -> float:
         ...
 
     def compute_score(self, factory: Factory, game_state: GameState) -> float:
-        ratio = self.compute_ratio(factory, game_state)
-        normalized_ratio = ratio / self.threshold
-        if self.upper_threshold and normalized_ratio > 1:
-            return normalized_ratio - 1
+        value = self.compute_value(factory, game_state)
+        normalized_value = value / self.threshold
+        if self.upper_threshold and normalized_value > 1:
+            return normalized_value - 1
 
-        if not self.upper_threshold and normalized_ratio < 1:
-            inverted_ratio = 1 / max(normalized_ratio, 0.01)
-            return inverted_ratio - 1
+        if not self.upper_threshold and normalized_value < 1:
+            inverted_value = 1 / max(normalized_value, 0.01)
+            return inverted_value - 1
 
         return 0
 
 
-class WaterLichenTilesRatio(FactoryRatio):
+class TooMuchWaterValue(FactoryValues):
     threshold = 3
     upper_threshold = True
-    strategy = Strategy.INCREASE_LICHEN
+    strategy = Strategy.INCREASE_LICHEN_TILES
 
-    def compute_ratio(self, factory: Factory, game_state: GameState) -> float:
+    def compute_value(self, factory: Factory, game_state: GameState) -> float:
+        if factory.has_enough_space_to_increase_lichen(game_state):
+            return 0.0
+
         return factory.water / max(30, factory.nr_lichen_tiles)
 
 
-class WaterNextStepsLichenTilesRatio(FactoryRatio):
+class TooLittleIceCollectionValue(FactoryValues):
     threshold = 1.3
     upper_threshold = False
     strategy = Strategy.COLLECT_ICE
     nr_steps = 50
 
-    def compute_ratio(self, factory: Factory, game_state: GameState) -> float:
+    def compute_value(self, factory: Factory, game_state: GameState) -> float:
 
         water = factory.water
         safety_water_quantity = 50
         water_available = water - safety_water_quantity
 
+        # TODO, this water collection calculates per step now, but it should be from the start of the goal
+        # so we know if we can maintain our lichen in general
         water_collection_per_step = factory.get_water_collection_per_step(game_state)
 
         water_cost_per_step = max(6, factory.water_cost) / 2  # assume water every other turn
@@ -67,13 +72,13 @@ class WaterNextStepsLichenTilesRatio(FactoryRatio):
         return (water_available + self.nr_steps * water_collection_per_step) / (self.nr_steps * water_cost_per_step)
 
 
-class PowerUnitRatio(FactoryRatio):
+class PowerUnitValue(FactoryValues):
     nr_steps = 50
     threshold = 1.2
 
-    def compute_ratio(self, factory: Factory, game_state: GameState) -> float:
+    def compute_value(self, factory: Factory, game_state: GameState) -> float:
         power = self._get_power(factory)
-        power_generation_per_step = self._get_power_generation_per_step(factory, game_state)
+        power_generation_per_step = self._get_expected_power_generation_per_step(factory, game_state)
         expected_power_usage_per_step = self._get_power_usage_per_step(factory, game_state)
 
         return (power + self.nr_steps * power_generation_per_step) / (self.nr_steps * expected_power_usage_per_step)
@@ -85,14 +90,13 @@ class PowerUnitRatio(FactoryRatio):
         power = factory_power + units_power
         return power
 
-    def _get_power_generation_per_step(self, factory: Factory, game_state: GameState) -> float:
+    def _get_expected_power_generation_per_step(self, factory: Factory, game_state: GameState) -> float:
         power_generation_factory = EnvConfig.FACTORY_CHARGE
 
         if factory.enough_water_collection_for_next_turns(game_state):
             expected_lichen = 0
         else:
-            nr_can_spread_to_positions_being_cleared = factory.nr_can_spread_to_positions_being_cleared
-            expected_lichen = factory.nr_can_spread_positions + nr_can_spread_to_positions_being_cleared
+            expected_lichen = factory.get_nr_connected_positions_including_being_cleared(game_state)
 
         total_lichen = factory.nr_connected_lichen_tiles + expected_lichen
         power_generation_lichen = EnvConfig.POWER_PER_CONNECTED_LICHEN_TILE * total_lichen
@@ -113,21 +117,21 @@ class PowerUnitRatio(FactoryRatio):
         return expected_power_usage_per_step
 
 
-class UpperPowerUnitRatio(PowerUnitRatio):
+class UpperPowerUnitValue(PowerUnitValue):
     upper_threshold = True
     strategy = Strategy.INCREASE_UNITS
 
 
-class LowerPowerUnitRatio(PowerUnitRatio):
+class LowerPowerUnitValue(PowerUnitValue):
     upper_threshold = False
     strategy = Strategy.INCREASE_LICHEN
 
 
-RATIOS = [
-    WaterLichenTilesRatio(),
-    WaterNextStepsLichenTilesRatio(),
-    UpperPowerUnitRatio(),
-    LowerPowerUnitRatio(),
+VALUES = [
+    TooMuchWaterValue(),
+    TooLittleIceCollectionValue(),
+    UpperPowerUnitValue(),
+    LowerPowerUnitValue(),
 ]
 
 
@@ -173,7 +177,7 @@ class Scheduler:
                 continue
 
             if unit.is_under_threath(game_state) and unit.next_step_is_stationary():
-                goal = unit.generate_flee_transfer_goal_or_dummy_goal(game_state, self.constraints, self.power_tracker)
+                goal = unit.generate_transfer_or_dummy_goal(game_state, self.constraints, self.power_tracker)
                 unit.set_goal(goal)
                 unit.set_private_action_plan(goal.action_plan)
                 self._update_constraints_and_power_tracker(game_state, goal.action_plan)
@@ -210,6 +214,7 @@ class Scheduler:
             try:
                 action_plan = factory.schedule_unit(strategy, game_state, self.constraints, self.power_tracker)
             except Exception:
+                logging.critical(f"{game_state.real_env_steps}: player {game_state.player_team.team_id} excepted")
                 i += 1
                 continue
 
@@ -258,7 +263,7 @@ class Scheduler:
         scores = dict()
 
         for factory in game_state.player_factories:
-            if factory.has_unassigned_units:
+            if factory.has_available_units:
                 factory_score = self._calculate_score_factory(factory, game_state)
                 for (factory, strategy), score in factory_score.items():
                     scores[(factory, strategy)] = score
@@ -269,9 +274,9 @@ class Scheduler:
         self, factory: Factory, game_state: GameState
     ) -> Dict[Tuple[Factory, Strategy], float]:
         scores = defaultdict(lambda: 0.0)
-        for ratio in RATIOS:
-            score = ratio.compute_score(factory, game_state)
-            scores[(factory, ratio.strategy)] += score
+        for value in VALUES:
+            score = value.compute_score(factory, game_state)
+            scores[(factory, value.strategy)] += score
 
         return dict(scores)
 

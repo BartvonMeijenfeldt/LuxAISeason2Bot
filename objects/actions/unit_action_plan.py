@@ -177,7 +177,8 @@ class UnitActionPlan(ActionPlan):
         except ValueError:
             return False
 
-        return simulator.can_update_action_queue()
+        return True
+        # return simulator.can_update_action_queue()
 
     def unit_can_add_reach_factory_to_plan(self, game_state: GameState, constraints: Constraints) -> bool:
         try:

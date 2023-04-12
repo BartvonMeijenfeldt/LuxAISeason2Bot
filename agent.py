@@ -61,10 +61,6 @@ class Agent:
 
         self._log_time_taken(game_state.real_env_steps, game_state.player_team.team_id)
 
-        # actor_goals = self.resolve_goals(game_state)
-
-        # self._set_goals(actor_goals)
-
         return actions
 
     def _set_time(self) -> None:
@@ -148,7 +144,3 @@ class Agent:
 
     def _store_actors(self, game_state: GameState) -> None:
         self.prev_step_actors = {actor.unit_id: actor for actor in game_state.actors}
-
-    def _set_goals(self, actor_goal_collections: Dict[Actor, Goal]) -> None:
-        for actor, goal in actor_goal_collections.items():
-            actor.set_goal(goal)

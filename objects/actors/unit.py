@@ -197,19 +197,14 @@ class Unit(Actor):
         self.goals.append(flee_goal)
 
     # Dummy Goal added in case we can not reach factory, should add partial fleeing to solve this problem
-    def generate_flee_transfer_goal_or_dummy_goal(
+    def generate_transfer_or_dummy_goal(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> UnitGoal:
-        main_goals = self._get_flee_and_transfer_goals(game_state)
-        dummy_goals = self._get_dummy_goals()
-        goals = main_goals + dummy_goals
+        transfer_goals = self._get_relevant_transfer_goals(game_state)
+        dummy_goals = self._get_dummy_goals(game_state)
+        goals = transfer_goals + dummy_goals
         goal = self.get_best_goal(goals, game_state, constraints, power_tracker)
         return goal
-
-    def _get_flee_and_transfer_goals(self, game_state: GameState) -> List[UnitGoal]:
-        flee_goal = self._get_flee_goal(game_state)
-        transfer_goals = self._get_relevant_transfer_goals(game_state)
-        return [flee_goal] + transfer_goals
 
     def _get_flee_goal(self, game_state: GameState) -> FleeGoal:
         # TODO, this should be getting all threatening opponents and the flee goal should be adapted to
@@ -265,9 +260,13 @@ class Unit(Actor):
         while not priority_queue.is_empty():
             goal: UnitGoal = priority_queue.pop()
 
-            goal.generate_and_evaluate_action_plan(
-                game_state, constraints_with_danger, factory_power_availability_tracker
-            )
+            try:
+                goal.generate_and_evaluate_action_plan(
+                    game_state, constraints_with_danger, factory_power_availability_tracker
+                )
+            except Exception:
+                continue
+
             if not goal.is_valid:
                 continue
 
@@ -280,7 +279,7 @@ class Unit(Actor):
         # TODO Find something smarter than can_be_assigned = False
         # this is done to make units who can not fullfill the goal unavailable to the factory
         # But all we know is that it could not fullfill that goal, potentially it could fullfill other goals
-        self.can_be_assigned = False
+        # self.can_be_assigned = False
         raise RuntimeError("No best goal was found")
 
     def _init_priority_queue(self, goals: list[UnitGoal], game_state: GameState) -> PriorityQueue:
@@ -325,12 +324,17 @@ class Unit(Actor):
     def generate_dummy_goal(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> UnitGoal:
-        dummy_goals = self._get_dummy_goals()
+        dummy_goals = self._get_dummy_goals(game_state)
         goal = self.get_best_goal(dummy_goals, game_state, constraints, power_tracker)
         return goal
 
-    def _get_dummy_goals(self) -> list[UnitGoal]:
-        return [UnitNoGoal(self), EvadeConstraintsGoal(self)]
+    def _get_dummy_goals(self, game_state: GameState) -> list[UnitGoal]:
+        dummy_goals = [UnitNoGoal(self), EvadeConstraintsGoal(self)]
+        if self.is_under_threath(game_state):
+            flee_goal = self._get_flee_goal(game_state)
+            dummy_goals.append(flee_goal)
+
+        return dummy_goals
 
     def generate_collect_ore_goal(
         self,
@@ -339,7 +343,7 @@ class Unit(Actor):
         constraints: Constraints,
         power_tracker: PowerTracker,
         factory: Factory,
-    ) -> ClearRubbleGoal:
+    ) -> CollectOreGoal:
         ore_goals = self._get_clear_ore_goals(c, factory)
         goal = self.get_best_goal(ore_goals, game_state, constraints, power_tracker)
         return goal  # type: ignore
@@ -359,12 +363,12 @@ class Unit(Actor):
         constraints: Constraints,
         power_tracker: PowerTracker,
         factory: Factory,
-    ) -> ClearRubbleGoal:
-        ice_goals = self._get_clear_ice_goals(c, factory)
+    ) -> CollectIceGoal:
+        ice_goals = self._get_collect_ice_goals(c, factory)
         goal = self.get_best_goal(ice_goals, game_state, constraints, power_tracker)
         return goal  # type: ignore
 
-    def _get_clear_ice_goals(self, c: Coordinate, factory: Factory) -> list[CollectIceGoal]:
+    def _get_collect_ice_goals(self, c: Coordinate, factory: Factory) -> list[CollectIceGoal]:
         ice_goals = [
             CollectIceGoal(unit=self, pickup_power=pickup_power, dig_c=c, factory=factory)
             for pickup_power in [False, True]
