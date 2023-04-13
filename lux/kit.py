@@ -2,7 +2,7 @@ import numpy as np
 
 from collections import defaultdict
 from objects.cargo import Cargo
-from typing import Dict, List
+from typing import Dict, List, Iterable
 
 from lux.config import EnvConfig
 from lux.team import Team
@@ -76,7 +76,10 @@ def obs_to_game_state(
 ) -> GameState:
 
     units = create_units(obs=obs, env_cfg=env_cfg, t=obs["real_env_steps"], prev_step_actors=prev_step_actors)
-    factories = create_factories(obs=obs, env_cfg=env_cfg, t=obs["real_env_steps"], prev_step_actors=prev_step_actors)
+    factories = create_factories(
+        obs=obs, env_cfg=env_cfg, t=obs["real_env_steps"], prev_step_actors=prev_step_actors, units=units
+    )
+
     factory_occupancy_map = create_factory_occupancy_map(factories, obs["board"]["rubble"].shape)
 
     player_team = Team(**obs["teams"][player], agent=player) if player in obs["teams"] else None
@@ -134,7 +137,12 @@ def create_units(obs, env_cfg: EnvConfig, t: int, prev_step_actors: Dict[str, Ac
     return units
 
 
-def create_factories(obs, env_cfg, t: int, prev_step_actors: Dict[str, Actor]) -> Dict[str, List[Factory]]:
+def create_factories(
+    obs, env_cfg, t: int, prev_step_actors: Dict[str, Actor], units: Dict[str, List[Unit]]
+) -> Dict[str, List[Factory]]:
+
+    units_set = {unit for player_units in units.values() for unit in player_units}
+
     factories = defaultdict(list)
 
     for agent in obs["factories"]:
@@ -149,6 +157,7 @@ def create_factories(obs, env_cfg, t: int, prev_step_actors: Dict[str, Actor]) -
             if unit_id in prev_step_actors:
                 factory: Factory = prev_step_actors[unit_id]  # type: ignore
                 factory.update_state(center_tc, power, cargo)
+                factory.remove_units_not_in_obs(units_set)
 
             else:
 

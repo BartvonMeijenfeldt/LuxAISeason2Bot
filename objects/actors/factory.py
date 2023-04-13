@@ -45,7 +45,7 @@ class Strategy(Enum):
     INCREASE_UNITS = auto()
 
 
-@dataclass
+@dataclass(eq=False)
 class Factory(Actor):
     strain_id: int
     center_tc: TimeCoordinate
@@ -57,6 +57,7 @@ class Factory(Actor):
     positions_set: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         self._set_unit_state_variables()
         self.id = int(self.unit_id[8:])
 
@@ -70,6 +71,9 @@ class Factory(Actor):
         self.power = power
         self.cargo = cargo
         self._set_unit_state_variables()
+
+    def remove_units_not_in_obs(self, obs_units: set[Unit]) -> None:
+        self.units.intersection_update(obs_units)
 
     def set_positions(self, board: Board) -> None:
         if not self.positions_set:
@@ -270,12 +274,6 @@ class Factory(Actor):
         rubble_postions_within_max_distance = board.rubble_positions[valid_distance_mask]
         distances_within_max_distance = distances[valid_distance_mask]
         return rubble_postions_within_max_distance, distances_within_max_distance
-
-    def __hash__(self) -> int:
-        return hash(self.unit_id)
-
-    def __eq__(self, __o: Factory) -> bool:
-        return self.unit_id == __o.unit_id
 
     def add_unit(self, unit: Unit) -> None:
         self.units.add(unit)

@@ -1,5 +1,4 @@
 from __future__ import annotations
-from abc import ABCMeta
 from typing import TYPE_CHECKING, Optional
 from dataclasses import dataclass, field
 
@@ -11,13 +10,22 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class Actor(metaclass=ABCMeta):
+class Actor:
     team_id: int
     unit_id: str
     power: int
     cargo: Cargo
     goal: Optional[Goal] = field(init=False, default=None)
     private_action_plan: Optional[ActionPlan] = field(init=False, default=None)
+
+    def __post_init__(self) -> None:
+        self.id = int(self.unit_id.split("_")[1])
+
+    def __hash__(self) -> int:
+        return self.id
+
+    def __eq__(self, __o: Actor) -> bool:
+        return self.id == __o.id
 
     def set_goal(self, goal: Goal) -> None:
         self.goal = goal

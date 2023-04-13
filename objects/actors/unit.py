@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from objects.actors.factory import Factory
 
 
-@dataclass
+@dataclass(eq=False)
 class Unit(Actor):
     unit_type: str  # "LIGHT" or "HEAVY"
     tc: TimeCoordinate
@@ -49,6 +49,7 @@ class Unit(Actor):
     can_be_assigned: bool = field(init=False)
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         self._set_unit_final_variables()
         self._set_unit_state_variables()
 
@@ -451,9 +452,6 @@ class Unit(Actor):
 
     def is_stronger_than(self, other: Unit) -> bool:
         return self.is_heavy and other.is_light
-
-    def __hash__(self) -> int:
-        return self.id
 
     def __str__(self) -> str:
         out = f"[{self.team_id}] {self.unit_id} {self.unit_type} at {self.tc}"
