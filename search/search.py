@@ -120,9 +120,8 @@ class TilesToClearGraph(GoalGraph):
         for action in self.potential_actions(c=c):
             to_c = c.add_action(action)
             if (
-                not self.constraints.tc_violates_constraint(to_c)
-                and self.board.is_valid_c_for_player(c=to_c)
-                and not self.board.is_resource_tile(c=to_c)
+                self.board.is_valid_c_for_player(c=to_c)
+                # and not self.board.is_resource_tile(c=to_c)
             ):
                 yield ((action, to_c))
 

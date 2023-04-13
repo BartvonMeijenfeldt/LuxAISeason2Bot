@@ -80,17 +80,18 @@ class Factory(Actor):
             self._set_positions_once(board)
             self.positions_set = True
 
-        self._rubble_positions_to_clear_for_ore = self._get_rubble_positions_to_clear_for_pathing(
-            board, self.ore_positions_distance_sorted[:5]
-        )
-        self._rubble_positions_to_clear_for_ice = self._get_rubble_positions_to_clear_for_pathing(
-            board, self.ice_positions_distance_sorted[:5]
-        )
+        if self in board.player_factories:
+            self._rubble_positions_to_clear_for_ore = self._get_rubble_positions_to_clear_for_pathing(
+                board, self.ore_positions_distance_sorted[:5]
+            )
+            self._rubble_positions_to_clear_for_ice = self._get_rubble_positions_to_clear_for_pathing(
+                board, self.ice_positions_distance_sorted[:5]
+            )
 
-        # TODO add other rubble positions
-        self._rubble_positions_to_clear = (
-            self._rubble_positions_to_clear_for_ore | self._rubble_positions_to_clear_for_ice
-        )
+            # TODO add other rubble positions
+            self._rubble_positions_to_clear = (
+                self._rubble_positions_to_clear_for_ore | self._rubble_positions_to_clear_for_ice
+            )
 
         self.lichen_positions = np.argwhere(board.lichen_strains == self.strain_id)
         self.nr_lichen_tiles = len(self.lichen_positions)

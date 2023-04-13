@@ -145,7 +145,7 @@ class Scheduler:
         if self.DEBUG_MODE:
             return False
 
-        is_out_of_time = self._get_time_taken() > 2.9
+        is_out_of_time = self._get_time_taken() > 2.5
 
         if is_out_of_time:
             logging.critical("RAN OUT OF TIME")
@@ -247,6 +247,9 @@ class Scheduler:
     def _schedule_unassigned_units_goals(self, game_state: GameState) -> None:
         for factory in game_state.player_factories:
             for unit in factory.unassigned_units:
+                if self._is_out_of_time():
+                    return
+
                 goal = unit.generate_dummy_goal(game_state, self.constraints, self.power_tracker)
                 unit.set_goal(goal)
                 unit.set_private_action_plan(goal.action_plan)

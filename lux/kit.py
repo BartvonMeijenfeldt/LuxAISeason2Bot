@@ -2,7 +2,7 @@ import numpy as np
 
 from collections import defaultdict
 from objects.cargo import Cargo
-from typing import Dict, List, Iterable
+from typing import Dict, List
 
 from lux.config import EnvConfig
 from lux.team import Team
@@ -100,7 +100,7 @@ def obs_to_game_state(
         opp_factories=factories[opp],
     )
 
-    return GameState(env_cfg=env_cfg, env_steps=step, board=board, player_team=player_team, opp_team=opp_team)
+    return GameState(env_cfg=env_cfg, env_steps=step, board=board, player_team=player_team, opp_team=opp_team)  # noqa
 
 
 def create_units(obs, env_cfg: EnvConfig, t: int, prev_step_actors: Dict[str, Actor]) -> Dict[str, List[Unit]]:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import logging
 
 from typing import Tuple, TYPE_CHECKING
 
@@ -89,7 +90,8 @@ def get_positions_on_optimal_path_between_pos_and_pos(a: np.ndarray, b: np.ndarr
     search = Search(graph=graph)
     try:
         optimal_actions = search.get_actions_to_complete_goal(start=start, budget=500)
-    except Exception:
+    except Exception as e:
+        logging.warning(f"Positions on optimal path failed due to {str(e)} from {a} to {b}")
         return init_empty_positions()
 
     positions = []

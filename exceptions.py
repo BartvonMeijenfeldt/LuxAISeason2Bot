@@ -1,10 +1,13 @@
 class NoValidGoalFound(Exception):
-    "No valid goal found"
+    def __str__(self) -> str:
+        return "No valid goal found"
 
 
 class NoSolutionSearchError(Exception):
-    "No solution to search"
+    def __str__(self) -> str:
+        return "No solution to search"
 
 
 class SolutionNotFoundWithinBudgetError(Exception):
-    "Solution not found within budget"
+    def __str__(self) -> str:
+        return "Solution not found within budget"
