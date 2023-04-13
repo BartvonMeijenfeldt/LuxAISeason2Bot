@@ -158,6 +158,7 @@ class Scheduler:
     def schedule_goals(self, game_state: GameState) -> None:
         self._init_constraints_and_power_tracker(game_state)
         self._remove_completed_goals(game_state)
+        self._remove_goals_too_little_power(game_state)
         self._update_goals_at_risk_units(game_state)
         self._schedule_new_goals(game_state)
         self._schedule_unassigned_units_goals(game_state)
@@ -170,6 +171,11 @@ class Scheduler:
     def _remove_completed_goals(self, game_state: GameState) -> None:
         for unit in game_state.player_units:
             if unit.goal and unit.goal.is_completed(game_state):
+                unit.remove_goal_and_private_action_plan()
+
+    def _remove_goals_too_little_power(self, game_state: GameState) -> None:
+        for unit in game_state.player_units:
+            if unit.private_action_plan and not unit.private_action_plan.unit_has_enough_power(game_state):
                 unit.remove_goal_and_private_action_plan()
 
     def _update_goals_at_risk_units(self, game_state: GameState) -> None:

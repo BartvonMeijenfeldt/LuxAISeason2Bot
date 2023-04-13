@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from collections import Counter
 from copy import copy
 from enum import Enum, auto
+import logging
 
 from objects.cargo import Cargo
 from objects.actions.factory_action import WaterAction
@@ -301,7 +302,7 @@ class Factory(Actor):
         elif can_build and self.can_build_light and self.nr_light_units < 15:
             return BuildLightGoal(self)
 
-        elif self.cargo.water - water_cost > 50 and water_cost < 5:
+        elif self.cargo.water - water_cost > 50 and (water_cost < 5 or self.water > 150):
             return WaterGoal(self)
 
         elif game_state.env_steps > 750 and self.can_water() and self.cargo.water - water_cost > game_state.steps_left:
@@ -496,16 +497,17 @@ class Factory(Actor):
     def _schedule_first_unit_by_own_preference(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> UnitGoal:
+        logging.info(
+            f"{game_state.real_env_steps}: player {game_state.player_team.team_id} scheduled unit by own preference"
+        )
 
         unit = self.available_units[0]
-        goals = unit.generate_goals(game_state, self)
+        all_goals = unit.generate_goals(game_state, self)
+        best_goal = max(all_goals, key=lambda g: g.get_best_value_per_step(game_state))
+        dummy_goals = unit._get_dummy_goals(game_state)
+        goals = [best_goal] + dummy_goals
         goal = unit.get_best_goal(goals, game_state, constraints, power_tracker)
-        # self._schedule_unit_on_goal(unit, goal)
         return goal
-
-    # def _schedule_unit_on_goal(self, unit: Unit, goal: UnitGoal) -> None:
-    #     unit.set_goal(goal)
-    #     unit.set_private_action_plan(goal.action_plan)
 
     def schedule_strategy_increase_lichen(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
