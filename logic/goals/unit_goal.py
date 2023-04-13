@@ -160,7 +160,7 @@ class UnitGoal(Goal):
 
         recharge_tc = ResourcePowerTimeCoordinate(
             *self.action_plan.final_tc.xyt,
-            p=self.unit.power,
+            p=self.unit.power - self.unit.unit_cfg.ACTION_QUEUE_POWER_COST,
             unit_cfg=self.unit.unit_cfg,
             game_state=game_state,
             q=0,

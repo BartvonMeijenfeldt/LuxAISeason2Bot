@@ -1,18 +1,13 @@
 from __future__ import annotations
-from abc import ABCMeta, abstractmethod
-from typing import Set, TYPE_CHECKING, Iterable, Optional
+from abc import ABCMeta
+from typing import TYPE_CHECKING, Optional
 from dataclasses import dataclass, field
 
 
-from utils import PriorityQueue
-
 if TYPE_CHECKING:
+    from logic.goals.goal import Goal
     from objects.cargo import Cargo
     from objects.actions.action_plan import ActionPlan
-    from logic.goal_resolution.power_availabilty_tracker import PowerTracker
-    from logic.goals.goal import Goal, GoalCollection
-    from logic.constraints import Constraints
-    from lux.kit import GameState
 
 
 @dataclass

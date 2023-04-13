@@ -6,17 +6,18 @@ from typing import Tuple, TYPE_CHECKING, Optional, Iterable, Set
 from itertools import product
 from dataclasses import dataclass, field
 from collections import Counter
+from copy import copy
 from enum import Enum, auto
 
 from objects.cargo import Cargo
 from objects.actions.factory_action import WaterAction
 from objects.actors.actor import Actor
+from exceptions import NoValidGoalFound
 from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
 from logic.constraints import Constraints
 from logic.goals.unit_goal import DigGoal
-from objects.actions.action_plan import ActionPlan
 from objects.actions.factory_action_plan import FactoryActionPlan
-from logic.goals.unit_goal import ClearRubbleGoal, CollectOreGoal
+from logic.goals.unit_goal import UnitGoal, ClearRubbleGoal, CollectOreGoal
 from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal, FactoryGoal
 from distances import (
     get_min_distance_between_positions,
@@ -75,7 +76,17 @@ class Factory(Actor):
             self._set_positions_once(board)
             self.positions_set = True
 
-        self.rubble_positions_to_clear_for_ore_pathing = self._get_rubble_positions_to_clear_for_ore(board)
+        self._rubble_positions_to_clear_for_ore = self._get_rubble_positions_to_clear_for_pathing(
+            board, self.ore_positions_distance_sorted[:5]
+        )
+        self._rubble_positions_to_clear_for_ice = self._get_rubble_positions_to_clear_for_pathing(
+            board, self.ice_positions_distance_sorted[:5]
+        )
+
+        # TODO add other rubble positions
+        self._rubble_positions_to_clear = (
+            self._rubble_positions_to_clear_for_ore | self._rubble_positions_to_clear_for_ice
+        )
 
         self.lichen_positions = np.argwhere(board.lichen_strains == self.strain_id)
         self.nr_lichen_tiles = len(self.lichen_positions)
@@ -111,6 +122,18 @@ class Factory(Actor):
         sorted_indexes = np.argsort(distances)
         sorted_distance_positions = positions[sorted_indexes]
         return sorted_distance_positions
+
+    def get_rubble_positions_to_clear(self, game_state: GameState) -> Set[Tuple]:
+        rubble_positions_free = self._rubble_positions_to_clear - game_state.positions_in_dig_goals
+        return rubble_positions_free
+
+    def get_rubble_positions_to_clear_for_ice(self, game_state: GameState) -> Set[Tuple]:
+        rubble_positions_free = self._rubble_positions_to_clear_for_ice - game_state.positions_in_dig_goals
+        return rubble_positions_free
+
+    def get_rubble_positions_to_clear_for_ore(self, game_state: GameState) -> Set[Tuple]:
+        rubble_positions_free = self._rubble_positions_to_clear_for_ore - game_state.positions_in_dig_goals
+        return rubble_positions_free
 
     def has_enough_space_to_increase_lichen(self, game_state: GameState) -> bool:
         nr_connected_positions = self.get_nr_connected_positions_including_being_cleared(game_state)
@@ -169,16 +192,18 @@ class Factory(Actor):
         is_empty_mask = board.are_empty_postions(neighboring_positions)
         return neighboring_positions[is_empty_mask]
 
-    def _get_rubble_positions_to_clear_for_ore(self, board: Board) -> np.ndarray:
-        for ore_pos in self.ore_positions_distance_sorted[:5]:
+    def _get_rubble_positions_to_clear_for_pathing(self, board: Board, positions: np.ndarray) -> Set[Tuple]:
+        for ore_pos in positions[:5]:
             closest_factory_pos = get_closest_pos_between_pos_and_positions(ore_pos, self.positions)
             positions = get_positions_on_optimal_path_between_pos_and_pos(ore_pos, closest_factory_pos, board)
             rubble_mask = board.are_rubble_positions(positions)
             rubble_positions = positions[rubble_mask]
             if rubble_positions.shape[0]:
-                return rubble_positions
+                break
+        else:
+            rubble_positions = init_empty_positions()
 
-        return init_empty_positions()
+        return positions_to_set(rubble_positions)
 
     # def _get_rubble_positions_to_clear_for_resources(self, board: Board) -> Counter[Tuple[int, int]]:
     #     closest_2_ice_positions = board.get_n_closest_ice_positions_to_factory(self, n=2)
@@ -271,14 +296,10 @@ class Factory(Actor):
 
     def get_goal(self, game_state: GameState, can_build: bool = True) -> FactoryGoal:
         water_cost = self.water_cost
-        if can_build and self.can_build_heavy and game_state.player_nr_heavies / game_state.player_nr_factories < 1:
+        if can_build and self.can_build_heavy:
             return BuildHeavyGoal(self)
 
-        elif (
-            can_build
-            and self.can_build_light
-            and (game_state.player_nr_lights / game_state.player_nr_factories <= 10 or self.power > 1000)
-        ):
+        elif can_build and self.can_build_light and self.nr_light_units < 15:
             return BuildLightGoal(self)
 
         elif self.cargo.water - water_cost > 50 and water_cost < 5:
@@ -288,6 +309,14 @@ class Factory(Actor):
             return WaterGoal(self)
 
         return FactoryNoGoal(self)
+
+    @property
+    def light_units(self) -> list[Unit]:
+        return [unit for unit in self.units if unit.is_light]
+
+    @property
+    def nr_light_units(self) -> int:
+        return len(self.light_units)
 
     @property
     def daily_charge(self) -> int:
@@ -434,33 +463,66 @@ class Factory(Actor):
         return any(not unit.private_action_plan for unit in self.units)
 
     def schedule_unit(
+        self,
+        strategies: Iterable[Strategy],
+        game_state: GameState,
+        constraints: Constraints,
+        power_tracker: PowerTracker,
+    ) -> UnitGoal:
+        for strategy in strategies:
+            try:
+                return self._schedule_unit_on_strategy(strategy, game_state, constraints, power_tracker)
+            except NoValidGoalFound:
+                continue
+
+        return self._schedule_first_unit_by_own_preference(game_state, constraints, power_tracker)
+
+    def _schedule_unit_on_strategy(
         self, strategy: Strategy, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> ActionPlan:
+    ) -> UnitGoal:
+
         if strategy == Strategy.INCREASE_LICHEN_TILES:
-            action_plan = self.strategy_increase_lichen_tiles(game_state, constraints, power_tracker)
+            goal = self.schedule_strategy_increase_lichen_tiles(game_state, constraints, power_tracker)
         elif strategy == Strategy.INCREASE_LICHEN:
-            action_plan = self.schedule_strategy_increase_lichen(game_state, constraints, power_tracker)
+            goal = self.schedule_strategy_increase_lichen(game_state, constraints, power_tracker)
         elif strategy == Strategy.INCREASE_UNITS:
-            action_plan = self.schedule_strategy_increase_units(game_state, constraints, power_tracker)
+            goal = self.schedule_strategy_increase_units(game_state, constraints, power_tracker)
         elif strategy == Strategy.COLLECT_ICE:
-            action_plan = self.schedule_strategy_collect_ice(game_state, constraints, power_tracker)
+            goal = self.schedule_strategy_collect_ice(game_state, constraints, power_tracker)
         else:
             raise ValueError("Strategy is not a known strategy")
 
-        return action_plan
+        return goal
+
+    def _schedule_first_unit_by_own_preference(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> UnitGoal:
+
+        unit = self.available_units[0]
+        goals = unit.generate_goals(game_state, self)
+        goal = unit.get_best_goal(goals, game_state, constraints, power_tracker)
+        # self._schedule_unit_on_goal(unit, goal)
+        return goal
+
+    # def _schedule_unit_on_goal(self, unit: Unit, goal: UnitGoal) -> None:
+    #     unit.set_goal(goal)
+    #     unit.set_private_action_plan(goal.action_plan)
 
     def schedule_strategy_increase_lichen(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> ActionPlan:
+    ) -> UnitGoal:
         if not self.enough_water_collection_for_next_turns(game_state):
             return self.schedule_strategy_collect_ice(game_state, constraints, power_tracker)
         else:
-            return self.strategy_increase_lichen_tiles(game_state, constraints, power_tracker)
+            return self.schedule_strategy_increase_lichen_tiles(game_state, constraints, power_tracker)
 
-    def strategy_increase_lichen_tiles(
+    def schedule_strategy_increase_lichen_tiles(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> ActionPlan:
+    ) -> UnitGoal:
         rubble_positions = self._get_suitable_dig_positions_for_lichen(game_state)
+        if not rubble_positions:
+            raise NoValidGoalFound
+
         return self._schedule_unit_on_rubble_pos(
             rubble_positions, self.available_units, game_state, constraints, power_tracker
         )
@@ -472,7 +534,7 @@ class Factory(Actor):
         game_state: GameState,
         constraints: Constraints,
         power_tracker: PowerTracker,
-    ) -> ActionPlan:
+    ) -> UnitGoal:
 
         potential_assignments = [
             (unit, goal)
@@ -482,11 +544,10 @@ class Factory(Actor):
         ]
 
         unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
-        self._if_unit_on_dig_c_remove_goal(goal.dig_c, game_state, constraints)
+        constraints = self._get_constraints_without_units_on_dig_c(goal.dig_c, game_state, constraints)
         goal = unit.generate_clear_rubble_goal(game_state, goal.dig_c, constraints, power_tracker)
-        unit.set_goal(goal)
-        unit.set_private_action_plan(goal.action_plan)
-        return goal.action_plan
+        # self._schedule_unit_on_goal(unit, goal)
+        return goal
 
     def _get_closest_available_unit_to_pos(self, pos: np.ndarray) -> Unit:
         c = Coordinate(*pos)
@@ -505,8 +566,7 @@ class Factory(Actor):
         if valid_rubble_positions:
             return valid_rubble_positions
 
-        # TODO, handle this either catch it or find another pos
-        raise ValueError("No suitable pos")
+        return set()
 
     def enough_water_collection_for_next_turns(self, game_state: GameState) -> bool:
         water_collection = self.get_water_collection_per_step(game_state)
@@ -516,7 +576,7 @@ class Factory(Actor):
 
     def schedule_strategy_increase_units(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> ActionPlan:
+    ) -> UnitGoal:
         # Collect Ore / Clear Path to Ore / Supply Power to heavy on Ore
         if self.heavy_available_units:
             return self._schedule_heavy_on_ore(game_state, constraints, power_tracker)
@@ -525,21 +585,25 @@ class Factory(Actor):
 
     def _schedule_heavy_on_ore(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> ActionPlan:
+    ) -> UnitGoal:
         valid_ore_positions_set = game_state.board.ore_positions_set - game_state.positions_in_heavy_dig_goals
         goal = self._schedule_unit_on_ore_pos(
             valid_ore_positions_set, self.heavy_available_units, game_state, constraints, power_tracker
         )
-        return goal.action_plan
+        return goal
 
     def _schedule_light_on_ore_task(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> ActionPlan:
+    ) -> UnitGoal:
         try:
             return self._schedule_light_on_ore(game_state, constraints, power_tracker)
         except Exception:
+            rubble_positions = self.get_rubble_positions_to_clear_for_ore(game_state)
+            if not rubble_positions:
+                raise NoValidGoalFound
+
             return self._schedule_unit_on_rubble_pos(
-                self.rubble_positions_to_clear_for_ore_pathing,
+                rubble_positions,
                 self.light_available_units,
                 game_state,
                 constraints,
@@ -548,12 +612,11 @@ class Factory(Actor):
 
     def _schedule_light_on_ore(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> ActionPlan:
+    ) -> UnitGoal:
         valid_ore_positions_set = game_state.board.ore_positions_set - game_state.positions_in_dig_goals
-        goal = self._schedule_unit_on_ore_pos(
+        return self._schedule_unit_on_ore_pos(
             valid_ore_positions_set, self.light_available_units, game_state, constraints, power_tracker
         )
-        return goal.action_plan
 
     def _schedule_unit_on_ore_pos(
         self,
@@ -572,32 +635,49 @@ class Factory(Actor):
         ]
 
         unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
-        self._if_unit_on_dig_c_remove_goal(goal.dig_c, game_state, constraints)
+        constraints = self._get_constraints_without_units_on_dig_c(goal.dig_c, game_state, constraints)
         goal = unit.generate_collect_ore_goal(game_state, goal.dig_c, constraints, power_tracker, self)
-        unit.set_goal(goal)
-        unit.set_private_action_plan(goal.action_plan)
+        # self._schedule_unit_on_goal(unit, goal)
         return goal
 
     def schedule_strategy_collect_ice(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> ActionPlan:
+    ) -> UnitGoal:
         # Collect Ice / Clear Path to Ice / Supply Power to heavy on Ice
         if self.heavy_available_units:
             return self._schedule_heavy_on_ice(game_state, constraints, power_tracker)
         else:
-            return self._schedule_light_on_ice(game_state, constraints, power_tracker)
+            return self._schedule_light_on_ice_task(game_state, constraints, power_tracker)
 
     def _schedule_heavy_on_ice(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> ActionPlan:
+    ) -> UnitGoal:
         valid_ice_positions_set = game_state.board.ice_positions_set - game_state.positions_in_heavy_dig_goals
         return self._schedule_unit_on_ice_pos(
             valid_ice_positions_set, self.heavy_available_units, game_state, constraints, power_tracker
         )
 
+    def _schedule_light_on_ice_task(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> UnitGoal:
+        try:
+            return self._schedule_light_on_ice(game_state, constraints, power_tracker)
+        except Exception:
+            rubble_positions = self.get_rubble_positions_to_clear_for_ice(game_state)
+            if not rubble_positions:
+                raise NoValidGoalFound
+
+            return self._schedule_unit_on_rubble_pos(
+                rubble_positions,
+                self.light_available_units,
+                game_state,
+                constraints,
+                power_tracker,
+            )
+
     def _schedule_light_on_ice(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> ActionPlan:
+    ) -> UnitGoal:
         valid_ice_positions_set = game_state.board.ice_positions_set - game_state.positions_in_dig_goals
         return self._schedule_unit_on_ice_pos(
             valid_ice_positions_set, self.light_available_units, game_state, constraints, power_tracker
@@ -610,7 +690,7 @@ class Factory(Actor):
         game_state: GameState,
         constraints: Constraints,
         power_tracker: PowerTracker,
-    ) -> ActionPlan:
+    ) -> UnitGoal:
 
         potential_assignments = [
             (unit, goal)
@@ -620,15 +700,18 @@ class Factory(Actor):
         ]
 
         unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
-        self._if_unit_on_dig_c_remove_goal(goal.dig_c, game_state, constraints)
+        constraints = self._get_constraints_without_units_on_dig_c(goal.dig_c, game_state, constraints)
         goal = unit.generate_collect_ice_goal(game_state, goal.dig_c, constraints, power_tracker, self)
-        unit.set_goal(goal)
-        unit.set_private_action_plan(goal.action_plan)
-        return goal.action_plan
+        # self._schedule_unit_on_goal(unit, goal)
+        return goal
 
-    def _if_unit_on_dig_c_remove_goal(self, c: Coordinate, game_state: GameState, constraints: Constraints):
+    def _get_constraints_without_units_on_dig_c(
+        self, c: Coordinate, game_state: GameState, constraints: Constraints
+    ) -> Constraints:
+        constraints = copy(constraints)
         for unit in game_state.units:
             if isinstance(unit.goal, DigGoal) and unit.goal.dig_c == c:
                 if unit.private_action_plan:
                     constraints.remove_negative_constraints(unit.private_action_plan.time_coordinates)
-                unit.remove_goal_and_private_action_plan()
+
+        return constraints

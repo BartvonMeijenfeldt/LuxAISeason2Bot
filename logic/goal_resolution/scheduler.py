@@ -1,7 +1,7 @@
 import time
 import logging
 
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 from collections import defaultdict
 from dataclasses import dataclass
 from abc import ABCMeta, abstractmethod
@@ -13,6 +13,7 @@ from logic.constraints import Constraints
 from logic.goal_resolution.power_availabilty_tracker import PowerTracker
 from objects.actions.action_plan import ActionPlan
 from logic.goals.factory_goal import BuildLightGoal
+from logic.goals.unit_goal import UnitGoal, DigGoal
 from lux.config import EnvConfig
 from objects.direction import Direction
 
@@ -199,26 +200,28 @@ class Scheduler:
         if game_state.real_env_steps < 6:
             self._reserve_tc_and_power_factories(game_state)
 
-        self._reserve_tc_and_power_units_with_private_action_plan(game_state)
-
-        # while True:
-        # TODO, this should not need these i < 100 construction but eventually break because
-        # all units are scheduled or unavailable.
-        i = 0
-        while i < 100:
-            scores = self._score_strategies(game_state)
+        while True:
+            scores = self._score_strategies_for_factories_with_available_units(game_state)
             if not scores or self._is_out_of_time():
                 break
 
-            factory, strategy = self._get_highest_priority_factory_and_strategy(scores)
-            try:
-                action_plan = factory.schedule_unit(strategy, game_state, self.constraints, self.power_tracker)
-            except Exception:
-                logging.critical(f"{game_state.real_env_steps}: player {game_state.player_team.team_id} excepted")
-                i += 1
-                continue
+            factory = self._get_highest_priority_factory(scores)
+            strategies = self._get_priority_sorted_strategies_factory(factory, scores)
+            goal = factory.schedule_unit(strategies, game_state, self.constraints, self.power_tracker)
+            self._remove_other_units_from_dig_goal(goal, game_state)
+            goal.unit.set_goal(goal)
+            goal.unit.set_private_action_plan(goal.action_plan)
+            self._update_constraints_and_power_tracker(game_state, goal.action_plan)
 
-            self._update_constraints_and_power_tracker(game_state, action_plan)
+    def _remove_other_units_from_dig_goal(self, goal: UnitGoal, game_state: GameState) -> None:
+        if not isinstance(goal, DigGoal):
+            return
+
+        for unit in game_state.units:
+            if isinstance(unit.goal, DigGoal) and unit.goal.dig_c == goal.dig_c and unit != goal.unit:
+                if unit.private_action_plan:
+                    self.constraints.remove_negative_constraints(unit.private_action_plan.time_coordinates)
+                unit.remove_goal_and_private_action_plan()
 
     def _schedule_factory_goals(self, game_state: GameState) -> None:
         for factory in game_state.player_factories:
@@ -249,17 +252,12 @@ class Scheduler:
                 unit.set_private_action_plan(goal.action_plan)
                 self._update_constraints_and_power_tracker(game_state, goal.action_plan)
 
-    def _reserve_tc_and_power_units_with_private_action_plan(self, game_state: GameState) -> None:
-        for unit in game_state.player_units:
-            if unit.private_action_plan:
-                self._update_constraints_and_power_tracker(game_state, unit.private_action_plan)
+    def _get_highest_priority_factory(self, scores: Dict[Tuple[Factory, Strategy], float]) -> Factory:
+        return max(scores, key=scores.get)[0]  # type: ignore
 
-    def _get_highest_priority_factory_and_strategy(
-        self, scores: Dict[Tuple[Factory, Strategy], float]
-    ) -> Tuple[Factory, Strategy]:
-        return max(scores, key=scores.get)  # type: ignore
-
-    def _score_strategies(self, game_state: GameState) -> Dict[Tuple[Factory, Strategy], float]:
+    def _score_strategies_for_factories_with_available_units(
+        self, game_state: GameState
+    ) -> Dict[Tuple[Factory, Strategy], float]:
         scores = dict()
 
         for factory in game_state.player_factories:
@@ -269,6 +267,13 @@ class Scheduler:
                     scores[(factory, strategy)] = score
 
         return scores
+
+    def _get_priority_sorted_strategies_factory(
+        self, factory, scores: Dict[Tuple[Factory, Strategy], float]
+    ) -> List[Strategy]:
+        strategies_factory = [strategy for factory_, strategy in scores if factory_ == factory]
+        strategies_factory.sort(key=lambda s: -scores[factory, s])
+        return strategies_factory
 
     def _calculate_score_factory(
         self, factory: Factory, game_state: GameState

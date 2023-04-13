@@ -20,6 +20,7 @@ from logic.constraints import Constraints
 from utils import PriorityQueue
 from lux.config import HEAVY_CONFIG
 from config import CONFIG
+from exceptions import NoSolutionSearchError, SolutionNotFoundWithinBudgetError
 
 
 if TYPE_CHECKING:
@@ -192,6 +193,9 @@ class PickupPowerGraph(Graph):
                 yield (potential_recharge_action)
 
         for action in self._potential_move_actions:
+            # Also need to add day/night before this search makes sense
+            # next_p = c.add_action(action).p
+            # if next_p >= 0:
             yield (action)
 
     def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
@@ -333,14 +337,6 @@ class DigAtGraph(GoalGraph):
         return self.goal == node
 
 
-class NoSolutionError(Exception):
-    "No solution to search"
-
-
-class SolutionNotFoundWithinBudgetError(Exception):
-    "Solution not found within budget"
-
-
 class Search:
     def __init__(self, graph: Graph) -> None:
         self.frontier = PriorityQueue()
@@ -367,7 +363,7 @@ class Search:
     def _find_optimal_solution(self, budget: int) -> None:
         for i in itertools.count():
             if self.frontier.is_empty():
-                raise NoSolutionError
+                raise NoSolutionSearchError
             if i > budget:
                 raise SolutionNotFoundWithinBudgetError
 
