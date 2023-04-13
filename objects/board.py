@@ -76,6 +76,7 @@ class Board:
 
         for unit in self.player_units:
             if unit not in assigned_units:
+                unit.remove_goal_and_private_action_plan()
                 closest_factory = min(self.player_factories, key=lambda f: unit.tc.distance_to(f.center_tc))
                 closest_factory.add_unit(unit)
 

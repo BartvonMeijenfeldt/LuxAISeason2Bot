@@ -413,7 +413,7 @@ class CollectGoal(DigGoal):
                 return self.action_plan
 
         self._add_dig_actions(game_state=game_state, constraints=constraints)
-        self._add_transfer_resources_to_factory_actions(board=game_state.board, constraints=constraints)
+        self._add_transfer_resources_to_factory_actions(game_state=game_state, constraints=constraints)
         return self.action_plan
 
     def _add_dig_actions(self, game_state: GameState, constraints: Constraints) -> None:
@@ -437,9 +437,11 @@ class CollectGoal(DigGoal):
         else:
             self.action_plan.extend(max_valid_digs_actions)
 
-    def _add_transfer_resources_to_factory_actions(self, board: Board, constraints: Constraints) -> None:
-        actions = self._get_transfer_resources_to_factory_actions(board=board, constraints=constraints)
+    def _add_transfer_resources_to_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
+        actions = self._get_transfer_resources_to_factory_actions(board=game_state.board, constraints=constraints)
         self.action_plan.extend(actions=actions)
+        if not self.action_plan.unit_has_enough_power(game_state):
+            self._is_valid = False
 
     def _get_transfer_resources_to_factory_actions(self, board: Board, constraints: Constraints) -> list[UnitAction]:
         return self._get_transfer_plan(start_tc=self.action_plan.final_tc, constraints=constraints, board=board)

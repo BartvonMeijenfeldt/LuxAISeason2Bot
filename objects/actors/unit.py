@@ -64,6 +64,9 @@ class Unit(Actor):
                 if not self.private_action_plan:
                     self.remove_goal_and_private_action_plan()
 
+        if self.private_action_plan and self.action_queue == self.private_action_plan.actions:
+            self.private_action_plan.is_set = True
+
         self.action_queue = action_queue
         self._set_unit_state_variables()
 
@@ -84,12 +87,13 @@ class Unit(Actor):
         self.rubble_removed_per_dig = self.unit_cfg.DIG_RUBBLE_REMOVED
         self.resources_gained_per_dig = self.unit_cfg.DIG_RESOURCE_GAIN
         self.lichen_removed_per_dig = self.unit_cfg.DIG_LICHEN_REMOVED
+        self.update_action_queue_power_cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
 
     def _set_unit_state_variables(self) -> None:
         self.x = self.tc.x
         self.y = self.tc.y
         self.has_actions_in_queue = len(self.action_queue) > 0
-        self.can_be_assigned = not self.has_actions_in_queue
+        self.can_be_assigned = not self.has_actions_in_queue and self.power >= self.update_action_queue_power_cost
         self.agent_id = f"player_{self.team_id}"
 
     def _last_action_was_carried_out(self, action_queue: list[UnitAction]) -> bool:
@@ -253,10 +257,6 @@ class Unit(Actor):
             if goal == priority_queue[0]:
                 return goal
 
-        # TODO Find something smarter than can_be_assigned = False
-        # this is done to make units who can not fullfill the goal unavailable to the factory
-        # But we only know is that it could not fullfill that goal, potentially it could fullfill other goals
-        # self.can_be_assigned = False
         raise NoValidGoalFound
 
     def _init_priority_queue(self, goals: list[UnitGoal], game_state: GameState) -> PriorityQueue:

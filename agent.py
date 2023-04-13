@@ -123,6 +123,9 @@ class Agent:
                 actions[factory.unit_id] = factory.private_action_plan.to_lux_output()
 
         for unit in game_state.player_units:
+            if unit.power < unit.update_action_queue_power_cost:
+                continue
+
             if not unit.action_queue:
                 if unit.private_action_plan and not unit.private_action_plan.is_first_action_move_center():
                     actions[unit.unit_id] = unit.private_action_plan.to_lux_output()
