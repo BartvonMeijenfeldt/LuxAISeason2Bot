@@ -76,7 +76,10 @@ def obs_to_game_state(
 ) -> GameState:
 
     units = create_units(obs=obs, env_cfg=env_cfg, t=obs["real_env_steps"], prev_step_actors=prev_step_actors)
-    factories = create_factories(obs=obs, env_cfg=env_cfg, t=obs["real_env_steps"], prev_step_actors=prev_step_actors)
+    factories = create_factories(
+        obs=obs, env_cfg=env_cfg, t=obs["real_env_steps"], prev_step_actors=prev_step_actors, units=units
+    )
+
     factory_occupancy_map = create_factory_occupancy_map(factories, obs["board"]["rubble"].shape)
 
     player_team = Team(**obs["teams"][player], agent=player) if player in obs["teams"] else None
@@ -97,7 +100,7 @@ def obs_to_game_state(
         opp_factories=factories[opp],
     )
 
-    return GameState(env_cfg=env_cfg, env_steps=step, board=board, player_team=player_team, opp_team=opp_team)
+    return GameState(env_cfg=env_cfg, env_steps=step, board=board, player_team=player_team, opp_team=opp_team)  # noqa
 
 
 def create_units(obs, env_cfg: EnvConfig, t: int, prev_step_actors: Dict[str, Actor]) -> Dict[str, List[Unit]]:
@@ -106,18 +109,19 @@ def create_units(obs, env_cfg: EnvConfig, t: int, prev_step_actors: Dict[str, Ac
     for agent in obs["units"]:
         for unit_data in obs["units"][agent].values():
             unit_id = unit_data["unit_id"]
-            team_id = unit_data["team_id"]
             power = unit_data["power"]
-            unit_type = unit_data["unit_type"]
             cargo = Cargo(**unit_data["cargo"])
             tc = TimeCoordinate(*unit_data["pos"], t=t)
-            unit_cfg = env_cfg.get_unit_config(unit_data["unit_type"])
-            action_queue = [UnitAction.from_array(action) for action in unit_data["action_queue"]]
 
             if unit_id in prev_step_actors:
                 unit: Unit = prev_step_actors[unit_id]  # type: ignore
+                action_queue = [UnitAction.from_array(action) for action in unit_data["action_queue"]]
                 unit.update_state(tc=tc, power=power, cargo=cargo, action_queue=action_queue)
             else:
+                team_id = unit_data["team_id"]
+                unit_type = unit_data["unit_type"]
+                unit_cfg = env_cfg.get_unit_config(unit_data["unit_type"])
+
                 unit = Unit(
                     team_id=team_id,
                     unit_id=unit_id,
@@ -126,7 +130,6 @@ def create_units(obs, env_cfg: EnvConfig, t: int, prev_step_actors: Dict[str, Ac
                     unit_type=unit_type,
                     tc=tc,
                     unit_cfg=unit_cfg,
-                    action_queue=action_queue,
                 )
 
             units[agent].append(unit)
@@ -134,7 +137,12 @@ def create_units(obs, env_cfg: EnvConfig, t: int, prev_step_actors: Dict[str, Ac
     return units
 
 
-def create_factories(obs, env_cfg, t: int, prev_step_actors: Dict[str, Actor]) -> Dict[str, List[Factory]]:
+def create_factories(
+    obs, env_cfg, t: int, prev_step_actors: Dict[str, Actor], units: Dict[str, List[Unit]]
+) -> Dict[str, List[Factory]]:
+
+    units_set = {unit for player_units in units.values() for unit in player_units}
+
     factories = defaultdict(list)
 
     for agent in obs["factories"]:
@@ -149,6 +157,7 @@ def create_factories(obs, env_cfg, t: int, prev_step_actors: Dict[str, Actor]) -
             if unit_id in prev_step_actors:
                 factory: Factory = prev_step_actors[unit_id]  # type: ignore
                 factory.update_state(center_tc, power, cargo)
+                factory.remove_units_not_in_obs(units_set)
 
             else:
 

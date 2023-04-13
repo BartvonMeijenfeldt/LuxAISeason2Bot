@@ -8,7 +8,7 @@ from objects.actors.factory import Factory
 
 
 @dataclass
-class PowerAvailabilityTracker:
+class PowerTracker:
     factories: List[Factory]
 
     def __post_init__(self) -> None:
@@ -26,7 +26,7 @@ class PowerAvailabilityTracker:
     @staticmethod
     def _get_init_power_available_factory(factory: Factory, n: int) -> np.ndarray:
         # TODO add the expected effect of Lichen
-        expected_increase_power = np.arange(n) * factory.daily_charge
+        expected_increase_power = np.arange(n) * factory.expected_power_gain
         return expected_increase_power + factory.power
 
     def get_power_available(self, factory: Factory, t: int) -> int:
@@ -41,7 +41,7 @@ class PowerAvailabilityTracker:
         power_available = self.power_available[factory]
 
         nr_required_extension_steps = new_size - len(power_available)
-        expected_increase_power = np.arange(1, nr_required_extension_steps + 1) * factory.daily_charge
+        expected_increase_power = np.arange(1, nr_required_extension_steps + 1) * factory.expected_power_gain
         last_power_available = power_available[-1]
         available_power_to_add = expected_increase_power + last_power_available
 

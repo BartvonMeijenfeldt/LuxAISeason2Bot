@@ -13,7 +13,7 @@ from logic.constraints import Constraints
 
 if TYPE_CHECKING:
     from objects.game_state import GameState
-    from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
+    from logic.goal_resolution.power_availabilty_tracker import PowerTracker
 
 
 @dataclass
@@ -22,7 +22,7 @@ class Goal(metaclass=ABCMeta):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> ActionPlan:
         try:
             self.action_plan = self.generate_action_plan(game_state, constraints, factory_power_availability_tracker)
@@ -41,7 +41,7 @@ class Goal(metaclass=ABCMeta):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> ActionPlan:
         ...
 

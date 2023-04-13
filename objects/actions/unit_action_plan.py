@@ -6,7 +6,7 @@ from search.search import Search
 from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
 from objects.direction import Direction
 from search.search import MoveToGraph
-from objects.actions.unit_action import DigAction
+from objects.actions.unit_action import DigAction, MoveAction
 from objects.actions.action_plan import ActionPlan, PowerRequest
 
 if TYPE_CHECKING:
@@ -38,7 +38,13 @@ class UnitActionPlan(ActionPlan):
     def __add__(self, other) -> UnitActionPlan:
         other = list(other)
         new_actions = self.original_actions + other
-        return replace(self, original_actions=new_actions)
+        new_action_plan = replace(self, original_actions=new_actions)
+        new_action_plan.__post_init__()
+        return new_action_plan
+
+    def step(self) -> None:
+        self.original_actions = self.primitive_actions[1:]
+        self.__post_init__()
 
     def append(self, action: UnitAction) -> None:
         self.original_actions.append(action)
@@ -75,6 +81,9 @@ class UnitActionPlan(ActionPlan):
     @property
     def nr_primitive_actions(self) -> int:
         return len(self.primitive_actions)
+
+    def is_first_action_move_center(self) -> bool:
+        return self.actions[0] == MoveAction(Direction.CENTER)
 
     def get_power_requests(self, game_state: GameState) -> List[PowerRequest]:
         return [
@@ -115,6 +124,10 @@ class UnitActionPlan(ActionPlan):
 
     @property
     def time_coordinates(self) -> List[TimeCoordinate]:
+        # TODO, there should be some difference between empty and not set yet
+        # Maybe every unit that is not planning to do anything needs to add something about I am not doing anything next step
+        # Then we can also say that if the action_queue is empty and the first action does nothing
+        # We don't update the action queue
         if self.is_empty():
             return [self.actor.tc + Direction.CENTER]
 
@@ -164,7 +177,8 @@ class UnitActionPlan(ActionPlan):
         except ValueError:
             return False
 
-        return simulator.can_update_action_queue()
+        return True
+        # return simulator.can_update_action_queue()
 
     def unit_can_add_reach_factory_to_plan(self, game_state: GameState, constraints: Constraints) -> bool:
         try:

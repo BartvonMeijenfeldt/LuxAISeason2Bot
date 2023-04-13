@@ -113,8 +113,11 @@ class GameState:
     def is_opponent_factory_tile(self, c: Coordinate) -> bool:
         return self.board.is_opponent_factory_tile(c)
 
+    def get_player_unit_on_c(self, c: Coordinate) -> Optional[Unit]:
+        return self.board.get_player_unit_on_c(c)
+
     def get_opponent_on_c(self, c: Coordinate) -> Optional[Unit]:
-        return self.board.get_opponent_on_c(c)
+        return self.board.get_opp_unit_on_c(c)
 
     def get_closest_player_factory(self, c: Coordinate) -> Factory:
         return self.board.get_closest_player_factory(c=c)
@@ -149,14 +152,38 @@ class GameState:
     def get_neighboring_opponents(self, c: Coordinate) -> list[Unit]:
         return self.board.get_neighboring_opponents(c=c)
 
-    def get_importance_removing_rubble_for_pathing(self, c: Coordinate) -> float:
-        return self.board.get_importance_removing_rubble_for_pathing(c)
+    # def get_importance_removing_rubble_for_pathing(self, c: Coordinate) -> float:
+    #     return self.board.get_importance_removing_rubble_for_pathing(c)
 
-    def get_importance_removing_rubble_for_lichen_growth(self, c: Coordinate) -> float:
-        return self.board.get_importance_removing_rubble_for_lichen_growth(c)
+    # def get_importance_removing_rubble_for_lichen_growth(self, c: Coordinate) -> float:
+    #     return self.board.get_importance_removing_rubble_for_lichen_growth(c)
 
     def is_rubble_tile(self, c: Coordinate) -> bool:
         return self.board.is_rubble_tile(c)
 
     def is_opponent_lichen_tile(self, c: Coordinate) -> bool:
         return self.board.is_opponent_lichen_tile(c)
+
+    @property
+    def player_water(self) -> int:
+        return self.board.player_water
+
+    @property
+    def opp_water(self) -> int:
+        return self.board.opp_water
+
+    @property
+    def player_nr_lichen_tiles(self) -> int:
+        return self.board.player_nr_lichen_tiles
+
+    @property
+    def opp_nr_lichen_tiles(self) -> int:
+        return self.board.opp_nr_lichen_tiles
+
+    @property
+    def positions_in_dig_goals(self) -> set[tuple]:
+        return self.board.positions_in_dig_goals
+
+    @property
+    def positions_in_heavy_dig_goals(self) -> set[tuple]:
+        return self.board.positions_in_heavy_dig_goals

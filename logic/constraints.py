@@ -11,14 +11,12 @@ from objects.coordinate import TimeCoordinate
 @dataclass
 class Constraints:
     negative: set[tuple[int, int, int]] = field(default_factory=set)
-    negative_t: set[int] = field(default_factory=set)
     danger_coordinates: defaultdict[tuple[int, int, int], float] = field(default_factory=lambda: defaultdict(lambda: 0))
 
     def __copy__(self) -> Constraints:
         constraints_negative = copy(self.negative)
-        constraints_negative_t = copy(self.negative_t)
         danger_coordinates = copy(self.danger_coordinates)
-        return Constraints(constraints_negative, constraints_negative_t, danger_coordinates)
+        return Constraints(constraints_negative, danger_coordinates)
 
     @property
     def key(self) -> str:
@@ -30,13 +28,16 @@ class Constraints:
 
         return False
 
+    def remove_negative_constraints(self, tcs: Iterable[TimeCoordinate]) -> None:
+        xyt_set = {tc.xyt for tc in tcs}
+        self.negative.difference_update(xyt_set)
+
     def add_negative_constraints(self, tcs: Iterable[TimeCoordinate]) -> None:
-        for tc in tcs:
-            self.add_negative_constraint(tc)
+        xyt_set = {tc.xyt for tc in tcs}
+        self.negative.update(xyt_set)
 
     def add_negative_constraint(self, tc: TimeCoordinate) -> None:
         self.negative.add(tc.xyt)
-        self.negative_t.add(tc.t)
 
     def add_danger_coordinates(self, danger_coordinates: dict[TimeCoordinate, float]):
         for tc, value in danger_coordinates.items():
@@ -50,10 +51,10 @@ class Constraints:
 
     @property
     def max_t(self) -> Optional[int]:
-        if not self:
+        if not self.negative:
             return None
 
-        return max(self.negative_t)
+        return max(xyt[0] for xyt in self.negative)
 
     def any_tc_violates_constraint(self, tcs: Iterable[TimeCoordinate]) -> bool:
         if not self:
@@ -69,6 +70,13 @@ class Constraints:
 
     def tc_in_negative_constraints(self, tc: TimeCoordinate) -> bool:
         return tc.xyt in self.negative
+
+    def any_tc_in_negative_constraints(self, tcs: Iterable[TimeCoordinate]) -> bool:
+        tcs_set = {tc.xyt for tc in tcs}
+        if self.negative & tcs_set:
+            return True
+
+        return False
 
     def can_not_add_negative_constraint(self, tc: TimeCoordinate) -> bool:
         return self.tc_in_negative_constraints(tc)

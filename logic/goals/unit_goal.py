@@ -17,7 +17,7 @@ from search.search import (
     Graph,
     TransferResourceGraph,
 )
-from objects.actions.unit_action import DigAction
+from objects.actions.unit_action import DigAction, MoveAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.direction import Direction
 from objects.resource import Resource
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from objects.board import Board
     from lux.config import UnitConfig
     from objects.actions.unit_action import UnitAction
-    from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
+    from logic.goal_resolution.power_availabilty_tracker import PowerTracker
 
 
 @dataclass
@@ -61,7 +61,7 @@ class UnitGoal(Goal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         ...
 
@@ -107,7 +107,7 @@ class UnitGoal(Goal):
     def _get_pickup_power_graph(
         self,
         board: Board,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
         constraints: Constraints,
         next_goal_c: Optional[Coordinate] = None,
     ) -> PickupPowerGraph:
@@ -145,7 +145,7 @@ class UnitGoal(Goal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
         next_goal_c: Optional[Coordinate] = None,
     ) -> None:
         if self.unit.power == self.unit.battery_capacity:
@@ -160,7 +160,7 @@ class UnitGoal(Goal):
 
         recharge_tc = ResourcePowerTimeCoordinate(
             *self.action_plan.final_tc.xyt,
-            p=self.unit.power,
+            p=self.unit.power - self.unit.unit_cfg.ACTION_QUEUE_POWER_COST,
             unit_cfg=self.unit.unit_cfg,
             game_state=game_state,
             q=0,
@@ -196,6 +196,14 @@ class UnitGoal(Goal):
         nr_valid_primitive_actions = potential_action_plan.get_nr_valid_primitive_actions(game_state)
         nr_original_primitive_actions = len(self.action_plan.primitive_actions)
         return potential_action_plan.primitive_actions[nr_original_primitive_actions:nr_valid_primitive_actions]
+
+    @abstractmethod
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        ...
+
+    @abstractmethod
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        ...
 
 
 @dataclass
@@ -385,7 +393,7 @@ class CollectGoal(DigGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         if constraints is None:
             constraints = Constraints()
@@ -540,7 +548,7 @@ class TransferResourceGoal(UnitGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         if constraints is None:
             constraints = Constraints()
@@ -624,6 +632,12 @@ class CollectIceGoal(CollectGoal):
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ice(game_state)
 
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return self._get_resources_collected_by_n_digs(self.action_plan.nr_digs, game_state)
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
 
 @dataclass
 class TransferIceGoal(TransferResourceGoal):
@@ -638,6 +652,12 @@ class TransferIceGoal(TransferResourceGoal):
 
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ice(game_state)
+
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return self.unit.ice
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
 
 
 def get_benefit_ice(game_state: GameState) -> float:
@@ -658,6 +678,12 @@ class CollectOreGoal(CollectGoal):
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ore(game_state)
 
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return self._get_resources_collected_by_n_digs(self.action_plan.nr_digs, game_state)
+
 
 @dataclass
 class TransferOreGoal(TransferResourceGoal):
@@ -672,6 +698,12 @@ class TransferOreGoal(TransferResourceGoal):
 
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ore(game_state)
+
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return self.unit.ore
 
 
 def get_benefit_ore(game_state: GameState) -> float:
@@ -693,7 +725,7 @@ class ClearRubbleGoal(DigGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         self._init_action_plan()
 
@@ -744,8 +776,8 @@ class ClearRubbleGoal(DigGoal):
 
     def _get_benefit_n_digs(self, n_digs: int, game_state: GameState) -> float:
         rubble_removed = self._get_rubble_removed(n_digs, game_state)
-        benefit_rubble_removed = self._get_benefit_removing_rubble(rubble_removed, game_state)
-        return benefit_rubble_removed
+        # benefit_rubble_removed = self._get_benefit_removing_rubble(rubble_removed, game_state)
+        return rubble_removed
 
     def _get_rubble_removed(self, n_digs: int, game_state: GameState) -> int:
         max_rubble_removed = self.unit.rubble_removed_per_dig * n_digs
@@ -753,14 +785,14 @@ class ClearRubbleGoal(DigGoal):
         rubble_removed = min(max_rubble_removed, rubble_at_pos)
         return rubble_removed
 
-    def _get_benefit_removing_rubble(self, rubble_removed: int, game_state: GameState) -> float:
-        benefit_pathing = self._get_benefit_removing_rubble_pathing(rubble_removed, game_state)
-        benefit_lichen = self._get_benefit_removing_rubble_for_lichen_growth(rubble_removed, game_state)
-        return benefit_pathing + benefit_lichen
+    # def _get_benefit_removing_rubble(self, rubble_removed: int, game_state: GameState) -> float:
+    #     benefit_pathing = self._get_benefit_removing_rubble_pathing(rubble_removed, game_state)
+    #     benefit_lichen = self._get_benefit_removing_rubble_for_lichen_growth(rubble_removed, game_state)
+    #     return benefit_pathing + benefit_lichen
 
-    def _get_benefit_removing_rubble_pathing(self, rubble_removed: int, game_state: GameState) -> float:
-        importance_pathing = game_state.get_importance_removing_rubble_for_pathing(self.dig_c)
-        return rubble_removed * importance_pathing
+    # def _get_benefit_removing_rubble_pathing(self, rubble_removed: int, game_state: GameState) -> float:
+    #     importance_pathing = game_state.get_importance_removing_rubble_for_pathing(self.dig_c)
+    #     return rubble_removed * importance_pathing
 
     def _get_benefit_removing_rubble_for_lichen_growth(self, rubble_removed: int, game_state: GameState) -> float:
         importance_lichen = game_state.get_importance_removing_rubble_for_lichen_growth(self.dig_c)
@@ -786,6 +818,12 @@ class ClearRubbleGoal(DigGoal):
 
         return min_cost, min_steps
 
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
 
 class DestroyLichenGoal(DigGoal):
     def __repr__(self) -> str:
@@ -802,7 +840,7 @@ class DestroyLichenGoal(DigGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         self._init_action_plan()
 
@@ -908,6 +946,12 @@ class DestroyLichenGoal(DigGoal):
 
         return min_cost, min_steps
 
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
 
 @dataclass
 class FleeGoal(UnitGoal):
@@ -921,7 +965,7 @@ class FleeGoal(UnitGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         self._init_action_plan()
         constraints = self._add_flee_constraints(constraints)
@@ -977,61 +1021,76 @@ class FleeGoal(UnitGoal):
     def _get_max_benefit(self, game_state: GameState) -> float:
         return CONFIG.BENEFIT_FLEEING
 
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
 
-@dataclass
-class ActionQueueGoal(UnitGoal):
-    """Goal currently in action queue"""
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
 
-    goal: UnitGoal
-    action_plan: UnitActionPlan
-    _is_valid = True
 
-    def is_completed(self, game_state: GameState) -> bool:
-        return self.goal.is_completed(game_state)
+# TODO REMOVE THIS
+# This one is really annoying in my new setup, I am considering this one as removed now
+# Rewrite to scheduler does not use any ActionQueueGoals
+# @dataclass
+# class ActionQueueGoal(UnitGoal):
+#     """Goal currently in action queue"""
 
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
-    ) -> UnitActionPlan:
-        self.set_validity_plan(constraints)
-        return self.action_plan
+#     goal: UnitGoal
+#     action_plan: UnitActionPlan
+#     _is_valid = True
 
-    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        if self.unit.is_under_threath(game_state) and action_plan.actions[0].is_stationary:
-            return -1000
+#     def is_completed(self, game_state: GameState) -> bool:
+#         return self.goal.is_completed(game_state)
 
-        if self.unit.is_light and self.unit.next_step_walks_into_opponent_heavy(game_state):
-            return -1000
+#     def generate_action_plan(
+#         self,
+#         game_state: GameState,
+#         constraints: Constraints,
+#         factory_power_availability_tracker: PowerTracker,
+#     ) -> UnitActionPlan:
+#         self.set_validity_plan(constraints)
+#         return self.action_plan
 
-        if self.unit.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
-            return -1000
+#     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+#         if self.unit.is_under_threath(game_state) and action_plan.actions[0].is_stationary:
+#             return -1000
 
-        return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
+#         if self.unit.is_light and self.unit.next_step_walks_into_opponent_heavy(game_state):
+#             return -1000
 
-    @property
-    def key(self) -> str:
-        # This will cause trouble when we allow goal switching, those goals will have the same ID
-        # Can probably be solved by just picking the highest one / returning highest one by the goal collection
-        return self.goal.key
+#         if self.unit.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
+#             return -1000
 
-    def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
-        cost = self.get_cost_action_plan(self.action_plan, game_state)
-        min_steps = self.action_plan.nr_time_steps
-        return cost, min_steps
+#         return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
 
-    def _get_max_benefit(self, game_state: GameState) -> float:
-        if self.unit.is_under_threath(game_state) and self.action_plan.actions[0].is_stationary:
-            return -1000
+#     @property
+#     def key(self) -> str:
+#         # This will cause trouble when we allow goal switching, those goals will have the same ID
+#         # Can probably be solved by just picking the highest one / returning highest one by the goal collection
+#         return self.goal.key
 
-        if self.unit.is_light and self.unit.next_step_walks_into_opponent_heavy(game_state):
-            return -1000
+#     def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+#         cost = self.get_cost_action_plan(self.action_plan, game_state)
+#         min_steps = self.action_plan.nr_time_steps
+#         return cost, min_steps
 
-        if self.unit.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
-            return -1000
+#     def _get_max_benefit(self, game_state: GameState) -> float:
+#         if self.unit.is_under_threath(game_state) and self.action_plan.actions[0].is_stationary:
+#             return -1000
 
-        return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
+#         if self.unit.is_light and self.unit.next_step_walks_into_opponent_heavy(game_state):
+#             return -1000
+
+#         if self.unit.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state):
+#             return -1000
+
+#         return 100 + self.goal.get_benefit_action_plan(self.action_plan, game_state)
+
+#     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+#         return self.goal.quantity_ice_to_transfer(game_state)
+
+#     def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+#         return self.goal.quantity_ore_to_transfer(game_state)
 
 
 class UnitNoGoal(UnitGoal):
@@ -1048,14 +1107,14 @@ class UnitNoGoal(UnitGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
-        self._init_action_plan()
+        self.action_plan = UnitActionPlan(actor=self.unit, original_actions=[MoveAction(Direction.CENTER)])
         self._invalidates_constraint = constraints.any_tc_violates_constraint(self.action_plan.time_coordinates)
         return self.action_plan
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        if len(action_plan) == 0 and self.unit.is_under_threath(game_state):
+        if action_plan.actions[0].is_stationary and self.unit.is_under_threath(game_state):
             return -CONFIG.COST_POTENTIALLY_LOSING_UNIT
 
         return 0.0 if not self._invalidates_constraint else self.PENALTY_VIOLATING_CONSTRAINT
@@ -1073,6 +1132,12 @@ class UnitNoGoal(UnitGoal):
     def key(self) -> str:
         return str(self)
 
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
 
 class EvadeConstraintsGoal(UnitGoal):
     _value = None
@@ -1086,11 +1151,13 @@ class EvadeConstraintsGoal(UnitGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerAvailabilityTracker,
+        factory_power_availability_tracker: PowerTracker,
     ) -> UnitActionPlan:
         self._init_action_plan()
         if constraints.any_tc_violates_constraint(self.action_plan.time_coordinates):
             self._add_evade_actions(game_state, constraints)
+        else:
+            self.action_plan = UnitActionPlan(actor=self.unit, original_actions=[MoveAction(Direction.CENTER)])
         return self.action_plan
 
     def _add_evade_actions(self, game_state: GameState, constraints: Constraints):
@@ -1124,7 +1191,7 @@ class EvadeConstraintsGoal(UnitGoal):
         return graph
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        if len(action_plan) == 0 and self.unit.is_under_threath(game_state):
+        if action_plan.actions[0].is_stationary and self.unit.is_under_threath(game_state):
             return -CONFIG.COST_POTENTIALLY_LOSING_UNIT
 
         return 0.0
@@ -1141,3 +1208,9 @@ class EvadeConstraintsGoal(UnitGoal):
     @property
     def key(self) -> str:
         return str(self)
+
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0

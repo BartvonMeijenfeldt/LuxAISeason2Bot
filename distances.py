@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import logging
 
 from typing import Tuple, TYPE_CHECKING
 
@@ -32,6 +33,18 @@ def get_closest_pos_and_pos_between_positions(a: np.ndarray, b: np.ndarray) -> T
     pos_b = b[index_b]
 
     return pos_a, pos_b
+
+
+def get_closest_positions_between_positions(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    distances = get_min_distances_between_positions(a, b)
+    min_distance = distances.min(axis=0)
+    closest_mask = distances == min_distance
+    return a[closest_mask]
+
+
+def get_min_distance_between_pos_and_positions(pos: np.ndarray, positions: np.ndarray) -> int:
+    distances = get_distances_between_pos_and_positions(pos=pos, positions=positions)
+    return distances.min()
 
 
 def get_closest_pos_between_pos_and_positions(pos: np.ndarray, positions: np.ndarray) -> np.ndarray:
@@ -77,7 +90,8 @@ def get_positions_on_optimal_path_between_pos_and_pos(a: np.ndarray, b: np.ndarr
     search = Search(graph=graph)
     try:
         optimal_actions = search.get_actions_to_complete_goal(start=start, budget=500)
-    except Exception:
+    except Exception as e:
+        logging.warning(f"Positions on optimal path failed due to {str(e)} from {a} to {b}")
         return init_empty_positions()
 
     positions = []

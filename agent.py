@@ -4,22 +4,18 @@ import logging
 import time
 
 from typing import TYPE_CHECKING, Dict, Any, Sequence
-from copy import copy
 
 from lux.kit import obs_to_game_state
 from lux.config import EnvConfig
 from lux.utils import is_my_turn_to_place_factory
+from logic.goal_resolution.scheduler import Scheduler
 from objects.game_state import GameState
 from objects.actors.factory import Factory
 from objects.actors.unit import Unit
 from objects.actions.action_plan import ActionPlan
-from objects.actions.unit_action_plan import UnitActionPlan
 from logic.early_setup import get_factory_spawn_loc
 from logic.goals.goal import Goal
-from logic.goals.factory_goal import BuildLightGoal
-from logic.constraints import Constraints
-from logic.goal_resolution.goal_resolution import resolve_goal_conflicts, create_cost_matrix
-from logic.goal_resolution.power_availabilty_tracker import PowerAvailabilityTracker
+from logic.goal_resolution.power_availabilty_tracker import PowerTracker
 
 logging.basicConfig(level=logging.WARN)
 
@@ -59,11 +55,9 @@ class Agent:
         self._set_time()
 
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_step_actors)
-        actor_goals = self.resolve_goals(game_state)
-
-        self._store_actors(game_state)
-        self._set_goals(actor_goals)
-        actions = self.get_actions(actor_goals)
+        self._schedule_goals(game_state=game_state)
+        self._store_actors(game_state=game_state)
+        actions = self.get_actions(game_state=game_state)
 
         self._log_time_taken(game_state.real_env_steps, game_state.player_team.team_id)
 
@@ -71,6 +65,9 @@ class Agent:
 
     def _set_time(self) -> None:
         self.start_time = time.time()
+
+    def _schedule_goals(self, game_state: GameState) -> None:
+        Scheduler(self.start_time, self.DEBUG_MODE).schedule_goals(game_state)
 
     def _is_out_of_time(self) -> bool:
         if self.DEBUG_MODE:
@@ -93,98 +90,10 @@ class Agent:
         else:
             logging.warning(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
 
-    def resolve_goals(self, game_state: GameState) -> Dict[Actor, Goal]:
-        actor_goals = self._main_resolve_goals(game_state)
-        return self._factories_change_actions_building_on_top_of_unit(game_state, actor_goals)
-
-    def _main_resolve_goals(self, game_state: GameState) -> Dict[Actor, Goal]:
-        actors = game_state.player_actors
-        goal_collections = {actor: actor.generate_goals(game_state) for actor in actors}
-        cost_matrix = create_cost_matrix(goal_collections, game_state)
-        actor_goals = resolve_goal_conflicts(goal_collections, cost_matrix)
-
-        # change importance key?
-        actors = sorted(actors, key=lambda x: self._actor_importance_key(x))
-
-        constraints = Constraints()
-        power_tracker = self.get_power_tracker(actors)
-        final_goals: Dict[Actor, Goal] = {}
-        reserved_goals = set()
-
-        for actor in actors:
-            if isinstance(actor, Unit):
-                constraints_with_danger = copy(constraints)
-                unit_danger_coordinates = actor.get_danger_tcs(game_state)
-                constraints_with_danger.add_danger_coordinates(unit_danger_coordinates)
-            else:
-                constraints_with_danger = constraints
-
-            while True:
-                if self._is_out_of_time():
-                    return final_goals
-                goals = actor_goals[actor]
-                try:
-                    goal = actor.get_best_goal(goals, game_state, constraints_with_danger, power_tracker)
-                    break
-                except RuntimeError:
-                    pass
-
-                cost_matrix.loc[actor.unit_id, cost_matrix.columns == goals[0].key] = np.inf
-                actor_goals = resolve_goal_conflicts(goal_collections, cost_matrix)
-
-            cost_matrix.loc[actor.unit_id, cost_matrix.columns != goal.key] = np.inf
-
-            constraints.add_negative_constraints(goal.action_plan.time_coordinates)
-            power_tracker.update_power_available(power_requests=goal.action_plan.get_power_requests(game_state))
-
-            reserved_goals.add(goal.key)
-            final_goals[actor] = goal
-
-            # TODO, make units add future plans as well
-            if game_state.real_env_steps < 6 and isinstance(actor, Factory):
-                for t in range(game_state.real_env_steps + 1, 7):
-                    goal = BuildLightGoal(actor)
-                    goal.generate_and_evaluate_action_plan(game_state, constraints, power_tracker)
-                    power_requests = goal.action_plan.get_power_requests(game_state)
-                    for power_request in power_requests:
-                        power_request.t = t
-                    power_tracker.update_power_available(power_requests=power_requests)
-
-        return final_goals
-
-    def _factories_change_actions_building_on_top_of_unit(
-        self, game_state: GameState, final_goals: Dict[Actor, Goal]
-    ) -> Dict[Actor, Goal]:
-
-        power_tracker = self.get_power_tracker(game_state.player_actors)
-
-        next_tc_units = set()
-        for unit in game_state.player_units:
-            if unit not in final_goals:
-                continue
-
-            goal = final_goals[unit]
-            action_plan: UnitActionPlan = goal.action_plan  # type: ignore
-            next_tc_units.add(action_plan.next_tc)
-
-        for factory in game_state.player_factories:
-            if factory not in final_goals:
-                continue
-
-            goal = final_goals[factory]
-            next_tc = goal.action_plan.next_tc
-            if next_tc and next_tc in next_tc_units:
-                goal_collection = factory.generate_goals(game_state, can_build=False)
-                goals = [g for goals in goal_collection.goals_dict.values() for g in goals]
-                goal = factory.get_best_goal(goals, game_state, Constraints(), power_tracker)
-                final_goals[factory] = goal
-
-        return final_goals
-
     @staticmethod
-    def get_power_tracker(actors: Sequence[Actor]) -> PowerAvailabilityTracker:
+    def get_power_tracker(actors: Sequence[Actor]) -> PowerTracker:
         factories = [factory for factory in actors if isinstance(factory, Factory)]
-        return PowerAvailabilityTracker(factories)
+        return PowerTracker(factories)
 
     @staticmethod
     def _actor_importance_key(actor: Actor) -> int:
@@ -205,12 +114,25 @@ class Agent:
         else:
             raise ValueError(f"{actor} is not of type Unit or Factory")
 
-    def get_actions(self, actor_goal_collections: Dict[Actor, Goal]) -> Dict[str, Any]:
-        return {
-            actor.unit_id: goal.action_plan.to_lux_output()
-            for actor, goal in actor_goal_collections.items()
-            if self._is_new_action_plan(actor, goal.action_plan)
-        }
+    def get_actions(self, game_state: GameState) -> Dict[str, Any]:
+        actions = {}
+
+        for factory in game_state.player_factories:
+            # TODO, prive_action_plan should probably never be None. It should be initialized with an empty actionplan
+            if factory.private_action_plan:
+                actions[factory.unit_id] = factory.private_action_plan.to_lux_output()
+
+        for unit in game_state.player_units:
+            if not unit.action_queue:
+                if unit.private_action_plan and not unit.private_action_plan.is_first_action_move_center():
+                    actions[unit.unit_id] = unit.private_action_plan.to_lux_output()
+                    unit.set_action_queue(unit.private_action_plan)
+            elif unit.private_action_plan:
+                if not unit.action_queue[0].next_step_equal(unit.private_action_plan.primitive_actions[0]):
+                    actions[unit.unit_id] = unit.private_action_plan.to_lux_output()
+                    unit.set_action_queue(unit.private_action_plan)
+
+        return actions
 
     def _is_new_action_plan(self, actor: Actor, plan: ActionPlan) -> bool:
         if isinstance(actor, Factory):
@@ -222,7 +144,3 @@ class Agent:
 
     def _store_actors(self, game_state: GameState) -> None:
         self.prev_step_actors = {actor.unit_id: actor for actor in game_state.actors}
-
-    def _set_goals(self, actor_goal_collections: Dict[Actor, Goal]) -> None:
-        for actor, goal in actor_goal_collections.items():
-            actor.set_goal(goal)
