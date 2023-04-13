@@ -3,9 +3,7 @@ from typing import TYPE_CHECKING, Optional, Iterable
 
 import numpy as np
 from dataclasses import dataclass
-from collections import defaultdict, Counter
-from functools import reduce
-
+from collections import defaultdict
 from objects.coordinate import Coordinate, CoordinateList
 from logic.goals.unit_goal import DigGoal
 from image_processing import get_islands

@@ -45,11 +45,12 @@ class Unit(Actor):
     action_queue: List[UnitAction] = field(init=False, default_factory=list)
     goal: Optional[UnitGoal] = field(init=False, default=None)
     # TODO remove the None part, always empty action plan at least
-    private_action_plan: Optional[UnitActionPlan] = field(init=False, default=None)
+    private_action_plan: UnitActionPlan = field(init=False)
     can_be_assigned: bool = field(init=False)
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        self.private_action_plan = UnitActionPlan(self, [], is_set=True)
         self._set_unit_final_variables()
         self._set_unit_state_variables()
 
@@ -101,6 +102,15 @@ class Unit(Actor):
             return True
 
         return self.action_queue != action_queue
+
+    @property
+    def first_action_of_queue_and_private_action_plan_same(self) -> bool:
+        if not self.action_queue or not self.private_action_plan:
+            return False
+
+        first_action_of_queue = self.action_queue[0]
+        first_action_of_plan = self.private_action_plan.primitive_actions[0]
+        return first_action_of_queue.next_step_equal(first_action_of_plan)
 
     def generate_goals(self, game_state: GameState, factory: Factory) -> list[UnitGoal]:
         goals = self._generate_goals(game_state, factory)
@@ -484,5 +494,8 @@ class Unit(Actor):
 
     def remove_goal_and_private_action_plan(self) -> None:
         self.goal = None
-        self.private_action_plan = None
+        self.private_action_plan = UnitActionPlan(self, [])
         self.can_be_assigned = True
+
+        if not self.action_queue:
+            self.private_action_plan.is_set = True

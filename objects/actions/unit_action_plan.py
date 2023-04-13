@@ -35,6 +35,12 @@ class UnitActionPlan(ActionPlan):
         self.original_actions += other
         self.__post_init__()
 
+    def __bool__(self) -> bool:
+        if self.original_actions:
+            return True
+
+        return False
+
     def __add__(self, other) -> UnitActionPlan:
         other = list(other)
         new_actions = self.original_actions + other
@@ -83,6 +89,9 @@ class UnitActionPlan(ActionPlan):
         return len(self.primitive_actions)
 
     def is_first_action_move_center(self) -> bool:
+        if len(self.actions) == 0:
+            return False
+
         return self.actions[0] == MoveAction(Direction.CENTER)
 
     def get_power_requests(self, game_state: GameState) -> List[PowerRequest]:

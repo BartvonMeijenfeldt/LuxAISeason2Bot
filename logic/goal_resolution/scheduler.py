@@ -175,12 +175,12 @@ class Scheduler:
 
     def _remove_goals_too_little_power(self, game_state: GameState) -> None:
         for unit in game_state.player_units:
-            if unit.private_action_plan and not unit.private_action_plan.unit_has_enough_power(game_state):
+            if not unit.private_action_plan.unit_has_enough_power(game_state):
                 unit.remove_goal_and_private_action_plan()
 
     def _update_goals_at_risk_units(self, game_state: GameState) -> None:
         for unit in game_state.player_units:
-            if not unit.goal or not unit.private_action_plan:
+            if not unit.goal:
                 continue
 
             if unit.is_under_threath(game_state) and unit.next_step_is_stationary():
@@ -225,8 +225,8 @@ class Scheduler:
 
         for unit in game_state.units:
             if isinstance(unit.goal, DigGoal) and unit.goal.dig_c == goal.dig_c and unit != goal.unit:
-                if unit.private_action_plan:
-                    self.constraints.remove_negative_constraints(unit.private_action_plan.time_coordinates)
+                # TODO also remove power requests
+                self.constraints.remove_negative_constraints(unit.private_action_plan.time_coordinates)
                 unit.remove_goal_and_private_action_plan()
 
     def _schedule_factory_goals(self, game_state: GameState) -> None:
@@ -297,11 +297,7 @@ class Scheduler:
     def _reschedule_factories_building_on_top_of_units(self, game_state: GameState) -> None:
         next_tc_units = set()
         for unit in game_state.player_units:
-            if not unit.private_action_plan:
-                next_tc = unit.tc + Direction.CENTER
-            else:
-                next_tc = unit.private_action_plan.next_tc
-
+            next_tc = unit.private_action_plan.next_tc
             next_tc_units.add(next_tc)
 
         for factory in game_state.player_factories:
