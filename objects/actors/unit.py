@@ -441,7 +441,7 @@ class Unit(Actor):
         if not self.private_action_plan:
             return False
 
-        return self.private_action_plan.actions[0].is_stationary
+        return self.private_action_plan.is_first_action_stationary
 
     def is_on_factory(self, game_state: GameState) -> bool:
         return game_state.is_player_factory_tile(self.tc)

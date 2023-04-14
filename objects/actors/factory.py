@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from typing import Tuple, TYPE_CHECKING, Optional, Iterable, Set
+from typing import Tuple, TYPE_CHECKING, Optional, Iterable, Set, Generator
 from itertools import product
 from dataclasses import dataclass, field
 from collections import Counter
@@ -312,12 +312,12 @@ class Factory(Actor):
         return FactoryNoGoal(self)
 
     @property
-    def light_units(self) -> list[Unit]:
-        return [unit for unit in self.units if unit.is_light]
+    def light_units(self) -> Generator[Unit, None, None]:
+        return (unit for unit in self.units if unit.is_light)
 
     @property
     def nr_light_units(self) -> int:
-        return len(self.light_units)
+        return sum(1 for _ in self.light_units)
 
     @property
     def daily_charge(self) -> int:
@@ -438,26 +438,39 @@ class Factory(Actor):
         return nr_positions
 
     @property
-    def available_units(self) -> list[Unit]:
-        # TODO some checks to see if there is enough power or some other mechanic to set units as unavailable
-        return [unit for unit in self.units if unit.power and not unit.private_action_plan and unit.can_be_assigned]
-
-    @property
-    def heavy_available_units(self) -> list[Unit]:
-        return [unit for unit in self.available_units if unit.is_heavy]
-
-    @property
-    def light_available_units(self) -> list[Unit]:
-        return [unit for unit in self.available_units if unit.is_light]
-
-    @property
-    def unassigned_units(self) -> list[Unit]:
-        # TODO some checks to see if there is enough power or some other mechanic to set units as unavailable
-        return [unit for unit in self.units if not unit.private_action_plan]
-
-    @property
-    def has_available_units(self) -> bool:
+    def has_unit_available(self) -> bool:
         return any(True for _ in self.available_units)
+
+    @property
+    def has_heavy_unit_available(self) -> bool:
+        return any(True for _ in self.heavy_available_units)
+
+    @property
+    def has_light_unit_available(self) -> bool:
+        return any(True for _ in self.light_available_units)
+
+    @property
+    def available_units(self) -> Generator[Unit, None, None]:
+        # TODO some checks to see if there is enough power or some other mechanic to set units as unavailable
+        return (
+            unit
+            for unit in self.units
+            if unit.power and not unit.private_action_plan and unit.can_be_assigned
+            # unit.can_update_action_queue
+        )
+
+    @property
+    def heavy_available_units(self) -> Generator[Unit, None, None]:
+        return (unit for unit in self.available_units if unit.is_heavy)
+
+    @property
+    def light_available_units(self) -> Generator[Unit, None, None]:
+        return (unit for unit in self.available_units if unit.is_light)
+
+    @property
+    def unassigned_units(self) -> Generator[Unit, None, None]:
+        # TODO some checks to see if there is enough power or some other mechanic to set units as unavailable
+        return (unit for unit in self.units if not unit.private_action_plan)
 
     @property
     def has_unassigned_units(self) -> bool:
@@ -470,6 +483,10 @@ class Factory(Actor):
         constraints: Constraints,
         power_tracker: PowerTracker,
     ) -> UnitGoal:
+        # If has_unsupplied_heavy_mining_next_to_base And has_light_unit_available:
+        # if self.light_available_units
+        # Try supply goal
+
         for strategy in strategies:
             try:
                 return self._schedule_unit_on_strategy(strategy, game_state, constraints, power_tracker)
@@ -502,7 +519,7 @@ class Factory(Actor):
             f"{game_state.real_env_steps}: player {game_state.player_team.team_id} scheduled unit by own preference"
         )
 
-        unit = self.available_units[0]
+        unit = next(self.available_units)
         all_goals = unit.generate_goals(game_state, self)
         best_goal = max(all_goals, key=lambda g: g.get_best_value_per_step(game_state))
         dummy_goals = unit._get_dummy_goals(game_state)
@@ -580,7 +597,7 @@ class Factory(Actor):
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> UnitGoal:
         # Collect Ore / Clear Path to Ore / Supply Power to heavy on Ore
-        if self.heavy_available_units:
+        if self.has_heavy_unit_available:
             return self._schedule_heavy_on_ore(game_state, constraints, power_tracker)
         else:
             return self._schedule_light_on_ore_task(game_state, constraints, power_tracker)
@@ -646,7 +663,7 @@ class Factory(Actor):
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> UnitGoal:
         # Collect Ice / Clear Path to Ice / Supply Power to heavy on Ice
-        if self.heavy_available_units:
+        if self.has_heavy_unit_available:
             return self._schedule_heavy_on_ice(game_state, constraints, power_tracker)
         else:
             return self._schedule_light_on_ice_task(game_state, constraints, power_tracker)

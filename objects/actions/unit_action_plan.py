@@ -88,6 +88,13 @@ class UnitActionPlan(ActionPlan):
     def nr_primitive_actions(self) -> int:
         return len(self.primitive_actions)
 
+    @property
+    def is_first_action_stationary(self) -> bool:
+        if len(self.actions) == 0:
+            return False
+
+        return self.actions[0].is_stationary
+
     def is_first_action_move_center(self) -> bool:
         if len(self.actions) == 0:
             return False

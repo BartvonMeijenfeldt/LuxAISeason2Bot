@@ -280,7 +280,7 @@ class Scheduler:
         scores = dict()
 
         for factory in game_state.player_factories:
-            if factory.has_available_units:
+            if factory.has_unit_available:
                 factory_score = self._calculate_score_factory(factory, game_state)
                 for (factory, strategy), score in factory_score.items():
                     scores[(factory, strategy)] = score
