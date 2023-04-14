@@ -23,18 +23,16 @@ class FactoryGoal(Goal):
     _is_valid: Optional[bool] = field(init=False, default=None)
 
     def generate_and_evaluate_action_plan(
-        self, game_state: GameState, constraints: Constraints, factory_power_availability_tracker: PowerTracker
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> FactoryActionPlan:
-        return super().generate_and_evaluate_action_plan(
-            game_state, constraints, factory_power_availability_tracker
-        )  # type: ignore
+        return super().generate_and_evaluate_action_plan(game_state, constraints, power_tracker)  # type: ignore
 
     @abstractmethod
     def generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerTracker,
+        power_tracker: PowerTracker,
     ) -> FactoryActionPlan:
         ...
 
@@ -57,7 +55,7 @@ class BuildHeavyGoal(FactoryGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerTracker,
+        power_tracker: PowerTracker,
     ) -> FactoryActionPlan:
         self.action_plan = FactoryActionPlan(self.factory, [BuildHeavyAction()])
         self.set_validity_plan(constraints)
@@ -79,7 +77,7 @@ class BuildLightGoal(FactoryGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerTracker,
+        power_tracker: PowerTracker,
     ) -> FactoryActionPlan:
         self.action_plan = FactoryActionPlan(self.factory, [BuildLightAction()])
         self.set_validity_plan(constraints)
@@ -105,7 +103,7 @@ class WaterGoal(FactoryGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerTracker,
+        power_tracker: PowerTracker,
     ) -> FactoryActionPlan:
         self.action_plan = FactoryActionPlan(self.factory, [WaterAction()])
         self.set_validity_plan(constraints)
@@ -130,7 +128,7 @@ class FactoryNoGoal(FactoryGoal):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerTracker,
+        power_tracker: PowerTracker,
     ) -> FactoryActionPlan:
         return FactoryActionPlan(self.factory)
 

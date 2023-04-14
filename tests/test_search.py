@@ -22,7 +22,7 @@ from objects.actions.unit_action import (
 )
 from objects.direction import Direction as D
 from objects.resource import Resource
-from search.search import PickupPowerGraph, TransferResourceGraph, DigAtGraph, MoveToGraph, Search
+from search.search import PickupPowerGraph, TransferToFactoryResourceGraph, DigAtGraph, MoveToGraph, Search
 from lux.kit import GameState
 from lux.config import EnvConfig
 from tests.generate_game_state import get_state, FactoryPositions, FactoryPos, Tiles, RubbleTile as RT
@@ -475,7 +475,7 @@ class TestPowerPickupSearch(unittest.TestCase):
             unit_type=unit_type,
             constraints=constraints,
             next_goal_c=next_goal_c,
-            factory_power_availability_tracker=power_availability_tracker,
+            power_tracker=power_availability_tracker,
         )
         search = Search(pick_up_power_graph)
         actions = search.get_actions_to_complete_goal(start=start_ptc)
@@ -633,7 +633,7 @@ class TestTransferResearchesSearch(unittest.TestCase):
         start_ptc = RTC(start.x, start.y, start.t, q=0, resource=resource)
         unit_cfg = ENV_CFG.get_unit_config(unit_type)
 
-        move_to_graph = TransferResourceGraph(
+        move_to_graph = TransferToFactoryResourceGraph(
             unit_type=unit_type,
             board=state.board,
             time_to_power_cost=time_to_power_cost,

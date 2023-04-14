@@ -232,7 +232,7 @@ class Unit(Actor):
         goals: Iterable[UnitGoal],
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerTracker,
+        power_tracker: PowerTracker,
     ) -> UnitGoal:
         goals = list(goals)
         # goals = self.generate_goals(game_state)
@@ -246,9 +246,7 @@ class Unit(Actor):
             goal: UnitGoal = priority_queue.pop()
 
             try:
-                goal.generate_and_evaluate_action_plan(
-                    game_state, constraints_with_danger, factory_power_availability_tracker
-                )
+                goal.generate_and_evaluate_action_plan(game_state, constraints_with_danger, power_tracker)
             except Exception:
                 continue
 

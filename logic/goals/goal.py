@@ -22,10 +22,10 @@ class Goal(metaclass=ABCMeta):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerTracker,
+        power_tracker: PowerTracker,
     ) -> ActionPlan:
         try:
-            self.action_plan = self.generate_action_plan(game_state, constraints, factory_power_availability_tracker)
+            self.action_plan = self.generate_action_plan(game_state, constraints, power_tracker)
         except Exception:
             self._is_valid = False
 
@@ -41,7 +41,7 @@ class Goal(metaclass=ABCMeta):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerTracker,
+        power_tracker: PowerTracker,
     ) -> ActionPlan:
         ...
 

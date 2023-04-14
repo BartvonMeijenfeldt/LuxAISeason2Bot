@@ -176,14 +176,14 @@ class EvadeConstraintsGraph(Graph):
 
 @dataclass
 class PickupPowerGraph(Graph):
-    factory_power_availability_tracker: PowerTracker
+    power_tracker: PowerTracker
     next_goal_c: Optional[Coordinate] = field(default=None)
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
 
     def potential_actions(self, c: ResourcePowerTimeCoordinate) -> Generator[UnitAction, None, None]:
         if self.board.is_player_factory_tile(c=c):
             factory = self.board.get_closest_player_factory(c=c)
-            power_available_in_factory = self.factory_power_availability_tracker.get_power_available(factory, c.t)
+            power_available_in_factory = self.power_tracker.get_power_available(factory, c.t)
             battery_space_left = self.unit_cfg.BATTERY_CAPACITY - c.p
             power_pickup_amount = min(battery_space_left, power_available_in_factory, 3000)
 
@@ -243,34 +243,76 @@ class PickupPowerGraph(Graph):
 
 
 @dataclass
-class TransferResourceGraph(Graph):
+class TranserResourceGraph(Graph):
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
     resource: Resource
-    factory: Optional[Factory] = field(default=None)
 
     def potential_actions(self, c: ResourcePowerTimeCoordinate) -> Generator[UnitAction, None, None]:
-        if not self.factory and self.board.get_min_distance_to_any_player_factory(c=c) <= 1:
-            factory_tile = self.board.get_closest_player_factory_tile(c=c)
-            dir = c.direction_to(factory_tile)
-            transfer_action = TransferAction(direction=dir, amount=self.unit_cfg.CARGO_SPACE, resource=self.resource)
-            yield (transfer_action)
-
-        elif self.factory and self.board.get_min_distance_to_player_factory(c, self.factory.strain_id) <= 1:
-            factory_tile = self.board.get_closest_player_factory_tile(c=c)
-            dir = c.direction_to(factory_tile)
+        if self._can_transfer(c):
+            receiving_tile = self._get_receiving_tile(c)
+            dir = c.direction_to(receiving_tile)
             transfer_action = TransferAction(direction=dir, amount=self.unit_cfg.CARGO_SPACE, resource=self.resource)
             yield (transfer_action)
 
         for action in self._potential_move_actions:
             yield (action)
 
+    @abstractmethod
+    def _can_transfer(self, c: Coordinate) -> bool:
+        ...
+
+    @abstractmethod
+    def _get_receiving_tile(self, c: Coordinate) -> Coordinate:
+        ...
+
     def heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
         if self.node_completes_goal(node):
             return 0
 
         min_distance_cost = self._get_distance_heuristic(node=node)
-        min_time_recharge_cost = self._get_transfer_heuristic(node=node)
-        return min_distance_cost + min_time_recharge_cost
+        min_transfer_cost = self.time_to_power_cost
+        return min_distance_cost + min_transfer_cost
+
+    @abstractmethod
+    def _get_distance_heuristic(self, node: Coordinate) -> float:
+        ...
+
+    def node_completes_goal(self, node: ResourcePowerTimeCoordinate) -> bool:
+        return node.q < 0
+
+
+@dataclass
+class TransferToUnitResourceGraph(TranserResourceGraph):
+    unit_c: Coordinate
+
+    def _can_transfer(self, c: Coordinate) -> bool:
+        return c.distance_to(self.unit_c) == 1
+
+    def _get_receiving_tile(self, c: Coordinate) -> Coordinate:
+        return self.unit_c
+
+    def _get_distance_heuristic(self, node: Coordinate) -> float:
+        distance_to_unit = node.distance_to(self.unit_c)
+        min_nr_steps_next_to_unit = max(distance_to_unit - 1, 0)
+        min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
+        min_distance_cost = min_nr_steps_next_to_unit * min_cost_per_step
+        return min_distance_cost
+
+
+@dataclass
+class TransferToFactoryResourceGraph(TranserResourceGraph):
+    factory: Optional[Factory] = field(default=None)
+
+    def _can_transfer(self, c: Coordinate) -> bool:
+        if (not self.factory and self.board.get_min_distance_to_any_player_factory(c=c) <= 1) or (
+            self.factory and self.board.get_min_distance_to_player_factory(c, self.factory.strain_id) <= 1
+        ):
+            return True
+
+        return False
+
+    def _get_receiving_tile(self, c: Coordinate) -> Coordinate:
+        return self.board.get_closest_player_factory_tile(c=c)
 
     def _get_distance_heuristic(self, node: Coordinate) -> float:
         if not self.factory:
@@ -282,15 +324,6 @@ class TransferResourceGraph(Graph):
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
         min_distance_cost = min_nr_steps_next_to_factory * min_cost_per_step
         return min_distance_cost
-
-    def _get_transfer_heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
-        if self.node_completes_goal(node=node):
-            return 0
-        else:
-            return self.time_to_power_cost
-
-    def node_completes_goal(self, node: ResourcePowerTimeCoordinate) -> bool:
-        return node.q < 0
 
 
 @dataclass
