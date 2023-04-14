@@ -109,7 +109,7 @@ class Agent:
                 actions[factory.unit_id] = factory.private_action_plan.to_lux_output()
 
         for unit in game_state.player_units:
-            if unit.power < unit.update_action_queue_power_cost:
+            if not unit.can_update_action_queue:
                 continue
 
             if not unit.private_action_plan:

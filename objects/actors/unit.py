@@ -93,8 +93,10 @@ class Unit(Actor):
     def _set_unit_state_variables(self) -> None:
         self.x = self.tc.x
         self.y = self.tc.y
+        self.can_update_action_queue = self.power >= self.update_action_queue_power_cost
+        self.can_update_action_queue_and_move = self.power >= self.update_action_queue_power_cost + self.move_power_cost
         self.has_actions_in_queue = len(self.action_queue) > 0
-        self.can_be_assigned = not self.has_actions_in_queue and self.power >= self.update_action_queue_power_cost
+        self.can_be_assigned = not self.has_actions_in_queue and self.can_update_action_queue
         self.agent_id = f"player_{self.team_id}"
 
     def _last_action_was_carried_out(self, action_queue: list[UnitAction]) -> bool:
@@ -178,14 +180,6 @@ class Unit(Actor):
         #  TODO put this in proper function or something
         next_c = self.tc + next_action.unit_direction
         return game_state.is_opponent_heavy_on_tile(next_c)
-
-    def _add_flee_goal(self, game_state: GameState) -> None:
-        # TODO, this should be getting all threatening opponents and the flee goal should be adapted to
-        # take multiple opponents into account
-        neighboring_opponents = self._get_neighboring_opponents(game_state)
-        randomly_picked_neighboring_opponent = neighboring_opponents[0]
-        flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
-        self.goals.append(flee_goal)
 
     # Dummy Goal added in case we can not reach factory, should add partial fleeing to solve this problem
     def generate_transfer_or_dummy_goal(
@@ -321,6 +315,13 @@ class Unit(Actor):
             dummy_goals.append(flee_goal)
 
         return dummy_goals
+
+    def generate_no_goal_goal(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> UnitNoGoal:
+        no_goal_goal = UnitNoGoal(self)
+        goal = self.get_best_goal([no_goal_goal], game_state, constraints, power_tracker)
+        return goal  # type: ignore
 
     def generate_collect_ore_goal(
         self,
