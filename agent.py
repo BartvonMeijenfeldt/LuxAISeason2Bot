@@ -12,9 +12,7 @@ from logic.goal_resolution.scheduler import Scheduler
 from objects.game_state import GameState
 from objects.actors.factory import Factory
 from objects.actors.unit import Unit
-from objects.actions.action_plan import ActionPlan
 from logic.early_setup import get_factory_spawn_loc
-from logic.goals.goal import Goal
 from logic.goal_resolution.power_availabilty_tracker import PowerTracker
 
 logging.basicConfig(level=logging.WARN)
@@ -69,17 +67,6 @@ class Agent:
     def _schedule_goals(self, game_state: GameState) -> None:
         Scheduler(self.start_time, self.DEBUG_MODE).schedule_goals(game_state)
 
-    def _is_out_of_time(self) -> bool:
-        if self.DEBUG_MODE:
-            return False
-
-        is_out_of_time = self._get_time_taken() > 2.9
-
-        if is_out_of_time:
-            logging.critical("RAN OUT OF TIME")
-
-        return is_out_of_time
-
     def _get_time_taken(self) -> float:
         return time.time() - self.start_time
 
@@ -118,32 +105,26 @@ class Agent:
         actions = {}
 
         for factory in game_state.player_factories:
-            # TODO, prive_action_plan should probably never be None. It should be initialized with an empty actionplan
             if factory.private_action_plan:
                 actions[factory.unit_id] = factory.private_action_plan.to_lux_output()
 
         for unit in game_state.player_units:
-            if unit.power < unit.update_action_queue_power_cost:
+            if not unit.can_update_action_queue:
                 continue
 
-            if not unit.action_queue:
-                if unit.private_action_plan and not unit.private_action_plan.is_first_action_move_center():
-                    actions[unit.unit_id] = unit.private_action_plan.to_lux_output()
-                    unit.set_action_queue(unit.private_action_plan)
-            elif unit.private_action_plan:
-                if not unit.action_queue[0].next_step_equal(unit.private_action_plan.primitive_actions[0]):
-                    actions[unit.unit_id] = unit.private_action_plan.to_lux_output()
-                    unit.set_action_queue(unit.private_action_plan)
+            if not unit.private_action_plan:
+                continue
+
+            if not unit.action_queue and unit.private_action_plan.is_first_action_move_center():
+                continue
+
+            if unit.action_queue and unit.first_action_of_queue_and_private_action_plan_same:
+                continue
+
+            actions[unit.unit_id] = unit.private_action_plan.to_lux_output()
+            unit.set_action_queue(unit.private_action_plan)
 
         return actions
-
-    def _is_new_action_plan(self, actor: Actor, plan: ActionPlan) -> bool:
-        if isinstance(actor, Factory):
-            return len(plan.actions) > 0
-        elif isinstance(actor, Unit):
-            return plan.actions != actor.action_queue
-        else:
-            raise ValueError("Actor is not Factory nor Unit!")
 
     def _store_actors(self, game_state: GameState) -> None:
         self.prev_step_actors = {actor.unit_id: actor for actor in game_state.actors}

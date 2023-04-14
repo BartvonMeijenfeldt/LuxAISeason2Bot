@@ -16,7 +16,7 @@ class Actor:
     power: int
     cargo: Cargo
     goal: Optional[Goal] = field(init=False, default=None)
-    private_action_plan: Optional[ActionPlan] = field(init=False, default=None)
+    private_action_plan: ActionPlan = field(init=False)
 
     def __post_init__(self) -> None:
         self.id = int(self.unit_id.split("_")[1])

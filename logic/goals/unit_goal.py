@@ -796,10 +796,10 @@ class ClearRubbleGoal(DigGoal):
     #     importance_pathing = game_state.get_importance_removing_rubble_for_pathing(self.dig_c)
     #     return rubble_removed * importance_pathing
 
-    def _get_benefit_removing_rubble_for_lichen_growth(self, rubble_removed: int, game_state: GameState) -> float:
-        importance_lichen = game_state.get_importance_removing_rubble_for_lichen_growth(self.dig_c)
-        score_lichen_removed = self._get_score_rubble_removed(rubble_removed, game_state)
-        return importance_lichen * score_lichen_removed
+    # def _get_benefit_removing_rubble_for_lichen_growth(self, rubble_removed: int, game_state: GameState) -> float:
+    #     importance_lichen = game_state.get_importance_removing_rubble_for_lichen_growth(self.dig_c)
+    #     score_lichen_removed = self._get_score_rubble_removed(rubble_removed, game_state)
+    #     return importance_lichen * score_lichen_removed
 
     def _get_score_rubble_removed(self, rubble_removed: int, game_state: GameState) -> float:
         if not self._clears_rubble(rubble_removed, game_state):

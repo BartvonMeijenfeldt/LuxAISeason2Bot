@@ -54,11 +54,12 @@ class Factory(Actor):
     radius = 1
     units: set[Unit] = field(init=False, default_factory=set)
     goal: Optional[FactoryGoal] = field(init=False, default=None)
-    private_action_plan: Optional[FactoryActionPlan] = field(init=False, default=None)
+    private_action_plan: FactoryActionPlan = field(init=False)
     positions_set: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        self.private_action_plan = FactoryActionPlan(self, [])
         self._set_unit_state_variables()
         self.id = int(self.unit_id[8:])
 
