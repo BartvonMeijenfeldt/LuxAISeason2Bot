@@ -7,6 +7,7 @@ from typing import Optional
 from math import ceil, inf
 from copy import copy
 from functools import lru_cache
+import numpy as np
 
 from search.search import (
     Search,
@@ -18,7 +19,7 @@ from search.search import (
     TransferToFactoryResourceGraph,
     TransferPowerToUnitResourceGraph,
 )
-from objects.actions.unit_action import DigAction, MoveAction
+from objects.actions.unit_action import DigAction, MoveAction, TransferAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.direction import Direction
 from objects.resource import Resource
@@ -560,6 +561,7 @@ def get_actions_a_to_b(
 @dataclass
 class SupplyPowerGoal(UnitGoal):
     receiving_unit: Unit
+    receiving_action_plan: UnitActionPlan
     receiving_c: Coordinate
 
     def __repr__(self) -> str:
@@ -601,6 +603,9 @@ class SupplyPowerGoal(UnitGoal):
             self._is_valid = False
 
     def _add_supply_actions(self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker) -> None:
+        receiving_unit_ptcs = self.receiving_action_plan.get_power_time_coordinates(game_state)
+        receiving_unit_powers = np.array([ptc.p for ptc in receiving_unit_ptcs])
+
         power_pickup_turn = True
         while True:
             if power_pickup_turn:
@@ -611,7 +616,24 @@ class SupplyPowerGoal(UnitGoal):
                     game_state, constraints, power_tracker_up_to_date, self.receiving_c
                 )
             else:
-                actions = self._get_transfer_resources_to_factory_actions(game_state, constraints)
+                actions = self._get_transfer_resources_to_unit_actions(game_state, constraints)
+
+                power_transfer_action: TransferAction = actions[-1]  # type: ignore
+                index_transfer = self.action_plan.nr_primitive_actions + len(actions) - 1
+
+                if index_transfer >= len(receiving_unit_ptcs):
+                    break
+
+                surplus_power = self._get_surplus_power(receiving_unit_powers, index_transfer, power_transfer_action)
+                power_transfer_action.amount = max(0, power_transfer_action.amount - surplus_power)
+
+                safety_reduction = self._get_safety_reduction(power_transfer_action, game_state)
+                power_transfer_action.amount = max(0, power_transfer_action.amount - safety_reduction)
+
+                if receiving_unit_ptcs[index_transfer].xy != self.receiving_c.xy:
+                    power_transfer_action.amount = 0
+
+                receiving_unit_powers[index_transfer:] += power_transfer_action.amount
 
             potential_action_plan = self.action_plan + actions
             if not potential_action_plan.is_valid_size:
@@ -620,7 +642,11 @@ class SupplyPowerGoal(UnitGoal):
             self.action_plan.extend(actions)
             power_pickup_turn = not power_pickup_turn
 
-    def _get_transfer_resources_to_factory_actions(
+        max_transfer_index = self.action_plan.nr_primitive_actions - 1
+        if receiving_unit_powers[:max_transfer_index].min() < 0:
+            self._is_valid = False
+
+    def _get_transfer_resources_to_unit_actions(
         self, game_state: GameState, constraints: Constraints
     ) -> list[UnitAction]:
         start_tc = self.action_plan.final_tc
@@ -632,7 +658,7 @@ class SupplyPowerGoal(UnitGoal):
     def _get_transfer_to_unit_graph(
         self, game_state: GameState, constraints: Constraints
     ) -> TransferPowerToUnitResourceGraph:
-        q = self.action_plan.get_final_ptc(game_state).p - self.unit.update_action_queue_power_cost
+        power_end_action_plan = self.action_plan.get_final_ptc(game_state).p
         graph = TransferPowerToUnitResourceGraph(
             game_state.board,
             self.unit.time_to_power_cost,
@@ -640,11 +666,25 @@ class SupplyPowerGoal(UnitGoal):
             self.unit.unit_type,
             constraints,
             Resource.POWER,
-            q,
+            power_end_action_plan,
             self.receiving_c,
         )
 
         return graph
+
+    def _get_surplus_power(
+        self, receiving_unit_powers: np.ndarray, index_transfer: int, power_transfer_action: TransferAction
+    ) -> int:
+
+        power_after_transfer = receiving_unit_powers[index_transfer] + power_transfer_action.amount
+        surplus_power = max(0, power_after_transfer - self.receiving_unit.battery_capacity)
+        return surplus_power
+
+    def _get_safety_reduction(self, power_transfer_action: TransferAction, game_state: GameState) -> int:
+        supplying_unit_power_left = self.action_plan.get_final_ptc(game_state).p - power_transfer_action.amount
+        safety_level = self.unit.action_queue_cost + self.unit.move_power_cost
+        safety_reduction = max(0, safety_level - supplying_unit_power_left)
+        return safety_reduction
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return 100

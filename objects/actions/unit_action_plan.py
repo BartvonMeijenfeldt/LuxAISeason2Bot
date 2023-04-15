@@ -8,6 +8,7 @@ from objects.direction import Direction
 from search.search import MoveToGraph
 from objects.actions.unit_action import DigAction, MoveAction
 from objects.actions.action_plan import ActionPlan, PowerRequest
+from utils import is_day
 
 if TYPE_CHECKING:
     from objects.actors.unit import Unit
@@ -141,14 +142,26 @@ class UnitActionPlan(ActionPlan):
     @property
     def time_coordinates(self) -> List[TimeCoordinate]:
         # TODO, there should be some difference between empty and not set yet
-        # Maybe every unit that is not planning to do anything needs to add something about I am not doing anything next step
+        # Maybe every unit that is not planning to do anything needs to add something about
+        # I am not doing anything next step
         # Then we can also say that if the action_queue is empty and the first action does nothing
         # We don't update the action queue
         if self.is_empty():
             return [self.actor.tc + Direction.CENTER]
 
         simulator = ActionPlanSimulator(self, unit=self.actor)
-        return simulator.get_time_coordinates()
+        power_time_coordinates = simulator.get_time_coordinates()
+        time_coordinates = [TimeCoordinate(*ptc.xyt) for ptc in power_time_coordinates]
+        return time_coordinates
+
+    def get_power_time_coordinates(self, game_state: GameState) -> List[PowerTimeCoordinate]:
+        if self.is_empty():
+            ptc = PowerTimeCoordinate(*self.actor.tc.xyt, self.actor.power, self.actor.unit_cfg, game_state)
+            return [ptc + Direction.CENTER]
+
+        simulator = ActionPlanSimulator(self, unit=self.actor)
+        power_time_coordinates = simulator.get_power_time_coordinates(game_state)
+        return power_time_coordinates
 
     def get_power_used(self, board: Board) -> float:
         cur_c = self.actor.tc
@@ -325,11 +338,17 @@ class ActionPlanSimulator:
         self._simulate_actions_for_tc(actions=self.action_plan.primitive_actions)
         return self.time_coordinates
 
+    def get_power_time_coordinates(self, game_state: GameState) -> List[PowerTimeCoordinate]:
+        self._init_start()
+        self._optional_update_action_queue()
+        self._simulate_actions_for_ptc(actions=self.action_plan.primitive_actions, game_state=game_state)
+        return self.power_time_coordinates
+
     def _init_start(self) -> None:
         self.cur_power = self.unit.power
-        self.t = self.unit.tc.t
-        self.cur_tc = TimeCoordinate(x=self.unit.tc.x, y=self.unit.tc.y, t=self.t)
-        self.time_coordinates = []
+        self.cur_tc = self.unit.tc
+        self.time_coordinates: List[TimeCoordinate] = []
+        self.power_time_coordinates: List[PowerTimeCoordinate] = []
 
     def _optional_update_action_queue(self) -> None:
         if not self.action_plan.is_set and self.action_plan.original_actions:
@@ -337,9 +356,9 @@ class ActionPlanSimulator:
 
     def _update_action_queue(self) -> None:
         self.cur_power -= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
-        self._check_power()
+        self._confirm_power_level_is_valid()
 
-    def _check_power(self):
+    def _confirm_power_level_is_valid(self):
         if self.cur_power < 0:
             raise ValueError("Power is below 0")
 
@@ -365,15 +384,22 @@ class ActionPlanSimulator:
 
     def _simulate_primitive_action(self, action: UnitAction, game_state: GameState) -> None:
         self._update_power_due_to_action(action=action, board=game_state.board)
-        self._check_power()
-        self._simul_charge(game_state=game_state)
-        self._increase_time_count()
+        self._confirm_power_level_is_valid()
+        self._simul_charge()
         self._update_tc(action=action)
+        self._add_ptc(game_state)
 
     def _simulate_actions_for_tc(self, actions: Sequence[UnitAction]) -> None:
         for action in actions:
-            self._increase_time_count()
             self._update_tc(action=action)
+            self._add_tc()
+
+    def _simulate_actions_for_ptc(self, actions: Sequence[UnitAction], game_state: GameState) -> None:
+        for action in actions:
+            self._update_power_due_to_action(action=action, board=game_state.board)
+            self._simul_charge()
+            self._update_tc(action=action)
+            self._add_ptc(game_state)
 
     def _update_power_due_to_action(self, action: UnitAction, board: Board) -> None:
         power_change = action.get_power_change(unit_cfg=self.unit.unit_cfg, start_c=self.cur_tc, board=board)
@@ -382,15 +408,18 @@ class ActionPlanSimulator:
 
     def _update_tc(self, action: UnitAction) -> None:
         self.cur_tc = action.get_final_c(start_c=self.cur_tc)
+
+    def _add_tc(self) -> None:
         self.time_coordinates.append(self.cur_tc)
 
-    def _simul_charge(self, game_state: GameState) -> None:
-        if game_state.is_day(self.t):
+    def _add_ptc(self, game_state: GameState) -> None:
+        ptc = PowerTimeCoordinate(*self.cur_tc.xyt, self.cur_power, self.unit.unit_cfg, game_state)
+        self.power_time_coordinates.append(ptc)
+
+    def _simul_charge(self) -> None:
+        if is_day(self.cur_tc.t):
             self.cur_power += self.unit.unit_cfg.CHARGE
             self.cur_power = min(self.cur_power, self.unit.unit_cfg.BATTERY_CAPACITY)
-
-    def _increase_time_count(self) -> None:
-        self.t += 1
 
     def get_final_tc(self) -> TimeCoordinate:
         self._init_start()

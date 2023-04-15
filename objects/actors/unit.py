@@ -66,10 +66,10 @@ class Unit(Actor):
                 if not self.private_action_plan:
                     self.remove_goal_and_private_action_plan()
 
+        self.action_queue = action_queue
         if self.private_action_plan and self.action_queue == self.private_action_plan.actions:
             self.private_action_plan.is_set = True
 
-        self.action_queue = action_queue
         self._set_unit_state_variables()
 
     def _set_unit_final_variables(self) -> None:
@@ -340,18 +340,19 @@ class Unit(Actor):
         self,
         game_state: GameState,
         receiving_unit: Unit,
+        receiving_action_plan: UnitActionPlan,
         receiving_c: Coordinate,
         constraints: Constraints,
         power_tracker: PowerTracker,
     ) -> SupplyPowerGoal:
-        supply_goals = self._get_supply_power_goal(receiving_unit, receiving_c)
-        goal = self.get_best_goal(supply_goals, game_state, constraints, power_tracker)
+        supply_goal = self._get_supply_power_goal(receiving_unit, receiving_action_plan, receiving_c)
+        goal = self.get_best_goal([supply_goal], game_state, constraints, power_tracker)
         return goal  # type: ignore
 
-    def _get_supply_power_goal(self, receiving_unit: Unit, receiving_c: Coordinate) -> list[SupplyPowerGoal]:
-        supply_goals = [SupplyPowerGoal(self, receiving_unit, receiving_c)]
-
-        return supply_goals
+    def _get_supply_power_goal(
+        self, receiving_unit: Unit, receiving_action_plan: UnitActionPlan, receiving_c: Coordinate
+    ) -> SupplyPowerGoal:
+        return SupplyPowerGoal(self, receiving_unit, receiving_action_plan, receiving_c)
 
     def _get_collect_ore_goals(self, c: Coordinate, factory: Factory, is_supplied: bool) -> list[CollectOreGoal]:
         ore_goals = [

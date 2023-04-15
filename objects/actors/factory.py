@@ -9,6 +9,7 @@ from collections import Counter
 from copy import copy
 from enum import Enum, auto
 import logging
+from objects.actions.unit_action_plan import UnitActionPlan
 
 from objects.cargo import Cargo
 from objects.actions.factory_action import WaterAction
@@ -77,6 +78,10 @@ class Factory(Actor):
         self._set_unit_state_variables()
 
     def remove_units_not_in_obs(self, obs_units: set[Unit]) -> None:
+        units_to_remove = self.units.difference(obs_units)
+        for unit in units_to_remove:
+            unit.remove_goal_and_private_action_plan()
+
         self.units.intersection_update(obs_units)
 
     def set_positions(self, board: Board) -> None:
@@ -628,6 +633,7 @@ class Factory(Actor):
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> List[UnitGoal]:
         supplying_unit, receiving_unit, receiving_c = self._assign_supplying_unit_and_receiving_unit(game_state)
+
         constraints = copy(constraints)
         constraints.remove_negative_constraints(receiving_unit.private_action_plan.time_coordinates)
         power_tracker = copy(power_tracker)
@@ -647,6 +653,7 @@ class Factory(Actor):
         goal_supplying_unit = self._schedule_supply_goal(
             game_state=game_state,
             supplying_unit=supplying_unit,
+            receiving_action_plan=goal_receiving_unit.action_plan,
             receiving_unit=receiving_unit,
             receiving_c=receiving_c,
             constraints=constraints,
@@ -661,7 +668,11 @@ class Factory(Actor):
             (supply_unit, goal)
             for supply_unit in self.light_available_units
             for receiving_unit in self.heavy_units_unsupplied_collecting_next_to_factory
-            for goal in supply_unit._get_supply_power_goal(receiving_unit, receiving_unit.goal.dig_c)  # type: ignore
+            for goal in [
+                supply_unit._get_supply_power_goal(
+                    receiving_unit, receiving_unit.private_action_plan, receiving_unit.goal.dig_c  # type: ignore
+                )
+            ]
         ]
 
         suppling_unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
@@ -705,13 +716,14 @@ class Factory(Actor):
         game_state: GameState,
         supplying_unit: Unit,
         receiving_unit: Unit,
+        receiving_action_plan: UnitActionPlan,
         receiving_c: Coordinate,
         constraints: Constraints,
         power_tracker: PowerTracker,
     ) -> SupplyPowerGoal:
 
         goal = supplying_unit.generate_supply_power_goal(
-            game_state, receiving_unit, receiving_c, constraints, power_tracker
+            game_state, receiving_unit, receiving_action_plan, receiving_c, constraints, power_tracker
         )
         return goal
 

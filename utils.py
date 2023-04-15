@@ -2,6 +2,7 @@ import heapq
 import itertools
 
 from typing import Any
+from lux.config import EnvConfig
 
 
 class PriorityQueue:
@@ -24,3 +25,7 @@ class PriorityQueue:
 
     def __len__(self) -> int:
         return len(self.elements)
+
+
+def is_day(t: int) -> bool:
+    return t % EnvConfig.CYCLE_LENGTH < EnvConfig.DAY_LENGTH
