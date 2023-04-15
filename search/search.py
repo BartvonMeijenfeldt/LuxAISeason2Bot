@@ -184,7 +184,8 @@ class PickupPowerGraph(Graph):
         if self.board.is_player_factory_tile(c=c):
             factory = self.board.get_closest_player_factory(c=c)
             power_available_in_factory = self.power_tracker.get_power_available(factory, c.t)
-            battery_space_left = self.unit_cfg.BATTERY_CAPACITY - c.p
+            # Charge removed just in case because I don't have the game_state and therefore is_day available here
+            battery_space_left = self.unit_cfg.BATTERY_CAPACITY - c.p - self.unit_cfg.CHARGE
             power_pickup_amount = min(battery_space_left, power_available_in_factory, 3000)
 
             if power_pickup_amount:
@@ -246,12 +247,17 @@ class PickupPowerGraph(Graph):
 class TranserResourceGraph(Graph):
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
     resource: Resource
+    q: int
 
     def potential_actions(self, c: ResourcePowerTimeCoordinate) -> Generator[UnitAction, None, None]:
         if self._can_transfer(c):
             receiving_tile = self._get_receiving_tile(c)
             dir = c.direction_to(receiving_tile)
-            transfer_action = TransferAction(direction=dir, amount=self.unit_cfg.CARGO_SPACE, resource=self.resource)
+            transfer_action = TransferAction(
+                direction=dir,
+                amount=self.q,
+                resource=self.resource,
+            )
             yield (transfer_action)
 
         for action in self._potential_move_actions:
@@ -271,7 +277,8 @@ class TranserResourceGraph(Graph):
 
         min_distance_cost = self._get_distance_heuristic(node=node)
         min_transfer_cost = self.time_to_power_cost
-        return min_distance_cost + min_transfer_cost
+        resource_cost = self.q if self.resource == Resource.POWER else 0
+        return min_distance_cost + min_transfer_cost + resource_cost
 
     @abstractmethod
     def _get_distance_heuristic(self, node: Coordinate) -> float:
@@ -282,17 +289,17 @@ class TranserResourceGraph(Graph):
 
 
 @dataclass
-class TransferToUnitResourceGraph(TranserResourceGraph):
-    unit_c: Coordinate
+class TransferPowerToUnitResourceGraph(TranserResourceGraph):
+    receiving_unit_c: Coordinate
 
     def _can_transfer(self, c: Coordinate) -> bool:
-        return c.distance_to(self.unit_c) == 1
+        return c.distance_to(self.receiving_unit_c) == 1
 
     def _get_receiving_tile(self, c: Coordinate) -> Coordinate:
-        return self.unit_c
+        return self.receiving_unit_c
 
     def _get_distance_heuristic(self, node: Coordinate) -> float:
-        distance_to_unit = node.distance_to(self.unit_c)
+        distance_to_unit = node.distance_to(self.receiving_unit_c)
         min_nr_steps_next_to_unit = max(distance_to_unit - 1, 0)
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
         min_distance_cost = min_nr_steps_next_to_unit * min_cost_per_step
@@ -411,7 +418,7 @@ class Search:
                 if next_node not in self.cost_so_far or new_cost < self.cost_so_far[next_node]:
                     self._add_node(node=next_node, action=action, current_node=current_node, node_cost=new_cost)
 
-        self.final_node = current_node
+        self.final_node = current_node  # type: ignore
 
     def _add_node(
         self, node: TimeCoordinate, action: UnitAction, current_node: TimeCoordinate, node_cost: float

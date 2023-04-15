@@ -1,19 +1,26 @@
+from __future__ import annotations
+
 import numpy as np
 
-from dataclasses import dataclass
-from typing import List, Dict
+from typing import Dict, Iterable
 
 from objects.actions.action_plan import PowerRequest
 from objects.actors.factory import Factory
 
 
-@dataclass
 class PowerTracker:
-    factories: List[Factory]
+    def __init__(self, factories: Iterable[Factory]) -> None:
 
-    def __post_init__(self) -> None:
+        self.factories = list(factories)
         self.t = self.factories[0].center_tc.t
         self.power_available = self._get_init_power_available()
+
+    def __copy__(self) -> PowerTracker:
+        new = PowerTracker(self.factories)
+        new.power_available = {
+            factory: power_available.copy() for factory, power_available in self.power_available.items()
+        }
+        return new
 
     def _get_init_power_available(self) -> Dict[Factory, np.ndarray]:
         start_size_power_available = 20
@@ -48,7 +55,7 @@ class PowerTracker:
         new_power_available = np.append(power_available, available_power_to_add)
         self.power_available[factory] = new_power_available
 
-    def update_power_available(self, power_requests: List[PowerRequest]) -> None:
+    def add_power_requests(self, power_requests: Iterable[PowerRequest]) -> None:
         for power_request in power_requests:
             array_index = self._get_array_index(power_request.t)
             factory = power_request.factory
@@ -56,6 +63,12 @@ class PowerTracker:
                 self._extend_size_power_available(factory, new_size=array_index + 1)
 
             self.power_available[factory][array_index:] -= power_request.p
+
+    def remove_power_requests(self, power_requests: Iterable[PowerRequest]) -> None:
+        for power_request in power_requests:
+            array_index = self._get_array_index(power_request.t)
+            factory = power_request.factory
+            self.power_available[factory][array_index:] += power_request.p
 
     def _get_array_index(self, t) -> int:
         return t - self.t

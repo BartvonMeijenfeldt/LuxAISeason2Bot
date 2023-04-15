@@ -73,7 +73,7 @@ class TestPowerAvailabilityTracker(unittest.TestCase):
         expected_available_power = init_power - 5 * DAILY_CHARGE + DAILY_CHARGE
 
         power_availability_tracker = FPAT(factories)
-        power_availability_tracker.update_power_available(power_requests)
+        power_availability_tracker.add_power_requests(power_requests)
         available_power = power_availability_tracker.get_power_available(factories[0], t=test_t)
 
         self.assertEqual(expected_available_power, available_power)
@@ -89,7 +89,7 @@ class TestPowerAvailabilityTracker(unittest.TestCase):
         expected_available_power = init_power - 5 * DAILY_CHARGE
 
         power_availability_tracker = FPAT(factories)
-        power_availability_tracker.update_power_available(power_requests)
+        power_availability_tracker.add_power_requests(power_requests)
         available_power = power_availability_tracker.get_power_available(factories[0], t=test_t)
 
         self.assertEqual(expected_available_power, available_power)
@@ -104,7 +104,7 @@ class TestPowerAvailabilityTracker(unittest.TestCase):
         test_t = t
         expected_available_power = DAILY_CHARGE
         power_availability_tracker = FPAT(factories)
-        power_availability_tracker.update_power_available(power_requests)
+        power_availability_tracker.add_power_requests(power_requests)
         available_power = power_availability_tracker.get_power_available(factories[0], t=test_t)
 
         self.assertEqual(expected_available_power, available_power)
@@ -120,7 +120,7 @@ class TestPowerAvailabilityTracker(unittest.TestCase):
         expected_available_power = 5 * DAILY_CHARGE
 
         power_availability_tracker = FPAT(factories)
-        power_availability_tracker.update_power_available(power_requests)
+        power_availability_tracker.add_power_requests(power_requests)
         available_power = power_availability_tracker.get_power_available(factories[0], t=test_t)
 
         self.assertEqual(expected_available_power, available_power)
@@ -140,7 +140,7 @@ class TestPowerAvailabilityTracker(unittest.TestCase):
         expected_available_power = init_power - (daily_power_taken - DAILY_CHARGE) * 5
 
         power_availability_tracker = FPAT(factories)
-        power_availability_tracker.update_power_available(power_requests)
+        power_availability_tracker.add_power_requests(power_requests)
         available_power = power_availability_tracker.get_power_available(factories[0], t=test_t)
 
         self.assertEqual(expected_available_power, available_power)
@@ -158,7 +158,7 @@ class TestPowerAvailabilityTracker(unittest.TestCase):
         expected_available_power = 0
 
         power_availability_tracker = FPAT(factories)
-        power_availability_tracker.update_power_available(power_requests)
+        power_availability_tracker.add_power_requests(power_requests)
         available_power = power_availability_tracker.get_power_available(factories[0], t=test_t)
 
         self.assertEqual(expected_available_power, available_power)
@@ -176,7 +176,7 @@ class TestPowerAvailabilityTracker(unittest.TestCase):
         expected_available_power = init_power - 2 * 8 * DAILY_CHARGE
 
         power_availability_tracker = FPAT(factories)
-        power_availability_tracker.update_power_available(power_requests)
+        power_availability_tracker.add_power_requests(power_requests)
         available_power = power_availability_tracker.get_power_available(factories[0], t=test_t)
 
         self.assertEqual(expected_available_power, available_power)
@@ -193,7 +193,7 @@ class TestPowerAvailabilityTracker(unittest.TestCase):
         expected_available_power = init_power - 2 * daily_power_taken + 2 * DAILY_CHARGE
 
         power_availability_tracker = FPAT(factories)
-        power_availability_tracker.update_power_available(power_requests)
+        power_availability_tracker.add_power_requests(power_requests)
         available_power = power_availability_tracker.get_power_available(factories[0], t=test_t)
 
         self.assertEqual(expected_available_power, available_power)
