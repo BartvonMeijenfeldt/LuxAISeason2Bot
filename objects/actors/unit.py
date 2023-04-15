@@ -59,12 +59,9 @@ class Unit(Actor):
         self.tc = tc
         self.power = power
         self.cargo = cargo
-        if self._last_action_was_carried_out(action_queue):
-            # For opponent units private_action_plan will be None
-            if self.private_action_plan:
-                self.private_action_plan.step()
-                if not self.private_action_plan:
-                    self.remove_goal_and_private_action_plan()
+        # For opponent units private_action_plan will be None
+        if self._last_action_was_carried_out(action_queue) and self.private_action_plan:
+            self.private_action_plan.step()
 
         self.action_queue = action_queue
         if self.private_action_plan and self.action_queue == self.private_action_plan.actions:

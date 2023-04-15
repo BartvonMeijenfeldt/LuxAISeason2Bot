@@ -53,7 +53,7 @@ class UnitGoal(Goal):
     _is_valid: Optional[bool] = field(init=False, default=None)
 
     @abstractmethod
-    def is_completed(self, game_state: GameState) -> bool:
+    def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         ...
 
     @abstractmethod
@@ -398,8 +398,11 @@ class CollectGoal(DigGoal):
     # quantity: Optional[int] = None
     resource: Resource = field(init=False)
 
-    def is_completed(self, game_state: GameState) -> bool:
-        return False
+    def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
+        if action_plan:
+            return False
+
+        return True
 
     def generate_action_plan(
         self,
@@ -571,9 +574,9 @@ class SupplyPowerGoal(UnitGoal):
     def key(self) -> str:
         return str(self)
 
-    def is_completed(self, game_state: GameState) -> bool:
-        # TODO
-        return False
+    def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
+        receiving_unit = self.receiving_unit
+        return receiving_unit.goal.is_completed(game_state, receiving_unit.private_action_plan)  # type: ignore
 
     def generate_action_plan(
         self,
@@ -710,7 +713,7 @@ class TransferResourceGoal(UnitGoal):
     factory: Optional[Factory] = field(default=None)
     resource: Resource = field(init=False)
 
-    def is_completed(self, game_state: GameState) -> bool:
+    def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return self.unit.get_quantity_resource_in_cargo(self.resource) == 0
 
     def generate_action_plan(
@@ -875,7 +878,10 @@ class ClearRubbleGoal(DigGoal):
     def __repr__(self) -> str:
         return f"clear_rubble_[{self.dig_c}]"
 
-    def is_completed(self, game_state: GameState) -> bool:
+    def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
+        if not action_plan:
+            return True
+
         return not game_state.is_rubble_tile(self.dig_c)
 
     @property
@@ -990,7 +996,7 @@ class DestroyLichenGoal(DigGoal):
     def __repr__(self) -> str:
         return f"destroy_lichen[{self.dig_c}]"
 
-    def is_completed(self, game_state: GameState) -> bool:
+    def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return not game_state.is_opponent_lichen_tile(self.dig_c)
 
     @property
@@ -1119,7 +1125,7 @@ class FleeGoal(UnitGoal):
     opp_c: TimeCoordinate
     _is_valid = True
 
-    def is_completed(self, game_state: GameState) -> bool:
+    def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return not self.unit.is_under_threath(game_state)
 
     def generate_action_plan(
@@ -1196,7 +1202,7 @@ class UnitNoGoal(UnitGoal):
     # TODO, what should be the value of losing a unit?
     PENALTY_VIOLATING_CONSTRAINT = -10_000
 
-    def is_completed(self, game_state: GameState) -> bool:
+    def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return True
 
     def generate_action_plan(
@@ -1239,7 +1245,7 @@ class EvadeConstraintsGoal(UnitGoal):
     _value = None
     _is_valid = True
 
-    def is_completed(self, game_state: GameState) -> bool:
+    def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return True
 
     def generate_action_plan(

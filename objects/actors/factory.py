@@ -304,13 +304,14 @@ class Factory(Actor):
 
     def get_goal(self, game_state: GameState, can_build: bool = True) -> FactoryGoal:
         water_cost = self.water_cost
+        safety_level = 50 if game_state.real_env_steps < 70 else 70
         if can_build and self.can_build_heavy:
             return BuildHeavyGoal(self)
 
         elif can_build and self.can_build_light and self.nr_light_units < 15:
             return BuildLightGoal(self)
 
-        elif self.cargo.water - water_cost > 50 and (water_cost < 5 or self.water > 150):
+        elif self.cargo.water - water_cost > safety_level and (water_cost < 5 or self.water > 150):
             return WaterGoal(self)
 
         elif game_state.env_steps > 750 and self.can_water() and self.cargo.water - water_cost > game_state.steps_left:
