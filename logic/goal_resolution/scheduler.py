@@ -285,7 +285,7 @@ class Scheduler:
 
     def _schedule_unassigned_units_goals(self, game_state: GameState) -> None:
         for factory in game_state.player_factories:
-            for unit in factory.unassigned_units:
+            for unit in factory.unscheduled_units:
                 if self._is_out_of_time():
                     return
 

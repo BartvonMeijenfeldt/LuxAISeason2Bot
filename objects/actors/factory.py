@@ -501,9 +501,9 @@ class Factory(Actor):
         return (unit for unit in self.available_units if unit.is_light)
 
     @property
-    def unassigned_units(self) -> Generator[Unit, None, None]:
+    def unscheduled_units(self) -> Generator[Unit, None, None]:
         # TODO some checks to see if there is enough power or some other mechanic to set units as unavailable
-        return (unit for unit in self.units if not unit.private_action_plan)
+        return (unit for unit in self.units if not unit.is_scheduled)
 
     @property
     def has_unassigned_units(self) -> bool:
