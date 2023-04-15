@@ -22,10 +22,10 @@ class Goal(metaclass=ABCMeta):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerTracker,
+        power_tracker: PowerTracker,
     ) -> ActionPlan:
         try:
-            self.action_plan = self.generate_action_plan(game_state, constraints, factory_power_availability_tracker)
+            self.action_plan = self.generate_action_plan(game_state, constraints, power_tracker)
         except Exception:
             self._is_valid = False
 
@@ -41,7 +41,7 @@ class Goal(metaclass=ABCMeta):
         self,
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerTracker,
+        power_tracker: PowerTracker,
     ) -> ActionPlan:
         ...
 
@@ -86,25 +86,25 @@ class Goal(metaclass=ABCMeta):
         self._is_valid = not constraints.any_tc_violates_constraint(self.action_plan.time_coordinates)
 
 
-class GoalCollection:
-    def __init__(self, goals: Sequence[Goal]) -> None:
-        self.goals_dict: dict[str, list[Goal]] = defaultdict(list)
+# class GoalCollection:
+#     def __init__(self, goals: Sequence[Goal]) -> None:
+#         self.goals_dict: dict[str, list[Goal]] = defaultdict(list)
 
-        for goal in goals:
-            self.goals_dict[goal.key].append(goal)
+#         for goal in goals:
+#             self.goals_dict[goal.key].append(goal)
 
-    def __iter__(self):
-        return iter(self.goals_dict.values())
+#     def __iter__(self):
+#         return iter(self.goals_dict.values())
 
-    def get_goals(self, key: str) -> list[Goal]:
-        return self.goals_dict[key]
+#     def get_goals(self, key: str) -> list[Goal]:
+#         return self.goals_dict[key]
 
-    def get_key_best_values(self, game_state: GameState) -> dict[str, float]:
-        key_best_values = defaultdict(lambda: -np.inf)
-        for key, goals in self.goals_dict.items():
-            for goal in goals:
-                best_value = goal.get_best_value_per_step(game_state)
-                if key_best_values[key] < best_value:
-                    key_best_values[key] = best_value
+#     def get_key_best_values(self, game_state: GameState) -> dict[str, float]:
+#         key_best_values = defaultdict(lambda: -np.inf)
+#         for key, goals in self.goals_dict.items():
+#             for goal in goals:
+#                 best_value = goal.get_best_value_per_step(game_state)
+#                 if key_best_values[key] < best_value:
+#                     key_best_values[key] = best_value
 
-        return key_best_values
+#         return key_best_values

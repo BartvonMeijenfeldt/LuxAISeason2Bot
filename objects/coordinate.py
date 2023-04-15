@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from objects.resource import Resource
 from objects.direction import Direction
 from objects.actions.unit_action import UnitAction, DigAction, PickupAction, TransferAction
+from utils import is_day
 
 if TYPE_CHECKING:
     from lux.config import UnitConfig
@@ -215,8 +216,9 @@ class PowerTimeCoordinate(TimeCoordinate):
             p = self.p + action.get_power_change(self.unit_cfg, self, self.game_state.board)
         except IndexError:
             return -1
-        # consider adding raising error if it's negative here
-        if self.game_state.is_day(self.t):
+        # TODO consider adding raising error if it's negative here
+        # Off by one?
+        if is_day(self.t):
             p += self.unit_cfg.CHARGE
 
         return p

@@ -29,6 +29,7 @@ from logic.goals.unit_goal import (
     TransferIceGoal,
     TransferOreGoal,
     EvadeConstraintsGoal,
+    SupplyPowerGoal,
 )
 from config import CONFIG
 from exceptions import NoValidGoalFound
@@ -44,9 +45,9 @@ class Unit(Actor):
     unit_cfg: UnitConfig
     action_queue: List[UnitAction] = field(init=False, default_factory=list)
     goal: Optional[UnitGoal] = field(init=False, default=None)
-    # TODO remove the None part, always empty action plan at least
+    can_be_assigned: bool = field(init=False, default=True)
+    is_supplied_by: Optional[Unit] = field(init=False, default=None)
     private_action_plan: UnitActionPlan = field(init=False)
-    can_be_assigned: bool = field(init=False)
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -58,17 +59,14 @@ class Unit(Actor):
         self.tc = tc
         self.power = power
         self.cargo = cargo
-        if self._last_action_was_carried_out(action_queue):
-            # For opponent units private_action_plan will be None
-            if self.private_action_plan:
-                self.private_action_plan.step()
-                if not self.private_action_plan:
-                    self.remove_goal_and_private_action_plan()
+        # For opponent units private_action_plan will be None
+        if self._last_action_was_carried_out(action_queue) and self.private_action_plan:
+            self.private_action_plan.step()
 
+        self.action_queue = action_queue
         if self.private_action_plan and self.action_queue == self.private_action_plan.actions:
             self.private_action_plan.is_set = True
 
-        self.action_queue = action_queue
         self._set_unit_state_variables()
 
     def _set_unit_final_variables(self) -> None:
@@ -83,20 +81,21 @@ class Unit(Actor):
         self.dig_time_and_power_cost = self.dig_power_cost + self.time_to_power_cost
         self.action_queue_cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
         self.battery_capacity = self.unit_cfg.BATTERY_CAPACITY
-        self.power_space_left = self.battery_capacity - self.power
-        self.cargo_space_left = self.unit_cfg.CARGO_SPACE - self.cargo.total
         self.rubble_removed_per_dig = self.unit_cfg.DIG_RUBBLE_REMOVED
         self.resources_gained_per_dig = self.unit_cfg.DIG_RESOURCE_GAIN
         self.lichen_removed_per_dig = self.unit_cfg.DIG_LICHEN_REMOVED
         self.update_action_queue_power_cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
 
     def _set_unit_state_variables(self) -> None:
+        self.is_scheduled = False
         self.x = self.tc.x
         self.y = self.tc.y
+        self.power_space_left = self.battery_capacity - self.power
+        self.cargo_space_left = self.unit_cfg.CARGO_SPACE - self.cargo.total
         self.can_update_action_queue = self.power >= self.update_action_queue_power_cost
         self.can_update_action_queue_and_move = self.power >= self.update_action_queue_power_cost + self.move_power_cost
         self.has_actions_in_queue = len(self.action_queue) > 0
-        self.can_be_assigned = not self.has_actions_in_queue and self.can_update_action_queue
+        self.can_be_assigned = not self.goal and self.can_update_action_queue
         self.agent_id = f"player_{self.team_id}"
 
     def _last_action_was_carried_out(self, action_queue: list[UnitAction]) -> bool:
@@ -232,7 +231,7 @@ class Unit(Actor):
         goals: Iterable[UnitGoal],
         game_state: GameState,
         constraints: Constraints,
-        factory_power_availability_tracker: PowerTracker,
+        power_tracker: PowerTracker,
     ) -> UnitGoal:
         goals = list(goals)
         # goals = self.generate_goals(game_state)
@@ -246,9 +245,7 @@ class Unit(Actor):
             goal: UnitGoal = priority_queue.pop()
 
             try:
-                goal.generate_and_evaluate_action_plan(
-                    game_state, constraints_with_danger, factory_power_availability_tracker
-                )
+                goal.generate_and_evaluate_action_plan(game_state, constraints_with_danger, power_tracker)
             except Exception:
                 continue
 
@@ -327,17 +324,36 @@ class Unit(Actor):
         self,
         game_state: GameState,
         c: Coordinate,
+        is_supplied: bool,
         constraints: Constraints,
         power_tracker: PowerTracker,
         factory: Factory,
     ) -> CollectOreGoal:
-        ore_goals = self._get_clear_ore_goals(c, factory)
+        ore_goals = self._get_collect_ore_goals(c, factory, is_supplied)
         goal = self.get_best_goal(ore_goals, game_state, constraints, power_tracker)
         return goal  # type: ignore
 
-    def _get_clear_ore_goals(self, c: Coordinate, factory: Factory) -> list[CollectOreGoal]:
+    def generate_supply_power_goal(
+        self,
+        game_state: GameState,
+        receiving_unit: Unit,
+        receiving_action_plan: UnitActionPlan,
+        receiving_c: Coordinate,
+        constraints: Constraints,
+        power_tracker: PowerTracker,
+    ) -> SupplyPowerGoal:
+        supply_goal = self._get_supply_power_goal(receiving_unit, receiving_action_plan, receiving_c)
+        goal = self.get_best_goal([supply_goal], game_state, constraints, power_tracker)
+        return goal  # type: ignore
+
+    def _get_supply_power_goal(
+        self, receiving_unit: Unit, receiving_action_plan: UnitActionPlan, receiving_c: Coordinate
+    ) -> SupplyPowerGoal:
+        return SupplyPowerGoal(self, receiving_unit, receiving_action_plan, receiving_c)
+
+    def _get_collect_ore_goals(self, c: Coordinate, factory: Factory, is_supplied: bool) -> list[CollectOreGoal]:
         ore_goals = [
-            CollectOreGoal(unit=self, pickup_power=pickup_power, dig_c=c, factory=factory)
+            CollectOreGoal(unit=self, pickup_power=pickup_power, dig_c=c, factory=factory, is_supplied=is_supplied)
             for pickup_power in [False, True]
         ]
 
@@ -347,17 +363,18 @@ class Unit(Actor):
         self,
         game_state: GameState,
         c: Coordinate,
+        is_supplied: bool,
         constraints: Constraints,
         power_tracker: PowerTracker,
         factory: Factory,
     ) -> CollectIceGoal:
-        ice_goals = self._get_collect_ice_goals(c, factory)
+        ice_goals = self._get_collect_ice_goals(c, factory, is_supplied)
         goal = self.get_best_goal(ice_goals, game_state, constraints, power_tracker)
         return goal  # type: ignore
 
-    def _get_collect_ice_goals(self, c: Coordinate, factory: Factory) -> list[CollectIceGoal]:
+    def _get_collect_ice_goals(self, c: Coordinate, factory: Factory, is_supplied: bool) -> list[CollectIceGoal]:
         ice_goals = [
-            CollectIceGoal(unit=self, pickup_power=pickup_power, dig_c=c, factory=factory)
+            CollectIceGoal(unit=self, pickup_power=pickup_power, dig_c=c, factory=factory, is_supplied=is_supplied)
             for pickup_power in [False, True]
         ]
 
@@ -368,10 +385,7 @@ class Unit(Actor):
 
         ice_goals = [
             CollectIceGoal(
-                unit=self,
-                pickup_power=pickup_power,
-                dig_c=Coordinate(*ice_pos),
-                factory=factory,
+                unit=self, pickup_power=pickup_power, dig_c=Coordinate(*ice_pos), factory=factory, is_supplied=False
             )
             for ice_pos in ice_positions
             for pickup_power in [False, True]
@@ -383,7 +397,9 @@ class Unit(Actor):
         ore_positions = game_state.board.ore_positions_set - game_state.positions_in_dig_goals
 
         ore_goals = [
-            CollectOreGoal(unit=self, pickup_power=pickup_power, dig_c=Coordinate(*ore_pos), factory=factory)
+            CollectOreGoal(
+                unit=self, pickup_power=pickup_power, dig_c=Coordinate(*ore_pos), factory=factory, is_supplied=False
+            )
             for ore_pos in ore_positions
             for pickup_power in [False, True]
         ]
@@ -443,7 +459,7 @@ class Unit(Actor):
         if not self.private_action_plan:
             return False
 
-        return self.private_action_plan.actions[0].is_stationary
+        return self.private_action_plan.is_first_action_stationary
 
     def is_on_factory(self, game_state: GameState) -> bool:
         return game_state.is_player_factory_tile(self.tc)
@@ -494,7 +510,14 @@ class Unit(Actor):
         self.private_action_plan = action_plan
 
     def remove_goal_and_private_action_plan(self) -> None:
+        if self.is_supplied_by:
+            self.is_supplied_by.remove_goal_and_private_action_plan()
+
+        if isinstance(self.goal, SupplyPowerGoal):
+            self.goal.receiving_unit.is_supplied_by = None
+
         self.goal = None
+        self.is_scheduled = False
         self.private_action_plan = UnitActionPlan(self, [])
         self.can_be_assigned = True
 
