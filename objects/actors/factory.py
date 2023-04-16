@@ -19,7 +19,14 @@ from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
 from logic.constraints import Constraints
 from logic.goals.unit_goal import DigGoal, CollectGoal
 from objects.actions.factory_action_plan import FactoryActionPlan
-from logic.goals.unit_goal import UnitGoal, ClearRubbleGoal, CollectOreGoal, CollectIceGoal, SupplyPowerGoal
+from logic.goals.unit_goal import (
+    UnitGoal,
+    ClearRubbleGoal,
+    CollectOreGoal,
+    CollectIceGoal,
+    SupplyPowerGoal,
+    DestroyLichenGoal,
+)
 from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal, FactoryGoal
 from distances import (
     get_min_distance_between_positions,
@@ -45,6 +52,7 @@ class Strategy(Enum):
     INCREASE_LICHEN = auto()
     COLLECT_ICE = auto()
     INCREASE_UNITS = auto()
+    ATTACK_OPPONENT = auto()
 
 
 @dataclass(eq=False)
@@ -336,6 +344,14 @@ class Factory(Actor):
         return sum(1 for _ in self.heavy_units)
 
     @property
+    def nr_scheduled_units(self) -> int:
+        return sum(1 for _ in self.scheduled_units)
+
+    @property
+    def nr_attack_scheduled_units(self) -> int:
+        return sum(1 for _ in self.attack_scheduled_units)
+
+    @property
     def daily_charge(self) -> int:
         return self.env_cfg.FACTORY_CHARGE
 
@@ -501,8 +517,15 @@ class Factory(Actor):
         return (unit for unit in self.available_units if unit.is_light)
 
     @property
+    def attack_scheduled_units(self) -> Generator[Unit, None, None]:
+        return (unit for unit in self.scheduled_units if isinstance(unit.goal, DestroyLichenGoal))
+
+    @property
+    def scheduled_units(self) -> Generator[Unit, None, None]:
+        return (unit for unit in self.units if unit.is_scheduled)
+
+    @property
     def unscheduled_units(self) -> Generator[Unit, None, None]:
-        # TODO some checks to see if there is enough power or some other mechanic to set units as unavailable
         return (unit for unit in self.units if not unit.is_scheduled)
 
     @property
@@ -542,6 +565,8 @@ class Factory(Actor):
             goal = self.schedule_strategy_increase_units(game_state, constraints, power_tracker)
         elif strategy == Strategy.COLLECT_ICE:
             goal = self.schedule_strategy_collect_ice(game_state, constraints, power_tracker)
+        elif strategy == Strategy.ATTACK_OPPONENT:
+            goal = self.schedule_strategy_attack_opponent(game_state, constraints, power_tracker)
         else:
             raise ValueError("Strategy is not a known strategy")
 
@@ -785,7 +810,7 @@ class Factory(Actor):
             (unit, goal)
             for unit in units
             for pos in ore_positions
-            for goal in unit._get_collect_ore_goals(Coordinate(*pos), factory=self, is_supplied=False)
+            for goal in unit._get_collect_ore_goals(Coordinate(*pos), game_state, factory=self, is_supplied=False)
         ]
 
         unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
@@ -859,7 +884,7 @@ class Factory(Actor):
             (unit, goal)
             for unit in units
             for pos in ice_positions
-            for goal in unit._get_collect_ice_goals(Coordinate(*pos), factory=self, is_supplied=False)
+            for goal in unit._get_collect_ice_goals(Coordinate(*pos), game_state, factory=self, is_supplied=False)
         ]
 
         unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
@@ -873,6 +898,39 @@ class Factory(Actor):
             constraints=constraints,
             power_tracker=power_tracker,
             factory=self,
+        )
+        return goal
+
+    def schedule_strategy_attack_opponent(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> DestroyLichenGoal:
+        return self._schedule_unit_destroy_lichen(game_state, constraints, power_tracker)
+
+    def _schedule_unit_destroy_lichen(
+        self, game_state: GameState, constraints: Constraints, power_tracker
+    ) -> DestroyLichenGoal:
+        dig_pos_set = {c.xy for c in game_state.opp_lichen_tiles}
+        valid_pos = dig_pos_set - game_state.positions_in_dig_goals
+
+        potential_assignments = [
+            (unit, goal)
+            for pos in valid_pos
+            for unit in self.available_units
+            for goal in unit._get_destroy_lichen_goals(Coordinate(*pos), game_state)
+        ]
+
+        if not potential_assignments:
+            raise NoValidGoalFound
+
+        unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
+        constraints, power_tracker = self._get_constraints_and_power_without_units_on_dig_c(
+            goal.dig_c, game_state, constraints, power_tracker
+        )
+        goal = unit.generate_destroy_lichen_goal(
+            game_state=game_state,
+            c=goal.dig_c,
+            constraints=constraints,
+            power_tracker=power_tracker,
         )
         return goal
 

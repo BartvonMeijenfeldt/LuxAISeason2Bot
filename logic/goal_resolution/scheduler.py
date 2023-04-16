@@ -18,7 +18,7 @@ from logic.goals.unit_goal import UnitGoal, DigGoal, SupplyPowerGoal
 from lux.config import EnvConfig
 
 
-class FactoryValues(metaclass=ABCMeta):
+class FactoryValue(metaclass=ABCMeta):
     threshold: float
     upper_threshold: bool
     strategy: Strategy
@@ -40,7 +40,7 @@ class FactoryValues(metaclass=ABCMeta):
         return 0
 
 
-class TooMuchWaterValue(FactoryValues):
+class TooMuchWaterValue(FactoryValue):
     threshold = 3
     upper_threshold = True
     strategy = Strategy.INCREASE_LICHEN_TILES
@@ -52,7 +52,7 @@ class TooMuchWaterValue(FactoryValues):
         return factory.water / max(30, factory.nr_lichen_tiles)
 
 
-class TooLittleIceCollectionValue(FactoryValues):
+class TooLittleIceCollectionValue(FactoryValue):
     threshold = 1.3
     upper_threshold = False
     strategy = Strategy.COLLECT_ICE
@@ -73,7 +73,7 @@ class TooLittleIceCollectionValue(FactoryValues):
         return (water_available + self.nr_steps * water_collection_per_step) / (self.nr_steps * water_cost_per_step)
 
 
-class PowerUnitValue(FactoryValues):
+class PowerUnitValue(FactoryValue):
     nr_steps = 50
     threshold = 1.2
 
@@ -128,11 +128,26 @@ class LowerPowerUnitValue(PowerUnitValue):
     strategy = Strategy.INCREASE_LICHEN
 
 
+class AttackOpponentValue(FactoryValue):
+    threshold = 0.8
+    upper_threshold = True
+    strategy = Strategy.ATTACK_OPPONENT
+
+    def compute_value(self, factory: Factory, game_state: GameState) -> float:
+        if not factory.nr_scheduled_units:
+            return 0.85
+
+        ratio_attacking = factory.nr_attack_scheduled_units / factory.nr_scheduled_units
+
+        return 1 - ratio_attacking
+
+
 VALUES = [
     TooMuchWaterValue(),
     TooLittleIceCollectionValue(),
     UpperPowerUnitValue(),
     LowerPowerUnitValue(),
+    AttackOpponentValue(),
 ]
 
 

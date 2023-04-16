@@ -329,7 +329,7 @@ class Unit(Actor):
         power_tracker: PowerTracker,
         factory: Factory,
     ) -> CollectOreGoal:
-        ore_goals = self._get_collect_ore_goals(c, factory, is_supplied)
+        ore_goals = self._get_collect_ore_goals(c, game_state, factory, is_supplied)
         goal = self.get_best_goal(ore_goals, game_state, constraints, power_tracker)
         return goal  # type: ignore
 
@@ -351,10 +351,13 @@ class Unit(Actor):
     ) -> SupplyPowerGoal:
         return SupplyPowerGoal(self, receiving_unit, receiving_action_plan, receiving_c)
 
-    def _get_collect_ore_goals(self, c: Coordinate, factory: Factory, is_supplied: bool) -> list[CollectOreGoal]:
+    def _get_collect_ore_goals(
+        self, c: Coordinate, game_state: GameState, factory: Factory, is_supplied: bool
+    ) -> list[CollectOreGoal]:
         ore_goals = [
             CollectOreGoal(unit=self, pickup_power=pickup_power, dig_c=c, factory=factory, is_supplied=is_supplied)
             for pickup_power in [False, True]
+            if self._is_feasible_dig_c(c, game_state)
         ]
 
         return ore_goals
@@ -368,14 +371,25 @@ class Unit(Actor):
         power_tracker: PowerTracker,
         factory: Factory,
     ) -> CollectIceGoal:
-        ice_goals = self._get_collect_ice_goals(c, factory, is_supplied)
+        ice_goals = self._get_collect_ice_goals(c, game_state, factory, is_supplied)
         goal = self.get_best_goal(ice_goals, game_state, constraints, power_tracker)
         return goal  # type: ignore
 
-    def _get_collect_ice_goals(self, c: Coordinate, factory: Factory, is_supplied: bool) -> list[CollectIceGoal]:
+    def generate_destroy_lichen_goal(
+        self, game_state: GameState, c: Coordinate, constraints: Constraints, power_tracker: PowerTracker
+    ) -> DestroyLichenGoal:
+
+        ice_goals = self._get_destroy_lichen_goals(c, game_state)
+        goal = self.get_best_goal(ice_goals, game_state, constraints, power_tracker)
+        return goal  # type: ignore
+
+    def _get_collect_ice_goals(
+        self, c: Coordinate, game_state: GameState, factory: Factory, is_supplied: bool
+    ) -> list[CollectIceGoal]:
         ice_goals = [
             CollectIceGoal(unit=self, pickup_power=pickup_power, dig_c=c, factory=factory, is_supplied=is_supplied)
             for pickup_power in [False, True]
+            if self._is_feasible_dig_c(c, game_state)
         ]
 
         return ice_goals
@@ -414,6 +428,16 @@ class Unit(Actor):
             for pickup_power in [False, True]
         ]
         self.goals.extend(destroy_lichen_goals)
+
+    def _get_destroy_lichen_goals(self, c: Coordinate, game_state: GameState) -> List[DestroyLichenGoal]:
+        return [
+            DestroyLichenGoal(self, pickup_power, c)
+            for pickup_power in [False, True]
+            if self._is_feasible_dig_c(c, game_state)
+        ]
+
+    def _is_feasible_dig_c(self, c: Coordinate, game_state: GameState) -> bool:
+        return not (self.is_light and game_state.get_dis_to_closest_opp_heavy(c) <= 1)
 
     def _add_dummy_goals(self) -> None:
         dummy_goals = [UnitNoGoal(self), EvadeConstraintsGoal(self)]

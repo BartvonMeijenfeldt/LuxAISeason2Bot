@@ -101,6 +101,10 @@ class GameState:
     def player_factory_tiles(self) -> CoordinateList:
         return self.board.player_factory_tiles
 
+    @property
+    def opp_lichen_tiles(self) -> CoordinateList:
+        return self.board.opp_lichen_tiles
+
     def is_player_factory_tile(self, c: Coordinate) -> bool:
         return self.board.is_player_factory_tile(c)
 
