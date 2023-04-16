@@ -1218,7 +1218,6 @@ class FleeGoal(UnitGoal):
 
 
 class UnitNoGoal(UnitGoal):
-    _value = None
     # TODO, what should be the value of losing a unit?
     PENALTY_VIOLATING_CONSTRAINT = -10_000
 
@@ -1262,8 +1261,6 @@ class UnitNoGoal(UnitGoal):
 
 
 class EvadeConstraintsGoal(UnitGoal):
-    _value = None
-
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return True
 

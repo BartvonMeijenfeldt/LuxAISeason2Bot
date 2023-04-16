@@ -99,8 +99,6 @@ class WaterGoal(FactoryGoal):
 
 
 class FactoryNoGoal(FactoryGoal):
-    _value = None
-
     def generate_action_plan(
         self,
         game_state: GameState,
