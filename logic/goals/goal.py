@@ -1,14 +1,13 @@
 from __future__ import annotations
-import numpy as np
 
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 
-from collections import defaultdict
 from objects.actions.action_plan import ActionPlan
 from objects.actions.unit_action_plan import UnitActionPlan
 from logic.constraints import Constraints
+from exceptions import InvalidGoalError
 
 
 if TYPE_CHECKING:
@@ -24,16 +23,12 @@ class Goal(metaclass=ABCMeta):
         constraints: Constraints,
         power_tracker: PowerTracker,
     ) -> ActionPlan:
-        try:
-            self.action_plan = self.generate_action_plan(game_state, constraints, power_tracker)
-        except Exception:
-            self._is_valid = False
+        self.action_plan = self.generate_action_plan(game_state, constraints, power_tracker)
 
         if isinstance(self.action_plan, UnitActionPlan) and not self.action_plan.is_valid_size:
-            self._is_valid = False
+            raise InvalidGoalError
 
-        if self.is_valid:
-            self._value = self.get_value_per_step_of_action_plan(action_plan=self.action_plan, game_state=game_state)
+        self._value = self.get_value_per_step_of_action_plan(action_plan=self.action_plan, game_state=game_state)
         return self.action_plan
 
     @abstractmethod
@@ -66,11 +61,6 @@ class Goal(metaclass=ABCMeta):
     def key(self) -> str:
         ...
 
-    @property
-    @abstractmethod
-    def is_valid(self) -> bool:
-        ...
-
     @abstractmethod
     def get_best_value_per_step(self, game_state: GameState) -> float:
         ...
@@ -81,9 +71,6 @@ class Goal(metaclass=ABCMeta):
             raise ValueError("Value is not supposed to be None here")
 
         return self._value
-
-    def set_validity_plan(self, constraints: Constraints) -> None:
-        self._is_valid = not constraints.any_tc_violates_constraint(self.action_plan.time_coordinates)
 
 
 # class GoalCollection:

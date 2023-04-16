@@ -1,4 +1,9 @@
-class NoValidGoalFound(Exception):
+class InvalidGoalError(Exception):
+    def __str__(self) -> str:
+        return "Invalid Goal"
+
+
+class NoValidGoalFoundError(Exception):
     def __str__(self) -> str:
         return "No valid goal found"
 

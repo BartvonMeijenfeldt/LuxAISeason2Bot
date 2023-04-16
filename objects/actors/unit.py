@@ -32,7 +32,7 @@ from logic.goals.unit_goal import (
     SupplyPowerGoal,
 )
 from config import CONFIG
-from exceptions import NoValidGoalFound
+from exceptions import NoValidGoalFoundError
 
 if TYPE_CHECKING:
     from objects.actors.factory import Factory
@@ -249,16 +249,13 @@ class Unit(Actor):
             except Exception:
                 continue
 
-            if not goal.is_valid:
-                continue
-
             priority = -1 * goal.value
             priority_queue.put(goal, priority)
 
             if goal == priority_queue[0]:
                 return goal
 
-        raise NoValidGoalFound
+        raise NoValidGoalFoundError
 
     def _init_priority_queue(self, goals: list[UnitGoal], game_state: GameState) -> PriorityQueue:
         goals_priority_queue = PriorityQueue()

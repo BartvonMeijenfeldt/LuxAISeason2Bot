@@ -14,7 +14,7 @@ from objects.actions.unit_action_plan import UnitActionPlan
 from objects.cargo import Cargo
 from objects.actions.factory_action import WaterAction
 from objects.actors.actor import Actor
-from exceptions import NoValidGoalFound
+from exceptions import NoValidGoalFoundError
 from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
 from logic.constraints import Constraints
 from logic.goals.unit_goal import DigGoal, CollectGoal
@@ -542,13 +542,13 @@ class Factory(Actor):
         if self.has_heavy_unsupplied_collecting_next_to_factory and self.has_light_unit_available:
             try:
                 return self._schedule_supply_goal_and_reschedule_receiving_unit(game_state, constraints, power_tracker)
-            except NoValidGoalFound:
+            except NoValidGoalFoundError:
                 pass
 
         for strategy in strategies:
             try:
                 return [self._schedule_unit_on_strategy(strategy, game_state, constraints, power_tracker)]
-            except NoValidGoalFound:
+            except NoValidGoalFoundError:
                 continue
 
         return [self._schedule_first_unit_by_own_preference(game_state, constraints, power_tracker)]
@@ -600,7 +600,7 @@ class Factory(Actor):
     ) -> UnitGoal:
         rubble_positions = self._get_suitable_dig_positions_for_lichen(game_state)
         if not rubble_positions:
-            raise NoValidGoalFound
+            raise NoValidGoalFoundError
 
         return self._schedule_unit_on_rubble_pos(
             rubble_positions, self.available_units, game_state, constraints, power_tracker
@@ -779,7 +779,7 @@ class Factory(Actor):
         except Exception:
             rubble_positions = self.get_rubble_positions_to_clear_for_ore(game_state)
             if not rubble_positions:
-                raise NoValidGoalFound
+                raise NoValidGoalFoundError
 
             return self._schedule_unit_on_rubble_pos(
                 rubble_positions,
@@ -853,7 +853,7 @@ class Factory(Actor):
         except Exception:
             rubble_positions = self.get_rubble_positions_to_clear_for_ice(game_state)
             if not rubble_positions:
-                raise NoValidGoalFound
+                raise NoValidGoalFoundError
 
             return self._schedule_unit_on_rubble_pos(
                 rubble_positions,
@@ -920,7 +920,7 @@ class Factory(Actor):
         ]
 
         if not potential_assignments:
-            raise NoValidGoalFound
+            raise NoValidGoalFoundError
 
         unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
         constraints, power_tracker = self._get_constraints_and_power_without_units_on_dig_c(

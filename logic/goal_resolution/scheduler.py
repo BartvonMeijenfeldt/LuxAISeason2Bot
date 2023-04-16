@@ -251,11 +251,13 @@ class Scheduler:
     def _reschedule_goals_with_no_private_action_plan(self, game_state: GameState):
         for unit in game_state.player_units:
             if unit.goal and not unit.private_action_plan:
-                unit.goal.generate_and_evaluate_action_plan(game_state, self.constraints, self.power_tracker)
-                if unit.goal.is_valid:
-                    self._schedule_unit_on_goal(unit.goal, game_state)
-                else:
+                try:
+                    unit.goal.generate_and_evaluate_action_plan(game_state, self.constraints, self.power_tracker)
+                except Exception:
                     unit.remove_goal_and_private_action_plan()
+                    continue
+
+                self._schedule_unit_on_goal(unit.goal, game_state)
 
     def _schedule_new_goals(self, game_state: GameState) -> None:
         self._schedule_factory_goals(game_state)
