@@ -692,10 +692,11 @@ class SupplyPowerGoal(UnitGoal):
         power_transfer = self._remove_surplus_power(receiving_unit_power, power_transfer)
         power_transfer = self._remove_safety_reduction(power_transfer, game_state)
         power_transfer = self._remove_min_power_income_for_other_units_factory(power_transfer, game_state)
+        power_transfer = max(0, power_transfer)
         return power_transfer
 
     def _remove_surplus_power(self, receiving_unit_power, power_transfer: int) -> int:
-        surplus_power = max(0, receiving_unit_power - self.receiving_unit.battery_capacity)
+        surplus_power = max(0, receiving_unit_power + power_transfer - self.receiving_unit.battery_capacity)
         power_transfer_minus_surplus = power_transfer - surplus_power
         return power_transfer_minus_surplus
 
