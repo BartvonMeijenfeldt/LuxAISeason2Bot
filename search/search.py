@@ -310,6 +310,15 @@ class TransferPowerToUnitResourceGraph(TranserResourceGraph):
 class TransferToFactoryResourceGraph(TranserResourceGraph):
     factory: Optional[Factory] = field(default=None)
 
+    def cost(self, action: UnitAction, to_c: ResourcePowerTimeCoordinate) -> float:
+        cost = super().cost(action, to_c)
+
+        # To prefer returning on factory tile instead of next to it when under threath
+        if self.node_completes_goal(to_c) and not self.board.is_player_factory_tile(to_c):
+            cost += 1
+
+        return cost
+
     def _can_transfer(self, c: Coordinate) -> bool:
         if (not self.factory and self.board.get_min_distance_to_any_player_factory(c=c) <= 1) or (
             self.factory and self.board.get_min_distance_to_player_factory(c, self.factory.strain_id) <= 1

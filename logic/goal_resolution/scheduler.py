@@ -5,6 +5,7 @@ from typing import Dict, Tuple, List
 from collections import defaultdict
 from dataclasses import dataclass
 from abc import ABCMeta, abstractmethod
+from math import inf
 
 from objects.game_state import GameState
 from objects.coordinate import TimeCoordinate
@@ -16,6 +17,7 @@ from objects.actions.action_plan import ActionPlan
 from logic.goals.factory_goal import BuildLightGoal
 from logic.goals.unit_goal import UnitGoal, DigGoal, SupplyPowerGoal
 from lux.config import EnvConfig
+from config import CONFIG
 
 
 class FactoryValue(metaclass=ABCMeta):
@@ -82,7 +84,8 @@ class PowerUnitValue(FactoryValue):
         power_generation_per_step = self._get_expected_power_generation_per_step(factory, game_state)
         expected_power_usage_per_step = self._get_power_usage_per_step(factory, game_state)
 
-        return (power + self.nr_steps * power_generation_per_step) / (self.nr_steps * expected_power_usage_per_step)
+        value = (power + self.nr_steps * power_generation_per_step) / (self.nr_steps * expected_power_usage_per_step)
+        return value
 
     @staticmethod
     def _get_power(factory: Factory) -> float:
@@ -122,6 +125,12 @@ class UpperPowerUnitValue(PowerUnitValue):
     upper_threshold = True
     strategy = Strategy.INCREASE_UNITS
 
+    def compute_score(self, factory: Factory, game_state: GameState) -> float:
+        if game_state.real_env_steps > CONFIG.LAST_STEP_SCHEDULE_ORE_MINING:
+            return -inf
+
+        return super().compute_score(factory, game_state)
+
 
 class LowerPowerUnitValue(PowerUnitValue):
     upper_threshold = False
@@ -138,8 +147,13 @@ class AttackOpponentValue(FactoryValue):
             return 0.85
 
         ratio_attacking = factory.nr_attack_scheduled_units / factory.nr_scheduled_units
+        ratio_not_attacking = 1 - ratio_attacking
 
-        return 1 - ratio_attacking
+        # Always want attacking to be at least slightly better than 0 such that we prefer attacking over ore mining
+        # After last ore step minign
+        ratio = max(ratio_not_attacking, self.threshold + 0.01)
+
+        return ratio
 
 
 VALUES = [
@@ -207,12 +221,12 @@ class Scheduler:
     def _remove_completed_goals(self, game_state: GameState) -> None:
         for unit in game_state.player_units:
             if unit.goal and unit.goal.is_completed(game_state, unit.private_action_plan):
-                unit.remove_goal_and_private_action_plan()
+                self._unschedule_unit_goal(unit, game_state)
 
     def _remove_goals_too_little_power(self, game_state: GameState) -> None:
         for unit in game_state.player_units:
             if not unit.is_supplied_by and not unit.private_action_plan.unit_has_enough_power(game_state):
-                unit.remove_goal_and_private_action_plan()
+                self._unschedule_unit_goal(unit, game_state)
 
     def _schedule_goals_still_fine(self, game_state: GameState) -> None:
         for unit in game_state.player_units:
@@ -233,7 +247,7 @@ class Scheduler:
 
             time_coordinates = unit.private_action_plan.time_coordinates
             if self.constraints.any_tc_in_negative_constraints(time_coordinates):
-                unit.remove_goal_and_private_action_plan()
+                self._unschedule_unit_goal(unit, game_state)
             else:
                 self._schedule_unit_on_goal(unit.goal, game_state)
 
@@ -243,10 +257,11 @@ class Scheduler:
                 continue
 
             if unit.is_under_threath(game_state) and unit.next_step_is_stationary():
+                self._unschedule_unit_goal(unit, game_state)
                 goal = unit.generate_transfer_or_dummy_goal(game_state, self.constraints, self.power_tracker)
                 self._schedule_unit_on_goal(goal, game_state)
             elif unit.next_step_walks_into_tile_where_it_might_be_captured(game_state):
-                unit.remove_goal_and_private_action_plan()
+                self._unschedule_unit_goal(unit, game_state)
 
     def _reschedule_goals_with_no_private_action_plan(self, game_state: GameState):
         for unit in game_state.player_units:
@@ -254,7 +269,7 @@ class Scheduler:
                 try:
                     unit.goal.generate_action_plan(game_state, self.constraints, self.power_tracker)
                 except Exception:
-                    unit.remove_goal_and_private_action_plan()
+                    self._unschedule_unit_goal(unit, game_state)
                     continue
 
                 self._schedule_unit_on_goal(unit.goal, game_state)
@@ -331,7 +346,7 @@ class Scheduler:
     def _get_priority_sorted_strategies_factory(
         self, factory, scores: Dict[Tuple[Factory, Strategy], float]
     ) -> List[Strategy]:
-        strategies_factory = [strategy for factory_, strategy in scores if factory_ == factory]
+        strategies_factory = [strat for (fact, strat), val in scores.items() if fact == factory and val >= 0]
         strategies_factory.sort(key=lambda s: -scores[factory, s])
         return strategies_factory
 
@@ -386,6 +401,9 @@ class Scheduler:
                 self._unschedule_unit_goal(unit, game_state)
 
     def _unschedule_unit_goal(self, unit: Unit, game_state: GameState) -> None:
+        if unit.is_supplied_by:
+            self._unschedule_unit_goal(unit.is_supplied_by, game_state)
+
         if unit.is_scheduled:
             self.constraints.remove_negative_constraints(unit.private_action_plan.time_coordinates)
             self.power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))

@@ -290,7 +290,9 @@ class Unit(Actor):
         # if self.is_light:
         self._add_rubble_goals(factory, game_state)
         self._add_ice_goals(game_state, factory)
-        self._add_ore_goals(game_state, factory)
+        if game_state.real_env_steps <= CONFIG.LAST_STEP_SCHEDULE_ORE_MINING:
+            self._add_ore_goals(game_state, factory)
+
         self._add_relevant_transfer_goals(game_state)
         # if game_state.real_env_steps >= CONFIG.START_STEP_DESTROYING_LICHEN:
         #     self._add_destroy_lichen_goals(game_state, n=10)

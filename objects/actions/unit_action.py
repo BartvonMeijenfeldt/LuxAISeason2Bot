@@ -146,6 +146,10 @@ class TransferAction(UnitAction):
     repeat: int = 0
     n: int = 1
 
+    def __post_init__(self):
+        if self.amount < 0:
+            raise ValueError(f"amount is {self.amount}, amount can not be negative")
+
     @property
     def unit_direction(self) -> Direction:
         return Direction.CENTER
@@ -181,6 +185,10 @@ class PickupAction(UnitAction):
     resource: Resource
     repeat: int = 0
     n: int = 1
+
+    def __post_init__(self):
+        if self.amount < 0:
+            raise ValueError(f"amount is {self.amount}, amount can not be negative")
 
     @property
     def unit_direction(self) -> Direction:
@@ -275,6 +283,10 @@ class RechargeAction(UnitAction):
     amount: int
     repeat: int = 0
     n: int = 1
+
+    def __post_init__(self):
+        if self.amount < 0:
+            raise ValueError(f"amount is {self.amount}, amount can not be negative")
 
     @property
     def requested_power(self) -> int:
