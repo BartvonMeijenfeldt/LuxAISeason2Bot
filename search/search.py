@@ -213,7 +213,7 @@ class PickupPowerGraph(Graph):
             return 0
 
         min_distance_cost = self._get_distance_heuristic(node=node)
-        min_time_recharge_cost = self._get_time_recharge_heuristic(node=node)
+        min_time_recharge_cost = self._get_time_supply_heuristic(node=node)
         return min_distance_cost + min_time_recharge_cost
 
     def _get_distance_heuristic(self, node: Coordinate) -> float:
@@ -233,7 +233,7 @@ class PickupPowerGraph(Graph):
 
         return min_distance_cost
 
-    def _get_time_recharge_heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
+    def _get_time_supply_heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
         if self.node_completes_goal(node=node):
             return 0
         else:

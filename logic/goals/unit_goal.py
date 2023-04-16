@@ -440,7 +440,7 @@ class CollectGoal(DigGoal):
             board=game_state.board,
         )
 
-        if self.is_supplied:
+        if self.is_supplied or self._is_heavy_startup(game_state):
             self.action_plan.extend(actions_max_nr_digs)
             return
 
@@ -457,8 +457,13 @@ class CollectGoal(DigGoal):
     def _add_transfer_resources_to_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
         actions = self._get_transfer_resources_to_factory_actions(board=game_state.board, constraints=constraints)
         self.action_plan.extend(actions=actions)
-        if not self.is_supplied and not self.action_plan.unit_has_enough_power(game_state):
+        if not (self.is_supplied or self._is_heavy_startup(game_state)) and not self.action_plan.unit_has_enough_power(
+            game_state
+        ):
             self._is_valid = False
+
+    def _is_heavy_startup(self, game_state: GameState) -> bool:
+        return self.unit.is_heavy and game_state.real_env_steps in [1, 2]
 
     def _get_transfer_resources_to_factory_actions(self, board: Board, constraints: Constraints) -> list[UnitAction]:
         return self._get_transfer_plan(start_tc=self.action_plan.final_tc, constraints=constraints, board=board)
@@ -489,6 +494,9 @@ class CollectGoal(DigGoal):
         return graph
 
     def _get_max_nr_digs(self, power_available: int, game_state: GameState) -> int:
+        if self._is_heavy_startup(game_state):
+            return CONFIG.TURN_1_NR_DIGS_HEAVY
+
         if self.is_supplied:
             return self._get_max_useful_digs(game_state)
 
@@ -591,13 +599,16 @@ class SupplyPowerGoal(UnitGoal):
         if not self._is_valid:
             return self.action_plan
 
-        # self.wait_for_unit_to_get_there(), potentially build into the move_to_supply_c_actions
         self._add_supply_actions(game_state, constraints, power_tracker)
 
         return self.action_plan
 
     def _add_move_to_supply_c_actions(self, game_state: GameState, constraints: Constraints) -> None:
         supply_c = game_state.get_closest_player_factory_c(c=self.receiving_c)
+
+        if self.unit.tc.xy == supply_c.xy:
+            return
+
         move_actions = self._get_move_to_plan(
             start_tc=self.unit.tc, goal=supply_c, constraints=constraints, board=game_state.board
         )
@@ -620,18 +631,20 @@ class SupplyPowerGoal(UnitGoal):
                 )
             else:
                 actions = self._get_transfer_resources_to_unit_actions(game_state, constraints)
-
-                power_transfer_action: TransferAction = actions[-1]  # type: ignore
                 index_transfer = self.action_plan.nr_primitive_actions + len(actions) - 1
 
                 if index_transfer >= len(receiving_unit_ptcs):
                     break
 
-                surplus_power = self._get_surplus_power(receiving_unit_powers, index_transfer, power_transfer_action)
-                power_transfer_action.amount = max(0, power_transfer_action.amount - surplus_power)
+                power_transfer_action: TransferAction = actions[-1]  # type: ignore
+                receiving_unit_power_after_transfer = receiving_unit_powers[index_transfer]
 
-                safety_reduction = self._get_safety_reduction(power_transfer_action, game_state)
-                power_transfer_action.amount = max(0, power_transfer_action.amount - safety_reduction)
+                power_transfer_amount = self._get_adjusted_power_transfer_amount(
+                    receiving_unit_power=receiving_unit_power_after_transfer,
+                    power_transfer=power_transfer_action.amount,
+                    game_state=game_state,
+                )
+                power_transfer_action.amount = power_transfer_amount
 
                 if receiving_unit_ptcs[index_transfer].xy != self.receiving_c.xy:
                     power_transfer_action.amount = 0
@@ -675,19 +688,35 @@ class SupplyPowerGoal(UnitGoal):
 
         return graph
 
-    def _get_surplus_power(
-        self, receiving_unit_powers: np.ndarray, index_transfer: int, power_transfer_action: TransferAction
+    def _get_adjusted_power_transfer_amount(
+        self, receiving_unit_power: int, power_transfer: int, game_state: GameState
     ) -> int:
 
-        power_after_transfer = receiving_unit_powers[index_transfer] + power_transfer_action.amount
-        surplus_power = max(0, power_after_transfer - self.receiving_unit.battery_capacity)
-        return surplus_power
+        power_transfer = self._remove_surplus_power(receiving_unit_power, power_transfer)
+        power_transfer = self._remove_safety_reduction(power_transfer, game_state)
+        power_transfer = self._remove_min_power_income_for_other_units_factory(power_transfer, game_state)
+        return power_transfer
 
-    def _get_safety_reduction(self, power_transfer_action: TransferAction, game_state: GameState) -> int:
-        supplying_unit_power_left = self.action_plan.get_final_ptc(game_state).p - power_transfer_action.amount
+    def _remove_surplus_power(self, receiving_unit_power, power_transfer: int) -> int:
+        surplus_power = max(0, receiving_unit_power - self.receiving_unit.battery_capacity)
+        power_transfer_minus_surplus = power_transfer - surplus_power
+        return power_transfer_minus_surplus
+
+    def _remove_safety_reduction(self, power_transfer: int, game_state: GameState) -> int:
+        supplying_unit_power_left = self.action_plan.get_final_ptc(game_state).p - power_transfer
         safety_level = self.unit.action_queue_cost + self.unit.move_power_cost
         safety_reduction = max(0, safety_level - supplying_unit_power_left)
-        return safety_reduction
+        power_transfer_minus_safety = power_transfer - safety_reduction
+        return power_transfer_minus_safety
+
+    def _remove_min_power_income_for_other_units_factory(self, power_transfer: int, game_state: GameState) -> int:
+        final_tc = self.action_plan.final_tc
+        closest_factory = game_state.get_closest_player_factory(final_tc)
+        factory_power_income = closest_factory.expected_power_gain
+        MIN_POWER_STREAM_FOR_OTHER_UNITS = 0
+        max_power_transfer = 2 * (factory_power_income - MIN_POWER_STREAM_FOR_OTHER_UNITS)
+        power_transfer_minus_income = min(power_transfer, max_power_transfer)
+        return power_transfer_minus_income
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return 100
@@ -942,9 +971,14 @@ class ClearRubbleGoal(DigGoal):
         return self._get_benefit_n_digs(action_plan.nr_digs, game_state)
 
     def _get_benefit_n_digs(self, n_digs: int, game_state: GameState) -> float:
-        rubble_removed = self._get_rubble_removed(n_digs, game_state) * 100
+        rubble_removed = self._get_rubble_removed(n_digs, game_state)
+        bonus_clear_rubble = (
+            CONFIG.RUBBLE_CLEAR_FOR_LICHEN_BONUS_CLEARING if self._clears_rubble(rubble_removed, game_state) else 0
+        )
+        score = (rubble_removed + bonus_clear_rubble) * 100
+
         # benefit_rubble_removed = self._get_benefit_removing_rubble(rubble_removed, game_state)
-        return rubble_removed
+        return score
 
     def _get_rubble_removed(self, n_digs: int, game_state: GameState) -> int:
         max_rubble_removed = self.unit.rubble_removed_per_dig * n_digs
