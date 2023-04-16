@@ -161,9 +161,9 @@ class Scheduler:
         self._remove_completed_goals(game_state)
         self._remove_goals_too_little_power(game_state)
 
-        self._reschedule_at_risk_units(game_state)
         self._reschedule_goals_with_no_private_action_plan(game_state)
         self._schedule_goals_still_fine(game_state)
+        self._reschedule_at_risk_units(game_state)
 
         self._schedule_new_goals(game_state)
         self._schedule_unassigned_units_goals(game_state)
@@ -211,6 +211,9 @@ class Scheduler:
                 continue
 
             if unit.next_step_walks_into_tile_where_it_might_be_captured(game_state):
+                continue
+
+            if not unit.private_action_plan:
                 continue
 
             time_coordinates = unit.private_action_plan.time_coordinates
