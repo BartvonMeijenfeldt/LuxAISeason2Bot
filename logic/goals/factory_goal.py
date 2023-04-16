@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from abc import abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from logic.goals.goal import Goal
 from logic.constraints import Constraints
@@ -17,13 +17,6 @@ if TYPE_CHECKING:
 @dataclass
 class FactoryGoal(Goal):
     factory: Factory
-
-    _value: Optional[float] = field(init=False, default=None)
-
-    def generate_and_evaluate_action_plan(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> FactoryActionPlan:
-        return super().generate_and_evaluate_action_plan(game_state, constraints, power_tracker)  # type: ignore
 
     @abstractmethod
     def generate_action_plan(

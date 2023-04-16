@@ -245,11 +245,13 @@ class Unit(Actor):
             goal: UnitGoal = priority_queue.pop()
 
             try:
-                goal.generate_and_evaluate_action_plan(game_state, constraints_with_danger, power_tracker)
+                action_plan = goal.generate_action_plan(game_state, constraints_with_danger, power_tracker)
             except Exception:
                 continue
 
-            priority = -1 * goal.value
+            value = goal.get_value_per_step_of_action_plan(action_plan, game_state)
+
+            priority = -1 * value
             priority_queue.put(goal, priority)
 
             if goal == priority_queue[0]:
