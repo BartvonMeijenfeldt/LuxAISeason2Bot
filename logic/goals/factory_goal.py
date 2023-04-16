@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from abc import abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from logic.goals.goal import Goal
 from logic.constraints import Constraints
@@ -18,15 +18,6 @@ if TYPE_CHECKING:
 class FactoryGoal(Goal):
     factory: Factory
 
-    _value: Optional[float] = field(init=False, default=None)
-    # TODO, should not be valid if constraints
-    _is_valid: Optional[bool] = field(init=False, default=None)
-
-    def generate_and_evaluate_action_plan(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> FactoryActionPlan:
-        return super().generate_and_evaluate_action_plan(game_state, constraints, power_tracker)  # type: ignore
-
     @abstractmethod
     def generate_action_plan(
         self,
@@ -42,13 +33,6 @@ class FactoryGoal(Goal):
     def get_cost_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return sum(action.get_resource_cost(self.factory) for action in action_plan)
 
-    @property
-    def is_valid(self) -> bool:
-        if self._is_valid is None:
-            raise ValueError("_is_valid is not supposed to be None here")
-
-        return self._is_valid
-
 
 class BuildHeavyGoal(FactoryGoal):
     def generate_action_plan(
@@ -58,7 +42,6 @@ class BuildHeavyGoal(FactoryGoal):
         power_tracker: PowerTracker,
     ) -> FactoryActionPlan:
         self.action_plan = FactoryActionPlan(self.factory, [BuildHeavyAction()])
-        self.set_validity_plan(constraints)
         return self.action_plan
 
     def get_best_value_per_step(self, game_state: GameState) -> float:
@@ -80,7 +63,6 @@ class BuildLightGoal(FactoryGoal):
         power_tracker: PowerTracker,
     ) -> FactoryActionPlan:
         self.action_plan = FactoryActionPlan(self.factory, [BuildLightAction()])
-        self.set_validity_plan(constraints)
         return self.action_plan
 
     def get_best_value_per_step(self, game_state: GameState) -> float:
@@ -96,9 +78,6 @@ class BuildLightGoal(FactoryGoal):
 
 @dataclass
 class WaterGoal(FactoryGoal):
-    # TODO, should not be valid if can not water, or if it is too risky, next step factory will explode
-    _is_valid: Optional[bool] = field(init=False, default=True)
-
     def generate_action_plan(
         self,
         game_state: GameState,
@@ -106,7 +85,6 @@ class WaterGoal(FactoryGoal):
         power_tracker: PowerTracker,
     ) -> FactoryActionPlan:
         self.action_plan = FactoryActionPlan(self.factory, [WaterAction()])
-        self.set_validity_plan(constraints)
         return self.action_plan
 
     def get_best_value_per_step(self, game_state: GameState) -> float:
@@ -121,9 +99,6 @@ class WaterGoal(FactoryGoal):
 
 
 class FactoryNoGoal(FactoryGoal):
-    _value = None
-    _is_valid = True
-
     def generate_action_plan(
         self,
         game_state: GameState,

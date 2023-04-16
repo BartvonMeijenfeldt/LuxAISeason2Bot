@@ -34,6 +34,7 @@ from objects.coordinate import (
 from logic.constraints import Constraints
 from logic.goals.goal import Goal
 from config import CONFIG
+from exceptions import InvalidGoalError
 
 
 if TYPE_CHECKING:
@@ -50,14 +51,23 @@ if TYPE_CHECKING:
 class UnitGoal(Goal):
     unit: Unit
     _value: Optional[float] = field(init=False, default=None)
-    _is_valid: Optional[bool] = field(init=False, default=None)
 
     @abstractmethod
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         ...
 
-    @abstractmethod
     def generate_action_plan(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> UnitActionPlan:
+        self._generate_action_plan(game_state, constraints, power_tracker)
+
+        if not self.action_plan.is_valid_size:
+            raise InvalidGoalError
+
+        return self.action_plan
+
+    @abstractmethod
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -84,13 +94,6 @@ class UnitGoal(Goal):
     @abstractmethod
     def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         ...
-
-    @property
-    def is_valid(self) -> bool:
-        if self._is_valid is None:
-            raise ValueError("_is_valid is not supposed to be None here")
-
-        return self._is_valid
 
     def _get_move_to_graph(self, board: Board, goal: Coordinate, constraints: Constraints) -> MoveToGraph:
         graph = MoveToGraph(
@@ -404,14 +407,13 @@ class CollectGoal(DigGoal):
 
         return True
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
         power_tracker: PowerTracker,
     ) -> UnitActionPlan:
 
-        self._is_valid = True
         self._init_action_plan()
         if self.pickup_power:
             self._add_power_pickup_actions(
@@ -422,8 +424,7 @@ class CollectGoal(DigGoal):
             )
 
             if not self.action_plan.unit_has_enough_power(game_state):
-                self._is_valid = False
-                return self.action_plan
+                raise InvalidGoalError
 
         self._add_dig_actions(game_state=game_state, constraints=constraints)
         self._add_transfer_resources_to_factory_actions(game_state=game_state, constraints=constraints)
@@ -450,9 +451,9 @@ class CollectGoal(DigGoal):
         )
 
         if len(max_valid_digs_actions) == 0:
-            self._is_valid = False
-        else:
-            self.action_plan.extend(max_valid_digs_actions)
+            raise InvalidGoalError
+
+        self.action_plan.extend(max_valid_digs_actions)
 
     def _add_transfer_resources_to_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
         actions = self._get_transfer_resources_to_factory_actions(board=game_state.board, constraints=constraints)
@@ -460,7 +461,7 @@ class CollectGoal(DigGoal):
         if not (self.is_supplied or self._is_heavy_startup(game_state)) and not self.action_plan.unit_has_enough_power(
             game_state
         ):
-            self._is_valid = False
+            raise InvalidGoalError
 
     def _is_heavy_startup(self, game_state: GameState) -> bool:
         return self.unit.is_heavy and game_state.real_env_steps in [1, 2]
@@ -586,19 +587,15 @@ class SupplyPowerGoal(UnitGoal):
         receiving_unit = self.receiving_unit
         return receiving_unit.goal.is_completed(game_state, receiving_unit.private_action_plan)  # type: ignore
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
         power_tracker: PowerTracker,
     ) -> UnitActionPlan:
 
-        self._is_valid = True
         self._init_action_plan()
         self._add_move_to_supply_c_actions(game_state=game_state, constraints=constraints)
-        if not self._is_valid:
-            return self.action_plan
-
         self._add_supply_actions(game_state, constraints, power_tracker)
 
         return self.action_plan
@@ -614,7 +611,7 @@ class SupplyPowerGoal(UnitGoal):
         )
         self.action_plan.extend(move_actions)
         if not self.action_plan.unit_has_enough_power(game_state):
-            self._is_valid = False
+            raise InvalidGoalError
 
     def _add_supply_actions(self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker) -> None:
         receiving_unit_ptcs = self.receiving_action_plan.get_power_time_coordinates(game_state)
@@ -660,7 +657,7 @@ class SupplyPowerGoal(UnitGoal):
 
         max_transfer_index = self.action_plan.nr_primitive_actions - 1
         if receiving_unit_powers[:max_transfer_index].min() < 0:
-            self._is_valid = False
+            raise InvalidGoalError
 
     def _get_transfer_resources_to_unit_actions(
         self, game_state: GameState, constraints: Constraints
@@ -745,14 +742,13 @@ class TransferResourceGoal(UnitGoal):
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return self.unit.get_quantity_resource_in_cargo(self.resource) == 0
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
         power_tracker: PowerTracker,
     ) -> UnitActionPlan:
 
-        self._is_valid = True
         self._init_action_plan()
         self._add_transfer_resources_to_factory_actions(board=game_state.board, constraints=constraints)
         return self.action_plan
@@ -917,7 +913,7 @@ class ClearRubbleGoal(DigGoal):
     def key(self) -> str:
         return str(self)
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -934,8 +930,7 @@ class ClearRubbleGoal(DigGoal):
             )
 
             if not self.action_plan.unit_has_enough_power(game_state):
-                self._is_valid = False
-                return self.action_plan
+                raise InvalidGoalError
 
         self._add_clear_rubble_actions(game_state=game_state, constraints=constraints)
         return self.action_plan
@@ -961,11 +956,9 @@ class ClearRubbleGoal(DigGoal):
         )
 
         if len(max_valid_digs_actions) == 0:
-            self._is_valid = False
-            return
+            raise InvalidGoalError
 
         self.action_plan.extend(max_valid_digs_actions)
-        self._is_valid = True
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return self._get_benefit_n_digs(action_plan.nr_digs, game_state)
@@ -1037,7 +1030,7 @@ class DestroyLichenGoal(DigGoal):
     def key(self) -> str:
         return str(self)
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -1054,8 +1047,7 @@ class DestroyLichenGoal(DigGoal):
             )
 
             if not self.action_plan.unit_has_enough_power(game_state):
-                self._is_valid = False
-                return self.action_plan
+                raise InvalidGoalError
 
         self._add_destroy_lichen_actions(game_state=game_state, constraints=constraints)
         return self.action_plan
@@ -1078,11 +1070,9 @@ class DestroyLichenGoal(DigGoal):
         )
 
         if len(max_valid_digs_actions) == 0:
-            self._is_valid = False
-            return
+            raise InvalidGoalError
 
         self.action_plan.extend(max_valid_digs_actions)
-        self._is_valid = True
 
     def _get_max_useful_digs(self, game_state: GameState) -> int:
         return self._get_nr_max_digs_to_destroy_lichen(game_state)
@@ -1157,12 +1147,11 @@ class DestroyLichenGoal(DigGoal):
 @dataclass
 class FleeGoal(UnitGoal):
     opp_c: TimeCoordinate
-    _is_valid = True
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return not self.unit.is_under_threath(game_state)
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -1200,8 +1189,7 @@ class FleeGoal(UnitGoal):
 
             potential_move_actions = potential_move_actions[:-1]
         else:
-            self._is_valid = False
-            return
+            raise InvalidGoalError
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return CONFIG.BENEFIT_FLEEING
@@ -1230,16 +1218,13 @@ class FleeGoal(UnitGoal):
 
 
 class UnitNoGoal(UnitGoal):
-    _value = None
-    # Always valid even if a constraint is invalidated, but with a negative score then
-    _is_valid = True
     # TODO, what should be the value of losing a unit?
     PENALTY_VIOLATING_CONSTRAINT = -10_000
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return True
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -1276,13 +1261,10 @@ class UnitNoGoal(UnitGoal):
 
 
 class EvadeConstraintsGoal(UnitGoal):
-    _value = None
-    _is_valid = True
-
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return True
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -1302,7 +1284,7 @@ class EvadeConstraintsGoal(UnitGoal):
         self.action_plan.extend(potential_move_actions)
 
         if not self.action_plan.actor_can_carry_out_plan(game_state):
-            self._is_valid = False
+            raise InvalidGoalError
 
     def _get_evade_plan(
         self,
