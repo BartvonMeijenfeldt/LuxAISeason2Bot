@@ -252,7 +252,7 @@ class Scheduler:
         for unit in game_state.player_units:
             if unit.goal and not unit.private_action_plan:
                 try:
-                    unit.goal.generate_and_evaluate_action_plan(game_state, self.constraints, self.power_tracker)
+                    unit.goal.generate_action_plan(game_state, self.constraints, self.power_tracker)
                 except Exception:
                     unit.remove_goal_and_private_action_plan()
                     continue
@@ -289,9 +289,9 @@ class Scheduler:
         for factory in game_state.player_factories:
             for t in range(game_state.real_env_steps + 1, 7):
                 goal = BuildLightGoal(factory)
-                goal.generate_and_evaluate_action_plan(game_state, self.constraints, self.power_tracker)
+                action_plan = goal.generate_action_plan(game_state, self.constraints, self.power_tracker)
 
-                power_requests = goal.action_plan.get_power_requests(game_state)
+                power_requests = action_plan.get_power_requests(game_state)
                 for power_request in power_requests:
                     power_request.t = t
                     # Reserves 100 power for the new light units to use

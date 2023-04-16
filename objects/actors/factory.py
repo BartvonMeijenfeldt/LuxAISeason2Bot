@@ -305,7 +305,7 @@ class Factory(Actor):
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker, can_build: bool = True
     ) -> FactoryActionPlan:
         goal = self.get_goal(game_state, can_build)
-        action_plan = goal.generate_and_evaluate_action_plan(game_state, constraints, power_tracker)
+        action_plan = goal.generate_action_plan(game_state, constraints, power_tracker)
         self.goal = goal
         self.private_action_plan = action_plan
         return action_plan

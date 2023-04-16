@@ -56,8 +56,18 @@ class UnitGoal(Goal):
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         ...
 
-    @abstractmethod
     def generate_action_plan(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> UnitActionPlan:
+        self._generate_action_plan(game_state, constraints, power_tracker)
+
+        if not self.action_plan.is_valid_size:
+            raise InvalidGoalError
+
+        return self.action_plan
+
+    @abstractmethod
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -397,7 +407,7 @@ class CollectGoal(DigGoal):
 
         return True
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -577,7 +587,7 @@ class SupplyPowerGoal(UnitGoal):
         receiving_unit = self.receiving_unit
         return receiving_unit.goal.is_completed(game_state, receiving_unit.private_action_plan)  # type: ignore
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -732,7 +742,7 @@ class TransferResourceGoal(UnitGoal):
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return self.unit.get_quantity_resource_in_cargo(self.resource) == 0
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -903,7 +913,7 @@ class ClearRubbleGoal(DigGoal):
     def key(self) -> str:
         return str(self)
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -1020,7 +1030,7 @@ class DestroyLichenGoal(DigGoal):
     def key(self) -> str:
         return str(self)
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -1141,7 +1151,7 @@ class FleeGoal(UnitGoal):
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return not self.unit.is_under_threath(game_state)
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -1215,7 +1225,7 @@ class UnitNoGoal(UnitGoal):
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return True
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -1257,7 +1267,7 @@ class EvadeConstraintsGoal(UnitGoal):
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return True
 
-    def generate_action_plan(
+    def _generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
