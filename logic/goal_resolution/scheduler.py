@@ -5,6 +5,7 @@ from typing import Dict, Tuple, List
 from collections import defaultdict
 from dataclasses import dataclass
 from abc import ABCMeta, abstractmethod
+from copy import copy
 from math import inf
 
 from objects.game_state import GameState
@@ -18,6 +19,7 @@ from logic.goals.factory_goal import BuildLightGoal
 from logic.goals.unit_goal import UnitGoal, DigGoal, SupplyPowerGoal
 from lux.config import EnvConfig
 from config import CONFIG
+from exceptions import NoValidGoalFoundError
 
 
 class FactoryValue(metaclass=ABCMeta):
@@ -188,10 +190,11 @@ class Scheduler:
         self._init_constraints_and_power_tracker(game_state)
         self._schedule_units_too_little_power_dummy_goal(game_state)
         self._remove_completed_goals(game_state)
-        self._remove_goals_too_little_power(game_state)
 
         self._reschedule_goals_with_no_private_action_plan(game_state)
         self._schedule_goals_still_fine(game_state)
+        self._reschedule_goals_too_little_power(game_state)
+        self._reschedule_goals_needs_adapting(game_state)
         self._reschedule_at_risk_units(game_state)
 
         self._schedule_new_goals(game_state)
@@ -223,10 +226,35 @@ class Scheduler:
             if unit.goal and unit.goal.is_completed(game_state, unit.private_action_plan):
                 self._unschedule_unit_goal(unit, game_state)
 
-    def _remove_goals_too_little_power(self, game_state: GameState) -> None:
+    def _reschedule_goals_too_little_power(self, game_state: GameState) -> None:
         for unit in game_state.player_units:
-            if not unit.is_supplied_by and not unit.private_action_plan.unit_has_enough_power(game_state):
+            if not unit.supplied_by and not unit.private_action_plan.unit_has_enough_power(game_state) and unit.goal:
+                try:
+                    constraints, power_tracker = self._get_constraints_power_without_unit_scheduled_actions(
+                        unit, game_state
+                    )
+                    goal = unit.get_best_version_goal(unit.goal, game_state, constraints, power_tracker)
+                except NoValidGoalFoundError:
+                    self._unschedule_unit_goal(unit, game_state)
+                    continue
+
+                self._schedule_unit_on_goal(goal, game_state)
+
+    def _reschedule_goals_needs_adapting(self, game_state: GameState) -> None:
+        for unit in game_state.player_units:
+            if not (unit.goal and unit.goal.plan_needs_adapting(unit.private_action_plan, game_state)):
+                continue
+
+            try:
+                constraints, power_tracker = self._get_constraints_power_without_unit_scheduled_actions(
+                    unit, game_state
+                )
+                goal = unit.get_best_version_goal(unit.goal, game_state, constraints, power_tracker)
+            except NoValidGoalFoundError:
                 self._unschedule_unit_goal(unit, game_state)
+                continue
+
+            self._schedule_unit_on_goal(goal, game_state)
 
     def _schedule_goals_still_fine(self, game_state: GameState) -> None:
         for unit in game_state.player_units:
@@ -243,6 +271,9 @@ class Scheduler:
                 continue
 
             if not unit.private_action_plan:
+                continue
+
+            if unit.goal.plan_needs_adapting(unit.private_action_plan, game_state):
                 continue
 
             time_coordinates = unit.private_action_plan.time_coordinates
@@ -267,12 +298,12 @@ class Scheduler:
         for unit in game_state.player_units:
             if unit.goal and not unit.private_action_plan:
                 try:
-                    unit.goal.generate_action_plan(game_state, self.constraints, self.power_tracker)
+                    goal = unit.get_best_version_goal(unit.goal, game_state, self.constraints, self.power_tracker)
                 except Exception:
                     self._unschedule_unit_goal(unit, game_state)
                     continue
 
-                self._schedule_unit_on_goal(unit.goal, game_state)
+                self._schedule_unit_on_goal(goal, game_state)
 
     def _schedule_new_goals(self, game_state: GameState) -> None:
         self._schedule_factory_goals(game_state)
@@ -391,7 +422,8 @@ class Scheduler:
 
     def _update_unit_info(self, goal: UnitGoal) -> None:
         if isinstance(goal, SupplyPowerGoal):
-            goal.receiving_unit.is_supplied_by = goal.unit
+            goal.unit.supplies = goal.receiving_unit
+            goal.receiving_unit.supplied_by = goal.unit
 
         goal.unit.schedule_goal(goal)
 
@@ -401,11 +433,24 @@ class Scheduler:
                 self._unschedule_unit_goal(unit, game_state)
 
     def _unschedule_unit_goal(self, unit: Unit, game_state: GameState) -> None:
-        if unit.is_supplied_by:
-            self._unschedule_unit_goal(unit.is_supplied_by, game_state)
+        if unit.supplied_by:
+            self._unschedule_unit_goal(unit.supplied_by, game_state)
 
         if unit.is_scheduled:
             self.constraints.remove_negative_constraints(unit.private_action_plan.time_coordinates)
             self.power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
 
         unit.remove_goal_and_private_action_plan()
+
+    def _get_constraints_power_without_unit_scheduled_actions(
+        self, unit: Unit, game_state: GameState
+    ) -> Tuple[Constraints, PowerTracker]:
+
+        constraints = copy(self.constraints)
+        power_tracker = copy(self.power_tracker)
+
+        if unit.is_scheduled:
+            constraints.remove_negative_constraints(unit.private_action_plan.time_coordinates)
+            power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
+
+        return constraints, power_tracker

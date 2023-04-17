@@ -248,9 +248,9 @@ class ResourceCoordinate(Coordinate):
 
     def _add_get_new_q_action(self, action: UnitAction) -> int:
         if isinstance(action, PickupAction) and action.resource == self.resource:
-            return self.q + action.n * action.amount
+            return self.q + action.n  # * action.amount
         elif isinstance(action, TransferAction) and action.resource == self.resource:
-            return self.q - action.n * action.amount
+            return self.q - action.n  # * action.amount
         else:
             return self.q
 

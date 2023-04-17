@@ -61,6 +61,13 @@ class UnitActionPlan(ActionPlan):
         self.original_actions.extend(actions)
         self.__post_init__()
 
+    def filter_out_actions_after_n_steps(self, n: int) -> None:
+        self.set_actions(self.primitive_actions[:n])
+
+    def set_actions(self, actions: List[UnitAction]) -> None:
+        self.original_actions = actions
+        self.__post_init__()
+
     @property
     def actions(self) -> list[UnitAction]:
         if self._actions is None:
@@ -184,6 +191,11 @@ class UnitActionPlan(ActionPlan):
 
     def is_empty(self) -> bool:
         return not self.original_actions
+
+    def remove_invalid_actions(self, game_state: GameState) -> None:
+        nr_valid_primitive_actions = self.get_nr_valid_primitive_actions(game_state)
+        self.original_actions = self.primitive_actions[:nr_valid_primitive_actions]
+        self.original_actions = self.actions[:20]
 
     def get_nr_valid_primitive_actions(self, game_state: GameState):
         if self.is_empty():
@@ -351,7 +363,7 @@ class ActionPlanSimulator:
         self.power_time_coordinates: List[PowerTimeCoordinate] = []
 
     def _optional_update_action_queue(self) -> None:
-        if not self.action_plan.is_set and self.action_plan.original_actions:
+        if not self.action_plan.is_set:
             self._update_action_queue()
 
     def _update_action_queue(self) -> None:

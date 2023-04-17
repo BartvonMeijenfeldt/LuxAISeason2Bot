@@ -185,12 +185,13 @@ class PickupPowerGraph(Graph):
             factory = self.board.get_closest_player_factory(c=c)
             power_available_in_factory = self.power_tracker.get_power_available(factory, c.t)
             # Charge removed just in case because I don't have the game_state and therefore is_day available here
-            battery_space_left = self.unit_cfg.BATTERY_CAPACITY - c.p - self.unit_cfg.CHARGE
-            power_pickup_amount = min(battery_space_left, power_available_in_factory, 3000)
+            if power_available_in_factory:
+                battery_space_left = self.unit_cfg.BATTERY_CAPACITY - c.p - self.unit_cfg.CHARGE
+                power_pickup_amount = min(battery_space_left, power_available_in_factory, 3000)
+                power_pickup_amount = max(0, power_pickup_amount)
 
-            if power_pickup_amount:
-                potential_recharge_action = PickupAction(amount=power_pickup_amount, resource=Resource.POWER)
-                yield (potential_recharge_action)
+                potential_pickup_action = PickupAction(amount=power_pickup_amount, resource=Resource.POWER)
+                yield (potential_pickup_action)
 
         for action in self._potential_move_actions:
             # Also need to add day/night before this search makes sense

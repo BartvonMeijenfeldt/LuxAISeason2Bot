@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Sequence
 
 from abc import abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, List, Iterable
 from math import ceil, inf
 from copy import copy
 from functools import lru_cache
@@ -50,7 +50,6 @@ if TYPE_CHECKING:
 @dataclass
 class UnitGoal(Goal):
     unit: Unit
-    _value: Optional[float] = field(init=False, default=None)
 
     @abstractmethod
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
@@ -73,6 +72,10 @@ class UnitGoal(Goal):
         constraints: Constraints,
         power_tracker: PowerTracker,
     ) -> UnitActionPlan:
+        ...
+
+    @abstractmethod
+    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         ...
 
     def get_best_value_per_step(self, game_state: GameState) -> float:
@@ -183,7 +186,13 @@ class UnitGoal(Goal):
         actions = self._search_graph(graph=graph, start=recharge_tc)
         return actions
 
-    def _get_move_to_plan(
+    def _add_move_to_actions(
+        self, start_tc: TimeCoordinate, goal: Coordinate, constraints: Constraints, board: Board
+    ) -> None:
+        actions = self._get_move_to_actions(start_tc, goal, constraints, board)
+        self.action_plan.extend(actions)
+
+    def _get_move_to_actions(
         self,
         start_tc: TimeCoordinate,
         goal: Coordinate,
@@ -197,7 +206,6 @@ class UnitGoal(Goal):
 
     def _init_action_plan(self) -> None:
         self.action_plan = UnitActionPlan(actor=self.unit)
-        # TODO remove power due to updating action plan?
 
     def get_cost_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         number_of_steps = len(action_plan)
@@ -218,6 +226,47 @@ class UnitGoal(Goal):
     @abstractmethod
     def quantity_ore_to_transfer(self, game_state: GameState) -> int:
         ...
+
+    def _get_min_steps_moving_to_c_with_pickup_power(self, c: Coordinate, game_state: GameState) -> int:
+        closest_factory_c = game_state.board.get_closest_player_factory_tile(self.unit.tc)
+        nr_steps_to_factory_tile = self.unit.tc.distance_to(closest_factory_c)
+        nr_steps_to_c = closest_factory_c.distance_to(c)
+        nr_steps_moving = nr_steps_to_factory_tile + nr_steps_to_c
+        return nr_steps_moving
+
+    def _get_min_nr_steps_moving_and_power_pickup_to_c(self, c: Coordinate, game_state: GameState) -> tuple[int, int]:
+        if self.pickup_power:  # type: ignore
+            return self._get_min_nr_steps_moving_and_power_pickup_to_c_with_pickup_power(c, game_state)
+        else:
+            return self._get_min_nr_steps_moving_and_power_pickup_to_c_without_pickup_power(c)
+
+    def _get_min_nr_steps_moving_and_power_pickup_to_c_with_pickup_power(
+        self, c: Coordinate, game_state: GameState
+    ) -> tuple[int, int]:
+
+        nr_steps_moving = self._get_min_steps_moving_to_c_with_pickup_power(c, game_state)
+        nr_steps_power_pickup = 1
+        return nr_steps_moving, nr_steps_power_pickup
+
+    def _get_min_nr_steps_moving_and_power_pickup_to_c_without_pickup_power(self, c: Coordinate) -> tuple[int, int]:
+
+        nr_steps_moving = self.unit.tc.distance_to(c)
+        nr_steps_power_pickup = 0
+        return nr_steps_moving, nr_steps_power_pickup
+
+    def _get_min_nr_steps_to_c(self, c: Coordinate, game_state: GameState) -> int:
+        nr_steps_moving, nr_steps_power_pickup = self._get_min_nr_steps_moving_and_power_pickup_to_c(c, game_state)
+        return nr_steps_moving + nr_steps_power_pickup
+
+    def _get_min_cost_and_steps_go_to_c(self, c: Coordinate, game_state: GameState) -> tuple[float, int]:
+        nr_steps_moving, nr_steps_power_pickup = self._get_min_nr_steps_moving_and_power_pickup_to_c(c, game_state)
+        min_nr_steps = nr_steps_moving + nr_steps_power_pickup
+
+        min_cost_moving = nr_steps_moving * self.unit.move_time_and_power_cost
+        min_cost_power_pickup = nr_steps_power_pickup * self.unit.time_to_power_cost
+        min_cost = min_cost_moving + min_cost_power_pickup
+
+        return min_cost, min_nr_steps
 
 
 @dataclass
@@ -350,43 +399,6 @@ class DigGoal(UnitGoal):
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return self._get_benefit_n_digs(action_plan.nr_digs, game_state)
 
-    def _get_min_cost_and_steps_go_to_dig_c(self, game_state: GameState) -> tuple[float, int]:
-        nr_steps_moving, nr_steps_power_pickup = self._get_min_nr_steps_moving_and_power_pickup(game_state)
-        min_nr_steps = nr_steps_moving + nr_steps_power_pickup
-
-        min_cost_moving = nr_steps_moving * self.unit.move_time_and_power_cost
-        min_cost_power_pickup = nr_steps_power_pickup * self.unit.time_to_power_cost
-        min_cost = min_cost_moving + min_cost_power_pickup
-
-        return min_cost, min_nr_steps
-
-    def _get_min_nr_steps_to_dig_c(self, game_state: GameState) -> int:
-        nr_steps_moving, nr_steps_power_pickup = self._get_min_nr_steps_moving_and_power_pickup(game_state)
-        return nr_steps_moving + nr_steps_power_pickup
-
-    def _get_min_nr_steps_moving_and_power_pickup(self, game_state: GameState) -> tuple[int, int]:
-        if self.pickup_power:
-            return self._get_min_nr_steps_moving_and_power_pickup_with_pickup_power(game_state)
-        else:
-            return self._get_min_nr_steps_moving_and_power_pickup_without_pickup_power(game_state)
-
-    def _get_min_nr_steps_moving_and_power_pickup_without_pickup_power(self, game_state: GameState) -> tuple[int, int]:
-        nr_steps_moving = self.unit.tc.distance_to(self.dig_c)
-        nr_steps_power_pickup = 0
-        return nr_steps_moving, nr_steps_power_pickup
-
-    def _get_min_nr_steps_moving_and_power_pickup_with_pickup_power(self, game_state: GameState) -> tuple[int, int]:
-        nr_steps_moving = self._get_min_steps_moving_to_dig_c_with_pickup_power(game_state)
-        nr_steps_power_pickup = 1
-        return nr_steps_moving, nr_steps_power_pickup
-
-    def _get_min_steps_moving_to_dig_c_with_pickup_power(self, game_state: GameState) -> int:
-        closest_factory_tile = game_state.board.get_closest_player_factory_tile(self.unit.tc)
-        nr_steps_to_factory_tile = self.unit.tc.distance_to(closest_factory_tile)
-        nr_steps_to_resource_c = closest_factory_tile.distance_to(self.dig_c)
-        nr_steps_moving = nr_steps_to_factory_tile + nr_steps_to_resource_c
-        return nr_steps_moving
-
     def _get_min_cost_and_steps_max_nr_digs(self, game_state: GameState) -> tuple[float, int]:
         max_nr_digs = self._get_best_max_nr_digs(game_state)
         min_cost_digging = max_nr_digs * self.unit.dig_time_and_power_cost
@@ -406,6 +418,9 @@ class CollectGoal(DigGoal):
             return False
 
         return True
+
+    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
+        return False
 
     def _generate_action_plan(
         self,
@@ -532,7 +547,7 @@ class CollectGoal(DigGoal):
 
     def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         min_cost_digging, max_nr_digs = self._get_min_cost_and_steps_max_nr_digs(game_state)
-        min_cost_go_to_c, min_steps_go_to_c = self._get_min_cost_and_steps_go_to_dig_c(game_state)
+        min_cost_go_to_c, min_steps_go_to_c = self._get_min_cost_and_steps_go_to_c(self.dig_c, game_state)
         min_cost_transfer, min_steps_transfer = self._get_min_cost_and_steps_transfer_resource(game_state)
 
         min_cost = min_cost_digging + min_cost_go_to_c + min_cost_transfer
@@ -575,9 +590,14 @@ class SupplyPowerGoal(UnitGoal):
     receiving_unit: Unit
     receiving_action_plan: UnitActionPlan
     receiving_c: Coordinate
+    pickup_power: bool
 
     def __repr__(self) -> str:
         return f"supply_power_to_{self.receiving_unit}"
+
+    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
+        # TODO adapt every 2 steps to reserve some extra power pickup
+        return False
 
     @property
     def key(self) -> str:
@@ -585,7 +605,10 @@ class SupplyPowerGoal(UnitGoal):
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         receiving_unit = self.receiving_unit
-        return receiving_unit.goal.is_completed(game_state, receiving_unit.private_action_plan)  # type: ignore
+        if not receiving_unit.goal:
+            return True
+
+        return receiving_unit.goal.is_completed(game_state, receiving_unit.private_action_plan)
 
     def _generate_action_plan(
         self,
@@ -606,7 +629,7 @@ class SupplyPowerGoal(UnitGoal):
         if self.unit.tc.xy == supply_c.xy:
             return
 
-        move_actions = self._get_move_to_plan(
+        move_actions = self._get_move_to_actions(
             start_tc=self.unit.tc, goal=supply_c, constraints=constraints, board=game_state.board
         )
         self.action_plan.extend(move_actions)
@@ -617,7 +640,7 @@ class SupplyPowerGoal(UnitGoal):
         receiving_unit_ptcs = self.receiving_action_plan.get_power_time_coordinates(game_state)
         receiving_unit_powers = np.array([ptc.p for ptc in receiving_unit_ptcs])
 
-        power_pickup_turn = True
+        power_pickup_turn = self.pickup_power
         while True:
             if power_pickup_turn:
                 power_tracker_up_to_date = copy(power_tracker)
@@ -650,6 +673,8 @@ class SupplyPowerGoal(UnitGoal):
 
             potential_action_plan = self.action_plan + actions
             if not potential_action_plan.is_valid_size:
+                if isinstance(self.action_plan.actions[-1], TransferAction):
+                    self.action_plan.set_actions(self.action_plan.actions[:-1])
                 break
 
             self.action_plan.extend(actions)
@@ -742,6 +767,9 @@ class TransferResourceGoal(UnitGoal):
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return self.unit.get_quantity_resource_in_cargo(self.resource) == 0
+
+    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
+        return False
 
     def _generate_action_plan(
         self,
@@ -910,6 +938,9 @@ class ClearRubbleGoal(DigGoal):
 
         return not game_state.is_rubble_tile(self.dig_c)
 
+    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
+        return False
+
     @property
     def key(self) -> str:
         return str(self)
@@ -1006,7 +1037,7 @@ class ClearRubbleGoal(DigGoal):
 
     def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         min_cost_digging, max_nr_digs = self._get_min_cost_and_steps_max_nr_digs(game_state)
-        min_cost_go_to_c, min_steps_go_to_c = self._get_min_cost_and_steps_go_to_dig_c(game_state)
+        min_cost_go_to_c, min_steps_go_to_c = self._get_min_cost_and_steps_go_to_c(self.dig_c, game_state)
 
         min_cost = min_cost_digging + min_cost_go_to_c
         min_steps = max_nr_digs + min_steps_go_to_c
@@ -1026,6 +1057,9 @@ class DestroyLichenGoal(DigGoal):
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return not game_state.is_opponent_lichen_tile(self.dig_c)
+
+    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
+        return False
 
     @property
     def key(self) -> str:
@@ -1080,7 +1114,7 @@ class DestroyLichenGoal(DigGoal):
 
     def _get_nr_max_digs_to_destroy_lichen(self, game_state: GameState) -> int:
         # Can underestimate the amount of digs when constraints make the unit appear a move later there
-        nr_steps_to_lichen = self._get_min_nr_steps_to_dig_c(game_state)
+        nr_steps_to_lichen = self._get_min_nr_steps_to_c(self.dig_c, game_state)
         max_lichen_upon_arrival = self._get_max_lichen_in_n_steps(game_state.board, nr_steps_to_lichen)
         return self._get_nr_max_dig_to_destroy_lichen_unit_at_lichen(max_lichen_upon_arrival)
 
@@ -1131,7 +1165,7 @@ class DestroyLichenGoal(DigGoal):
 
     def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         min_cost_digging, max_nr_digs = self._get_min_cost_and_steps_max_nr_digs(game_state)
-        min_cost_go_to_c, min_steps_go_to_c = self._get_min_cost_and_steps_go_to_dig_c(game_state)
+        min_cost_go_to_c, min_steps_go_to_c = self._get_min_cost_and_steps_go_to_c(self.dig_c, game_state)
 
         min_cost = min_cost_digging + min_cost_go_to_c
         min_steps = max_nr_digs + min_steps_go_to_c
@@ -1146,11 +1180,140 @@ class DestroyLichenGoal(DigGoal):
 
 
 @dataclass
+class HuntGoal(UnitGoal):
+    opp: Unit
+    pickup_power: bool
+
+    def __post_init__(self):
+        self._init_action_plan()
+
+    def __repr__(self) -> str:
+        return f"hunt_{self.opp}"
+
+    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
+        return not self.opp.acted_out_last_action_and_no_update_queue
+
+    def key(self) -> str:
+        return str(self)
+
+    def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
+        return self.opp not in game_state.opp_units or game_state.is_opponent_factory_tile(self.opp.tc)
+
+    def _generate_action_plan(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> UnitActionPlan:
+        # TODO generate_action_plan called again should not pickup power again
+        self._init_action_plan()
+        if self.pickup_power:
+            self._add_power_pickup_actions(game_state, constraints, power_tracker, Coordinate(*self.opp.tc.xy))
+
+        self._move_next_to_opp(game_state, constraints)
+        self._add_hunt_unit_actions(game_state, constraints)
+        self.action_plan.filter_out_actions_after_n_steps(20)
+        if not self.action_plan.unit_has_enough_power(game_state):
+            raise InvalidGoalError
+        return self.action_plan
+
+    def _move_next_to_opp(self, game_state: GameState, constraints: Constraints) -> None:
+        if self.action_plan.final_tc.distance_to(self.opp_tc_after_optional_pickup_power) > 1:
+            opp_c = Coordinate(*self.opp_tc_in_half_distance_steps.xy)
+            self._add_move_to_actions(self.action_plan.final_tc, opp_c, constraints, game_state.board)
+
+    @property
+    def opp_tc_in_half_distance_steps(self) -> TimeCoordinate:
+        nr_steps_half_distance = self.nr_steps_after_half_distance
+        opp_action_plan = UnitActionPlan(self.opp, self.opp.action_queue, is_set=True)
+        opp_action_plan.filter_out_actions_after_n_steps(nr_steps_half_distance)
+        opp_tc = opp_action_plan.final_tc
+        return opp_tc
+
+    @property
+    def opp_tc_after_optional_pickup_power(self) -> TimeCoordinate:
+        nr_steps_taken = len(self.action_plan.primitive_actions)
+        if nr_steps_taken == 0:
+            return self.opp.tc
+
+        opp_action_plan = UnitActionPlan(self.opp, self.opp.action_queue, is_set=True)
+        opp_action_plan.filter_out_actions_after_n_steps(nr_steps_taken)
+        opp_tc = opp_action_plan.final_tc
+
+        return opp_tc
+
+    @property
+    def nr_steps_after_half_distance(self) -> int:
+        half_distance = self.distance_to_opp_after_optional_pickup_power // 2
+        nr_steps_taken = len(self.action_plan.primitive_actions)
+        nr_steps_half_distance = nr_steps_taken + half_distance
+        return nr_steps_half_distance
+
+    @property
+    def distance_to_opp_after_optional_pickup_power(self) -> int:
+        opp_tc = self.opp_tc_after_optional_pickup_power
+        distance_to_opp = self.action_plan.final_tc.distance_to(opp_tc)
+        return distance_to_opp
+
+    def _add_hunt_unit_actions(self, game_state: GameState, constraints: Constraints) -> None:
+        hunt_actions = self._get_hunt_actions()
+        self._add_relevant_actions(hunt_actions, game_state, constraints)
+
+    def _get_hunt_actions(self) -> List[UnitAction]:
+        move_dir_opp_action = self._get_move_dir_opp_action()
+        opponents_actions = self._opponents_next_actions
+        return [move_dir_opp_action] + opponents_actions
+
+    def _get_move_dir_opp_action(self) -> UnitAction:
+        tc = self.action_plan.final_tc
+        opp_tc = self.opp_tc_in_half_distance_steps
+        direction_to_opponent = tc.direction_to(opp_tc)
+        return MoveAction(direction_to_opponent)
+
+    @property
+    def _opponents_next_actions(self) -> List[UnitAction]:
+        nr_steps_half_distance = self.nr_steps_after_half_distance
+        return self.opp.action_queue[nr_steps_half_distance:]
+
+    def _add_relevant_actions(
+        self, actions: Iterable[UnitAction], game_state: GameState, constraints: Constraints
+    ) -> None:
+
+        to_tc = self.action_plan.final_tc
+        for action in actions:
+            to_tc = to_tc.add_action(action)
+            if (
+                constraints.tc_in_negative_constraints(to_tc)
+                or action.is_stationary
+                or game_state.is_opponent_factory_tile(to_tc)
+            ):
+                return
+
+            self.action_plan.append(action)
+
+    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        return 1000
+
+    def _get_max_benefit(self, game_state: GameState) -> float:
+        return 1000
+
+    def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+        # TODO opp_tc_in_half_distance_steps is not set properly to take into account where the unit moved to
+        return self._get_min_cost_and_steps_go_to_c(self.opp_tc_in_half_distance_steps, game_state)
+
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+
+@dataclass
 class FleeGoal(UnitGoal):
     opp_c: TimeCoordinate
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return not self.unit.is_under_threath(game_state)
+
+    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
+        return False
 
     def _generate_action_plan(
         self,
@@ -1175,7 +1338,7 @@ class FleeGoal(UnitGoal):
 
     def _go_to_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
         closest_factory_c = game_state.get_closest_player_factory_c(c=self.action_plan.final_tc)
-        potential_move_actions = self._get_move_to_plan(
+        potential_move_actions = self._get_move_to_actions(
             start_tc=self.unit.tc, goal=closest_factory_c, constraints=constraints, board=game_state.board
         )
         potential_move_actions = self._get_valid_actions(potential_move_actions, game_state)
@@ -1225,6 +1388,9 @@ class UnitNoGoal(UnitGoal):
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return True
 
+    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
+        return False
+
     def _generate_action_plan(
         self,
         game_state: GameState,
@@ -1264,6 +1430,9 @@ class UnitNoGoal(UnitGoal):
 class EvadeConstraintsGoal(UnitGoal):
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return True
+
+    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
+        return False
 
     def _generate_action_plan(
         self,
