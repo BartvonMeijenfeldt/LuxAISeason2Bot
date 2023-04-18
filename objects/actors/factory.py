@@ -316,8 +316,8 @@ class Factory(Actor):
     def get_goal(self, game_state: GameState, can_build: bool = True) -> FactoryGoal:
         water_cost = self.water_cost
         safety_level = 50 if game_state.real_env_steps < 70 else 70
-        # if can_build and self.can_build_heavy:
-        if can_build and self.can_build_heavy and self.nr_heavy_units < 3:
+        if can_build and self.can_build_heavy:
+            # if can_build and self.can_build_heavy and self.nr_heavy_units < 3:
             return BuildHeavyGoal(self)
 
         elif (
@@ -326,6 +326,7 @@ class Factory(Actor):
             and (
                 self.nr_light_units
                 < 15
+                # self.nr_light_units < 15
                 # or (self.nr_light_units < 20 and self.nr_heavy_units > 1)
                 # or (self.nr_light_units < 30 and self.nr_heavy_units > 2)
             )
@@ -577,6 +578,9 @@ class Factory(Actor):
     ) -> UnitGoal:
         while self.sorted_threaths_invaders:
             invader = self.sorted_threaths_invaders.pop()
+            if invader in game_state.hunted_opp_units:
+                continue
+
             try:
                 return self._schedule_hunt_invader(invader, game_state, constraints, power_tracker)
             except NoValidGoalFoundError:
@@ -989,7 +993,7 @@ class Factory(Actor):
         if CONFIG.FIRST_STEP_HEAVY_ALLOWED_TO_DESTROY_LICHEN < game_state.real_env_steps:
             units = self.light_available_units
         else:
-            units = self.heavy_available_units
+            units = self.available_units
 
         potential_assignments = [
             (unit, goal)

@@ -5,7 +5,7 @@ import numpy as np
 from dataclasses import dataclass
 from collections import defaultdict
 from objects.coordinate import Coordinate, CoordinateList
-from logic.goals.unit_goal import DigGoal
+from logic.goals.unit_goal import DigGoal, HuntGoal
 from image_processing import get_islands
 from distances import get_n_closests_positions_between_positions
 
@@ -341,6 +341,10 @@ class Board:
                 neighboring_opponents.append(opponent_on_c)
 
         return neighboring_opponents
+
+    @property
+    def hunted_opp_units(self) -> set[Unit]:
+        return {unit.goal.opp for unit in self.player_units if isinstance(unit.goal, HuntGoal)}
 
     @property
     def positions_in_dig_goals(self) -> set[tuple]:

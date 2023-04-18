@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional, Iterable
-from collections import defaultdict
 from copy import copy
 
 from objects.coordinate import TimeCoordinate
@@ -11,12 +10,14 @@ from objects.coordinate import TimeCoordinate
 @dataclass
 class Constraints:
     negative: set[tuple[int, int, int]] = field(default_factory=set)
-    danger_coordinates: defaultdict[tuple[int, int, int], float] = field(default_factory=lambda: defaultdict(lambda: 0))
+    stationary_danger_coordinates: dict[tuple[int, int, int], float] = field(default_factory=dict)
+    moving_danger_coordinates: dict[tuple[int, int, int], float] = field(default_factory=dict)
 
     def __copy__(self) -> Constraints:
         constraints_negative = copy(self.negative)
-        danger_coordinates = copy(self.danger_coordinates)
-        return Constraints(constraints_negative, danger_coordinates)
+        danger_coordinates = copy(self.stationary_danger_coordinates)
+        moving_danger_coordinates = copy(self.moving_danger_coordinates)
+        return Constraints(constraints_negative, danger_coordinates, moving_danger_coordinates)
 
     @property
     def key(self) -> str:
@@ -39,15 +40,25 @@ class Constraints:
     def add_negative_constraint(self, tc: TimeCoordinate) -> None:
         self.negative.add(tc.xyt)
 
-    def add_danger_coordinates(self, danger_coordinates: dict[TimeCoordinate, float]):
+    def add_moving_danger_coordinates(self, danger_coordinates: dict[TimeCoordinate, float]):
         for tc, value in danger_coordinates.items():
-            self.danger_coordinates[tc.xyt] = value
+            self.moving_danger_coordinates[tc.xyt] = value
 
-    def get_danger_cost(self, tc: TimeCoordinate) -> float:
-        if not self.danger_coordinates:
-            return 0
+    def add_stationary_danger_coordinates(self, danger_coordinates: dict[TimeCoordinate, float]):
+        for tc, value in danger_coordinates.items():
+            self.stationary_danger_coordinates[tc.xyt] = value
 
-        return self.danger_coordinates[tc.xyt]
+    def get_danger_cost(self, tc: TimeCoordinate, is_stationary_action: bool) -> float:
+        if is_stationary_action:
+            return self._get_stationary_danger_cost(tc)
+        else:
+            return self._get_moving_danger_cost(tc)
+
+    def _get_stationary_danger_cost(self, tc: TimeCoordinate) -> float:
+        return self.stationary_danger_coordinates.get(tc.xyt, 0)
+
+    def _get_moving_danger_cost(self, tc: TimeCoordinate) -> float:
+        return self.moving_danger_coordinates.get(tc.xyt, 0)
 
     @property
     def max_t(self) -> Optional[int]:
@@ -60,18 +71,21 @@ class Constraints:
         if not self:
             return False
 
-        return any(self.tc_in_negative_constraints(tc) for tc in tcs)
+        return any(self.tc_not_allowed(tc) for tc in tcs)
 
     def tc_violates_constraint(self, tc: TimeCoordinate) -> bool:
         if not self:
             return False
 
-        return self.tc_in_negative_constraints(tc=tc)
+        return self.tc_not_allowed(tc=tc)
 
-    def tc_in_negative_constraints(self, tc: TimeCoordinate) -> bool:
+    def tc_allowed(self, tc: TimeCoordinate) -> bool:
+        return not self.tc_not_allowed(tc)
+
+    def tc_not_allowed(self, tc: TimeCoordinate) -> bool:
         return tc.xyt in self.negative
 
-    def any_tc_in_negative_constraints(self, tcs: Iterable[TimeCoordinate]) -> bool:
+    def any_tc_not_allowed(self, tcs: Iterable[TimeCoordinate]) -> bool:
         tcs_set = {tc.xyt for tc in tcs}
         if self.negative & tcs_set:
             return True
@@ -79,7 +93,7 @@ class Constraints:
         return False
 
     def can_not_add_negative_constraint(self, tc: TimeCoordinate) -> bool:
-        return self.tc_in_negative_constraints(tc)
+        return self.tc_not_allowed(tc)
 
     def __repr__(self) -> str:
         neg_str = f"neg={self.negative}, " if self.negative else ""

@@ -80,6 +80,11 @@ class Coordinate:
         neighbors = [self + direction for direction in Direction]
         return neighbors
 
+    @property
+    def non_stationary_neighbors(self) -> list[Coordinate]:
+        neighbors = [self + direction for direction in Direction if direction != direction.CENTER]
+        return neighbors
+
     def distance_to(self, c: Coordinate) -> int:
         """Manhattan distance to coordinate
 
@@ -135,6 +140,11 @@ class TimeCoordinate(Coordinate):
     @property
     def neighbors(self) -> list[TimeCoordinate]:
         neighbors = [self + direction for direction in Direction]
+        return neighbors
+
+    @property
+    def non_stationary_neighbors(self) -> list[TimeCoordinate]:
+        neighbors = [self + direction for direction in Direction if direction != Direction.CENTER]
         return neighbors
 
     @property

@@ -8,7 +8,7 @@ class NoValidGoalFoundError(Exception):
         return "No valid goal found"
 
 
-class NoSolutionSearchError(Exception):
+class NoSolutionError(Exception):
     def __str__(self) -> str:
         return "No solution to search"
 

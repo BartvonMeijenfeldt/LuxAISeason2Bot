@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Sequence, List
+from typing import TYPE_CHECKING, Optional, Sequence, List, Iterable
 
 from dataclasses import dataclass, replace, field
 from search.search import Search
@@ -85,12 +85,9 @@ class UnitActionPlan(ActionPlan):
     @property
     def primitive_actions(self) -> list[UnitAction]:
         if self._primitive_actions is None:
-            self._primitive_actions = self._get_primitive_actions()
+            self._primitive_actions = get_primitive_actions_from_list(self.original_actions)
 
         return self._primitive_actions
-
-    def _get_primitive_actions(self) -> list[UnitAction]:
-        return ActionPlanPrimitiveMaker(original_actions=self.original_actions).make_primitive()
 
     @property
     def nr_primitive_actions(self) -> int:
@@ -125,6 +122,13 @@ class UnitActionPlan(ActionPlan):
     def nr_digs(self) -> int:
         return sum(dig_action.n for dig_action in self.actions if isinstance(dig_action, DigAction))
 
+    def get_tc_after_adding_actions(self, actions: list[UnitAction]) -> TimeCoordinate:
+        new_action_plan = self + actions
+        return new_action_plan.final_tc
+
+    def get_tc_after_adding_action(self, action: UnitAction) -> TimeCoordinate:
+        return self.get_tc_after_adding_actions([action])
+
     @property
     def final_tc(self) -> TimeCoordinate:
         if self._final_tc is None:
@@ -137,6 +141,9 @@ class UnitActionPlan(ActionPlan):
             self._final_ptc = ActionPlanSimulator(self, unit=self.actor).get_final_ptc(game_state)
 
         return self._final_ptc
+
+    def get_final_p(self, game_state: GameState) -> int:
+        return self.get_final_ptc(game_state).p
 
     @property
     def next_tc(self) -> TimeCoordinate:
@@ -182,12 +189,30 @@ class UnitActionPlan(ActionPlan):
 
         return total_power
 
+    def can_add_action(self, action: UnitAction, game_state: GameState) -> bool:
+        return self.can_add_actions([action], game_state)
+
+    def can_add_actions(self, actions: List[UnitAction], game_state: GameState) -> bool:
+        new_action_plan = self + actions
+        return new_action_plan.actor_can_carry_out_plan(game_state)
+
     def actor_can_carry_out_plan(self, game_state: GameState) -> bool:
         return self.is_valid_size and self.unit_has_enough_power(game_state=game_state)
+
+    def is_valid_size_after_adding_action(self, action: UnitAction) -> bool:
+        return self.is_valid_size_after_adding_actions([action])
+
+    def is_valid_size_after_adding_actions(self, actions: list[UnitAction]) -> bool:
+        new_action_plan = self + actions
+        return new_action_plan.is_valid_size
 
     @property
     def is_valid_size(self) -> bool:
         return len(self) <= 20
+
+    @property
+    def is_under_max_size(self) -> bool:
+        return len(self) < 20
 
     def is_empty(self) -> bool:
         return not self.original_actions
@@ -196,6 +221,12 @@ class UnitActionPlan(ActionPlan):
         nr_valid_primitive_actions = self.get_nr_valid_primitive_actions(game_state)
         self.original_actions = self.primitive_actions[:nr_valid_primitive_actions]
         self.original_actions = self.actions[:20]
+
+    def get_actions_valid_to_add(self, actions: list[UnitAction], game_state: GameState) -> list[UnitAction]:
+        new_action_plan = self + actions
+        nr_valid_primitive_actions = new_action_plan.get_nr_valid_primitive_actions(game_state)
+        nr_actions_to_add = nr_valid_primitive_actions - self.nr_primitive_actions
+        return actions[:nr_actions_to_add]
 
     def get_nr_valid_primitive_actions(self, game_state: GameState):
         if self.is_empty():
@@ -315,24 +346,16 @@ class ActionPlanCondenser:
         return replace(self.cur_action, n=self.repeat_count)
 
 
-@dataclass
-class ActionPlanPrimitiveMaker:
-    original_actions: list[UnitAction]
+def get_primitive_actions_from_list(actions: Iterable[UnitAction]) -> list[UnitAction]:
+    return [primitive_action for action in actions for primitive_action in _get_primitive_actions(action)]
 
-    def make_primitive(self) -> list[UnitAction]:
-        primitive_actions = []
 
-        for action in self.original_actions:
-            if action.n == 1:
-                primitive_actions.append(action)
-            else:
-                primitive = action.n * [self._get_primitive_action(action)]
-                primitive_actions.extend(primitive)
+def _get_primitive_actions(action: UnitAction) -> list[UnitAction]:
+    if action.n == 1:
+        return [action]
 
-        return primitive_actions
-
-    def _get_primitive_action(self, action: UnitAction) -> UnitAction:
-        return replace(action, n=1)
+    primitive_action = replace(action, n=1)
+    return action.n * [primitive_action]
 
 
 @dataclass
