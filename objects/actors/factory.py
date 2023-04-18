@@ -317,18 +317,15 @@ class Factory(Actor):
         water_cost = self.water_cost
         safety_level = 50 if game_state.real_env_steps < 70 else 70
         if can_build and self.can_build_heavy:
-            # if can_build and self.can_build_heavy and self.nr_heavy_units < 3:
             return BuildHeavyGoal(self)
 
         elif (
             can_build
             and self.can_build_light
             and (
-                self.nr_light_units
-                < 15
-                # self.nr_light_units < 15
-                # or (self.nr_light_units < 20 and self.nr_heavy_units > 1)
-                # or (self.nr_light_units < 30 and self.nr_heavy_units > 2)
+                self.nr_light_units < 15
+                or (self.nr_light_units < 20 and self.nr_heavy_units > 1)
+                or (self.nr_light_units < 30 and self.nr_heavy_units > 2)
             )
         ):
             return BuildLightGoal(self)
