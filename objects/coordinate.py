@@ -80,6 +80,11 @@ class Coordinate:
         neighbors = [self + direction for direction in Direction]
         return neighbors
 
+    @property
+    def non_stationary_neighbors(self) -> list[Coordinate]:
+        neighbors = [self + direction for direction in Direction if direction != direction.CENTER]
+        return neighbors
+
     def distance_to(self, c: Coordinate) -> int:
         """Manhattan distance to coordinate
 
@@ -135,6 +140,11 @@ class TimeCoordinate(Coordinate):
     @property
     def neighbors(self) -> list[TimeCoordinate]:
         neighbors = [self + direction for direction in Direction]
+        return neighbors
+
+    @property
+    def non_stationary_neighbors(self) -> list[TimeCoordinate]:
+        neighbors = [self + direction for direction in Direction if direction != Direction.CENTER]
         return neighbors
 
     @property
@@ -248,9 +258,9 @@ class ResourceCoordinate(Coordinate):
 
     def _add_get_new_q_action(self, action: UnitAction) -> int:
         if isinstance(action, PickupAction) and action.resource == self.resource:
-            return self.q + action.n * action.amount
+            return self.q + action.n  # * action.amount
         elif isinstance(action, TransferAction) and action.resource == self.resource:
-            return self.q - action.n * action.amount
+            return self.q - action.n  # * action.amount
         else:
             return self.q
 

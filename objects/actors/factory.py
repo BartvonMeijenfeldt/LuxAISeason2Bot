@@ -111,6 +111,9 @@ class Factory(Actor):
             )
 
         self.lichen_positions = np.argwhere(board.lichen_strains == self.strain_id)
+        self.lichen_positions_set = positions_to_set(self.lichen_positions)
+        # TODO, sort them, and add incoming invaders as well
+        self.sorted_threaths_invaders = [unit for unit in board.opp_units if unit.tc.xy in self.lichen_positions_set]
         self.nr_lichen_tiles = len(self.lichen_positions)
         self.connected_lichen_positions = self._get_connected_lichen_positions(board)
         self.spreadable_lichen_positions = self._get_spreadable_lichen_positions(board)
@@ -316,7 +319,15 @@ class Factory(Actor):
         if can_build and self.can_build_heavy:
             return BuildHeavyGoal(self)
 
-        elif can_build and self.can_build_light and self.nr_light_units < 15:
+        elif (
+            can_build
+            and self.can_build_light
+            and (
+                self.nr_light_units < 15
+                or (self.nr_light_units < 20 and self.nr_heavy_units > 1)
+                or (self.nr_light_units < 30 and self.nr_heavy_units > 2)
+            )
+        ):
             return BuildLightGoal(self)
 
         elif self.cargo.water - water_cost > safety_level and (water_cost < 5 or self.water > 150):
@@ -480,7 +491,7 @@ class Factory(Actor):
             for heavy in self.heavy_units
             if isinstance(heavy.goal, CollectGoal)
             and self.min_distance_to_c(heavy.goal.dig_c) == 1
-            and not heavy.is_supplied_by
+            and not heavy.supplied_by
         )
 
     def min_distance_to_c(self, c: Coordinate) -> int:
@@ -539,6 +550,12 @@ class Factory(Actor):
         constraints: Constraints,
         power_tracker: PowerTracker,
     ) -> List[UnitGoal]:
+        if self.sorted_threaths_invaders:
+            try:
+                return [self._schedule_hunt_invaders(game_state, constraints, power_tracker)]
+            except NoValidGoalFoundError:
+                pass
+
         if self.has_heavy_unsupplied_collecting_next_to_factory and self.has_light_unit_available:
             try:
                 return self._schedule_supply_goal_and_reschedule_receiving_unit(game_state, constraints, power_tracker)
@@ -552,6 +569,51 @@ class Factory(Actor):
                 continue
 
         return [self._schedule_first_unit_by_own_preference(game_state, constraints, power_tracker)]
+
+    def _schedule_hunt_invaders(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> UnitGoal:
+        while self.sorted_threaths_invaders:
+            invader = self.sorted_threaths_invaders.pop()
+            if invader in game_state.hunted_opp_units:
+                continue
+
+            try:
+                return self._schedule_hunt_invader(invader, game_state, constraints, power_tracker)
+            except NoValidGoalFoundError:
+                continue
+
+        raise NoValidGoalFoundError
+
+    def _schedule_hunt_invader(
+        self, invader: Unit, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> UnitGoal:
+        if invader.is_light:
+            return self._schedule_hunt_invader_with_units(
+                invader, self.light_available_units, game_state, constraints, power_tracker
+            )
+        else:
+            return self._schedule_hunt_invader_with_units(
+                invader, self.heavy_available_units, game_state, constraints, power_tracker
+            )
+
+    def _schedule_hunt_invader_with_units(
+        self,
+        invader: Unit,
+        units: Iterable[Unit],
+        game_state: GameState,
+        constraints: Constraints,
+        power_tracker: PowerTracker,
+    ) -> UnitGoal:
+
+        potential_assignments = [(unit, goal) for unit in units for goal in unit._get_hunt_unit_goals(invader)]
+
+        if not potential_assignments:
+            raise NoValidGoalFoundError
+
+        unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
+        goal = unit.generate_hunt_unit_goals(game_state, invader, constraints, power_tracker)
+        return goal
 
     def _schedule_unit_on_strategy(
         self, strategy: Strategy, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
@@ -602,9 +664,12 @@ class Factory(Actor):
         if not rubble_positions:
             raise NoValidGoalFoundError
 
-        return self._schedule_unit_on_rubble_pos(
-            rubble_positions, self.available_units, game_state, constraints, power_tracker
-        )
+        if game_state.real_env_steps < CONFIG.FIRST_STEP_HEAVY_ALLOWED_TO_DIG_RUBBLE:
+            units = self.light_available_units
+        else:
+            units = self.available_units
+
+        return self._schedule_unit_on_rubble_pos(rubble_positions, units, game_state, constraints, power_tracker)
 
     def _schedule_unit_on_rubble_pos(
         self,
@@ -621,6 +686,9 @@ class Factory(Actor):
             for pos in rubble_positions
             for goal in unit._get_clear_rubble_goals(Coordinate(*pos))
         ]
+
+        if not potential_assignments:
+            raise NoValidGoalFoundError
 
         unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
         constraints, power_tracker = self._get_constraints_and_power_without_units_on_dig_c(
@@ -694,18 +762,19 @@ class Factory(Actor):
             (supply_unit, goal)
             for supply_unit in self.light_available_units
             for receiving_unit in self.heavy_units_unsupplied_collecting_next_to_factory
-            for goal in [
-                supply_unit._get_supply_power_goal(
-                    receiving_unit, receiving_unit.private_action_plan, receiving_unit.goal.dig_c  # type: ignore
-                )
-            ]
+            for goal in supply_unit._get_supply_power_goals(
+                receiving_unit, receiving_unit.private_action_plan, receiving_unit.goal.dig_c  # type: ignore
+            )
         ]
 
-        suppling_unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
+        if not potential_assignments:
+            raise NoValidGoalFoundError
+
+        supplying_unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
         receiving_unit = goal.receiving_unit
         receiving_c = goal.receiving_c
 
-        return (suppling_unit, receiving_unit, receiving_c)
+        return (supplying_unit, receiving_unit, receiving_c)
 
     def _reschedule_receiving_collect_goal(
         self,
@@ -813,6 +882,9 @@ class Factory(Actor):
             for goal in unit._get_collect_ore_goals(Coordinate(*pos), game_state, factory=self, is_supplied=False)
         ]
 
+        if not potential_assignments:
+            raise NoValidGoalFoundError
+
         unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
         constraints, power_tracker = self._get_constraints_and_power_without_units_on_dig_c(
             goal.dig_c, game_state, constraints, power_tracker
@@ -887,6 +959,9 @@ class Factory(Actor):
             for goal in unit._get_collect_ice_goals(Coordinate(*pos), game_state, factory=self, is_supplied=False)
         ]
 
+        if not potential_assignments:
+            raise NoValidGoalFoundError
+
         unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
         constraints, power_tracker = self._get_constraints_and_power_without_units_on_dig_c(
             goal.dig_c, game_state, constraints, power_tracker
@@ -912,10 +987,15 @@ class Factory(Actor):
         dig_pos_set = {c.xy for c in game_state.opp_lichen_tiles}
         valid_pos = dig_pos_set - game_state.positions_in_dig_goals
 
+        if CONFIG.FIRST_STEP_HEAVY_ALLOWED_TO_DESTROY_LICHEN < game_state.real_env_steps:
+            units = self.light_available_units
+        else:
+            units = self.available_units
+
         potential_assignments = [
             (unit, goal)
             for pos in valid_pos
-            for unit in self.available_units
+            for unit in units
             for goal in unit._get_destroy_lichen_goals(Coordinate(*pos), game_state)
         ]
 

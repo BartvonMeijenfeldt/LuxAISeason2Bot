@@ -179,6 +179,10 @@ class GameState:
         return self.board.opp_nr_lichen_tiles
 
     @property
+    def hunted_opp_units(self) -> set[Unit]:
+        return self.board.hunted_opp_units
+
+    @property
     def positions_in_dig_goals(self) -> set[tuple]:
         return self.board.positions_in_dig_goals
 

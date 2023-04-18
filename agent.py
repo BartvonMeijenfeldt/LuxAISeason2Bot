@@ -110,19 +110,23 @@ class Agent:
 
         for unit in game_state.player_units:
             if not unit.can_update_action_queue:
+                unit.set_send_no_action_queue()
                 continue
 
             if not unit.private_action_plan:
+                unit.set_send_no_action_queue()
                 continue
 
             if not unit.action_queue and unit.private_action_plan.is_first_action_move_center():
+                unit.set_send_no_action_queue()
                 continue
 
             if unit.action_queue and unit.first_action_of_queue_and_private_action_plan_same:
+                unit.set_send_no_action_queue()
                 continue
 
             actions[unit.unit_id] = unit.private_action_plan.to_lux_output()
-            unit.set_action_queue(unit.private_action_plan)
+            unit.set_send_action_queue(unit.private_action_plan)
 
         return actions
 

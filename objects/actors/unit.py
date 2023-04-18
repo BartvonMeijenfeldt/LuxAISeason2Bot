@@ -8,6 +8,7 @@ from math import ceil
 from copy import copy
 from utils import PriorityQueue
 from objects.actors.actor import Actor
+from objects.actions.unit_action_plan import get_primitive_actions_from_list
 from lux.config import UnitConfig
 from objects.coordinate import TimeCoordinate, Coordinate
 from objects.game_state import GameState
@@ -17,6 +18,7 @@ from objects.actions.unit_action_plan import UnitActionPlan
 from objects.cargo import Cargo
 from logic.goal_resolution.power_availabilty_tracker import PowerTracker
 from logic.constraints import Constraints
+from objects.direction import Direction, NON_STATIONARY_DIRECTIONS
 from logic.goals.unit_goal import (
     UnitGoal,
     DigGoal,
@@ -30,6 +32,7 @@ from logic.goals.unit_goal import (
     TransferOreGoal,
     EvadeConstraintsGoal,
     SupplyPowerGoal,
+    HuntGoal,
 )
 from config import CONFIG
 from exceptions import NoValidGoalFoundError
@@ -46,12 +49,14 @@ class Unit(Actor):
     action_queue: List[UnitAction] = field(init=False, default_factory=list)
     goal: Optional[UnitGoal] = field(init=False, default=None)
     can_be_assigned: bool = field(init=False, default=True)
-    is_supplied_by: Optional[Unit] = field(init=False, default=None)
+    supplies: Optional[Unit] = field(init=False, default=None)
+    supplied_by: Optional[Unit] = field(init=False, default=None)
     private_action_plan: UnitActionPlan = field(init=False)
 
     def __post_init__(self) -> None:
         super().__post_init__()
         self.private_action_plan = UnitActionPlan(self, [], is_set=True)
+        self.send_action_queue = None
         self._set_unit_final_variables()
         self._set_unit_state_variables()
 
@@ -59,10 +64,11 @@ class Unit(Actor):
         self.tc = tc
         self.power = power
         self.cargo = cargo
-        # For opponent units private_action_plan will be None
-        if self._last_action_was_carried_out(action_queue) and self.private_action_plan:
+
+        if self._last_player_action_was_carried_out(action_queue):
             self.private_action_plan.step()
 
+        self.acted_out_last_action_and_no_update_queue = self._acted_out_last_action_and_no_update_queue(action_queue)
         self.action_queue = action_queue
         if self.private_action_plan and self.action_queue == self.private_action_plan.actions:
             self.private_action_plan.is_set = True
@@ -97,12 +103,32 @@ class Unit(Actor):
         self.has_actions_in_queue = len(self.action_queue) > 0
         self.can_be_assigned = not self.goal and self.can_update_action_queue
         self.agent_id = f"player_{self.team_id}"
+        self.primitive_actions_in_queue = get_primitive_actions_from_list(self.action_queue)
+        self.nr_primitive_actions_in_queue = len(self.primitive_actions_in_queue)
 
-    def _last_action_was_carried_out(self, action_queue: list[UnitAction]) -> bool:
-        if not self.action_queue:
+    @property
+    def tcs_action_queue(self) -> List[TimeCoordinate]:
+        return [self.tc] + UnitActionPlan(self, self.action_queue).time_coordinates
+
+    @property
+    def non_stationary_tcs_neighboring_action_queue(self) -> List[TimeCoordinate]:
+        return [tc + direction for tc in self.tcs_action_queue for direction in NON_STATIONARY_DIRECTIONS]
+
+    def _last_player_action_was_carried_out(self, action_queue: list[UnitAction]) -> bool:
+        last_action_queue = self.send_action_queue if self.send_action_queue else self.action_queue
+
+        if not last_action_queue:
             return True
 
-        return self.action_queue != action_queue
+        return last_action_queue != action_queue
+
+    def _acted_out_last_action_and_no_update_queue(self, action_queue: list[UnitAction]) -> bool:
+        last_step_plan = UnitActionPlan(self, self.action_queue)
+        current_plan = UnitActionPlan(self, action_queue)
+
+        last_step_plan.step()
+
+        return last_step_plan.actions == current_plan.actions
 
     @property
     def first_action_of_queue_and_private_action_plan_same(self) -> bool:
@@ -193,9 +219,9 @@ class Unit(Actor):
     def _get_flee_goal(self, game_state: GameState) -> FleeGoal:
         # TODO, this should be getting all threatening opponents and the flee goal should be adapted to
         # take multiple opponents into account
-        neighboring_opponents = self._get_neighboring_opponents(game_state)
-        randomly_picked_neighboring_opponent = neighboring_opponents[0]
-        flee_goal = FleeGoal(unit=self, opp_c=randomly_picked_neighboring_opponent.tc)
+        # neighboring_opponents = self._get_neighboring_opponents(game_state)
+        # randomly_picked_neighboring_opponent = neighboring_opponents[0]
+        flee_goal = FleeGoal(unit=self)
         return flee_goal
 
     def _get_relevant_transfer_goals(self, game_state: GameState) -> List[UnitGoal]:
@@ -226,6 +252,18 @@ class Unit(Actor):
         goal = self.get_best_goal(rubble_goals, game_state, constraints, power_tracker)
         return goal  # type: ignore
 
+    def get_best_version_goal(
+        self, goal: UnitGoal, game_state: GameState, constraints: Constraints, power_tracker
+    ) -> UnitGoal:
+        if hasattr(goal, "pickup_power"):
+            goals = [copy(goal), copy(goal)]
+            for goal, pickup_power in zip(goals, [True, False]):
+                goal.pickup_power = pickup_power  # type: ignore
+        else:
+            goals = [goal]
+
+        return self.get_best_goal(goals, game_state, constraints, power_tracker)
+
     def get_best_goal(
         self,
         goals: Iterable[UnitGoal],
@@ -236,10 +274,7 @@ class Unit(Actor):
         goals = list(goals)
         # goals = self.generate_goals(game_state)
         priority_queue = self._init_priority_queue(goals, game_state)
-
-        constraints_with_danger = copy(constraints)
-        unit_danger_coordinates = self.get_danger_tcs(game_state)
-        constraints_with_danger.add_danger_coordinates(unit_danger_coordinates)
+        constraints_with_danger = self._get_constraints_with_danger_tcs(constraints, game_state)
 
         while not priority_queue.is_empty():
             goal: UnitGoal = priority_queue.pop()
@@ -258,6 +293,14 @@ class Unit(Actor):
                 return goal
 
         raise NoValidGoalFoundError
+
+    def _get_constraints_with_danger_tcs(self, constraints: Constraints, game_state: GameState) -> Constraints:
+        constraints_with_danger = copy(constraints)
+        stationary_danger_tcs = self.get_stationary_danger_tcs(game_state)
+        constraints_with_danger.add_stationary_danger_coordinates(stationary_danger_tcs)
+        moving_danger_tcs = self.get_moving_danger_tcs(game_state)
+        constraints_with_danger.add_moving_danger_coordinates(moving_danger_tcs)
+        return constraints_with_danger
 
     def _init_priority_queue(self, goals: list[UnitGoal], game_state: GameState) -> PriorityQueue:
         goals_priority_queue = PriorityQueue()
@@ -287,9 +330,10 @@ class Unit(Actor):
         self.goals.extend(rubble_goals)
 
     def _add_base_goals(self, game_state: GameState, factory: Factory) -> None:
-        # if self.is_light:
-        self._add_rubble_goals(factory, game_state)
+        if self.is_light or game_state.real_env_steps > CONFIG.FIRST_STEP_HEAVY_ALLOWED_TO_DIG_RUBBLE:
+            self._add_rubble_goals(factory, game_state)
         self._add_ice_goals(game_state, factory)
+
         if game_state.real_env_steps <= CONFIG.LAST_STEP_SCHEDULE_ORE_MINING:
             self._add_ore_goals(game_state, factory)
 
@@ -343,14 +387,17 @@ class Unit(Actor):
         constraints: Constraints,
         power_tracker: PowerTracker,
     ) -> SupplyPowerGoal:
-        supply_goal = self._get_supply_power_goal(receiving_unit, receiving_action_plan, receiving_c)
-        goal = self.get_best_goal([supply_goal], game_state, constraints, power_tracker)
+        supply_goals = self._get_supply_power_goals(receiving_unit, receiving_action_plan, receiving_c)
+        goal = self.get_best_goal(supply_goals, game_state, constraints, power_tracker)
         return goal  # type: ignore
 
-    def _get_supply_power_goal(
+    def _get_supply_power_goals(
         self, receiving_unit: Unit, receiving_action_plan: UnitActionPlan, receiving_c: Coordinate
-    ) -> SupplyPowerGoal:
-        return SupplyPowerGoal(self, receiving_unit, receiving_action_plan, receiving_c)
+    ) -> List[SupplyPowerGoal]:
+        return [
+            SupplyPowerGoal(self, receiving_unit, receiving_action_plan, receiving_c, pickup_power)
+            for pickup_power in [True, False]
+        ]
 
     def _get_collect_ore_goals(
         self, c: Coordinate, game_state: GameState, factory: Factory, is_supplied: bool
@@ -437,6 +484,21 @@ class Unit(Actor):
             if self._is_feasible_dig_c(c, game_state)
         ]
 
+    def _get_hunt_unit_goals(self, opp: Unit) -> List[HuntGoal]:
+        return [
+            HuntGoal(self, opp, pickup_power)
+            for pickup_power in [False, True]
+            if pickup_power or self.power > opp.power
+        ]
+
+    def generate_hunt_unit_goals(
+        self, game_state: GameState, opp: Unit, constraints: Constraints, power_tracker: PowerTracker
+    ) -> HuntGoal:
+        hunt_goals = self._get_hunt_unit_goals(opp)
+        goal = self.get_best_goal(hunt_goals, game_state, constraints, power_tracker)
+        return goal  # type: ignore
+        ...
+
     def _is_feasible_dig_c(self, c: Coordinate, game_state: GameState) -> bool:
         return not (self.is_light and game_state.get_dis_to_closest_opp_heavy(c) <= 1)
 
@@ -495,12 +557,19 @@ class Unit(Actor):
     def get_nr_digs_to_fill_cargo(self) -> int:
         return ceil(self.cargo_space_left / self.resources_gained_per_dig)
 
-    def get_danger_tcs(self, game_state) -> dict[TimeCoordinate, float]:
+    def get_moving_danger_tcs(self, game_state: GameState) -> dict[TimeCoordinate, float]:
         return {
             neighbor_c: 10_000
-            for neighbor_c in self.tc.neighbors
+            for neighbor_c in self.tc.non_stationary_neighbors
             if self.is_next_c_next_to_opponent_that_can_capture_self(neighbor_c, game_state)
         }
+
+    def get_stationary_danger_tcs(self, game_state: GameState) -> dict[TimeCoordinate, float]:
+        danger_tcs = {}
+        stationary_tc = self.tc + Direction.CENTER
+        if self.is_next_c_next_to_opponent_that_can_capture_self(stationary_tc, game_state):
+            danger_tcs[stationary_tc] = 10_000
+        return danger_tcs
 
     def is_stronger_than(self, other: Unit) -> bool:
         return self.is_heavy and other.is_light
@@ -528,23 +597,52 @@ class Unit(Actor):
     def metal(self) -> int:
         return self.cargo.metal
 
-    def set_action_queue(self, action_plan: UnitActionPlan) -> None:
-        self.action_queue = action_plan.actions
+    def set_send_action_queue(self, action_plan: UnitActionPlan) -> None:
+        self.send_action_queue = action_plan.actions
+
+    def set_send_no_action_queue(self) -> None:
+        self.send_action_queue = None
 
     def set_private_action_plan(self, action_plan: UnitActionPlan) -> None:
         self.private_action_plan = action_plan
 
     def remove_goal_and_private_action_plan(self) -> None:
-        if self.is_supplied_by:
-            self.is_supplied_by.remove_goal_and_private_action_plan()
+        if self.supplied_by:
+            self.supplied_by.set_not_supplying()
+
+        if self.supplies:
+            self.supplies.set_unsupplied()
 
         if isinstance(self.goal, SupplyPowerGoal):
-            self.goal.receiving_unit.is_supplied_by = None
+            self.goal.receiving_unit.supplied_by = None
 
         self.goal = None
         self.is_scheduled = False
         self.private_action_plan = UnitActionPlan(self, [])
+        self.supplies = None
+        self.supplied_by = None
         self.can_be_assigned = True
 
         if not self.action_queue:
             self.private_action_plan.is_set = True
+
+    def set_not_supplying(self) -> None:
+        self.supplies = None
+
+    def set_unsupplied(self) -> None:
+        self.supplied_by = None
+
+    def get_tc_after_actions(self, actions: list[UnitAction]) -> TimeCoordinate:
+        action_plan = UnitActionPlan(self, actions)
+        return action_plan.final_tc
+
+    def get_power_after_actions(self, actions: list[UnitAction], game_state: GameState) -> int:
+        action_plan = UnitActionPlan(self, actions)
+        final_ptc = action_plan.get_final_ptc(game_state)
+        return final_ptc.p
+
+    def get_tc_in_n_steps(self, n: int) -> TimeCoordinate:
+        if n >= len(self.primitive_actions_in_queue):
+            return self.tcs_action_queue[-1]
+
+        return self.tcs_action_queue[n]
