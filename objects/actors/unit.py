@@ -290,11 +290,6 @@ class Unit(Actor):
             priority_queue.put(goal, priority)
 
             if goal == priority_queue[0]:
-                from logic.goals.unit_goal import HuntGoal
-                import logging
-
-                if isinstance(goal, HuntGoal):
-                    logging.critical(f"Best goal {self.id}_{self.tc} on hunt {goal.opp.id}_{goal.opp.tc}")
                 return goal
 
         raise NoValidGoalFoundError
