@@ -1,10 +1,13 @@
 import numpy as np
 
-from scipy.signal import convolve2d
+from typing import Optional, List
 from scipy.ndimage.filters import minimum_filter
 
 from objects.board import Board
-from objects.coordinate import Coordinate, CoordinateList
+from distances import get_distances_between_positions
+from image_processing import get_islands
+from lux.config import EnvConfig
+from config import CONFIG
 
 
 def get_factory_spawn_loc(board: Board, valid_spawns: np.ndarray) -> tuple:
@@ -17,41 +20,131 @@ def get_factory_spawn_loc(board: Board, valid_spawns: np.ndarray) -> tuple:
 
 
 def get_rubble_score(board: Board) -> np.ndarray:
-    neighbouring_inverted_rubble = sum_neighbouring_inverted_rubble(board.rubble)
-    rubble_score = neighbouring_inverted_rubble / 100000
-    return rubble_score
+    rubble_adjusted = _set_unspreadable_positions_to_inf_rubble(board)
+    factory_pos_connects_to_empty_pos = get_factory_pos_connects_to_empty_pos(rubble_adjusted)
+    rubble_value = _get_empty_rubble_value(rubble_adjusted, factory_pos_connects_to_empty_pos)
+    score = rubble_value * CONFIG.VALUE_CONNECTED_TILE
+
+    return score
 
 
-def sum_neighbouring_inverted_rubble(rubble: np.ndarray) -> np.ndarray:
-    inverted_rubble = 100 - rubble
-    neighbouring_inverted_rubble = sum_closest_numbers(inverted_rubble, r=5)
-    directly_neighbouring_inverted_rubble = sum_closest_numbers(inverted_rubble, r=1)
+def _get_empty_rubble_value(rubble: np.ndarray, factory_pos_connects_to_empty_pos: np.ndarray) -> np.ndarray:
+    # Gets a score for empty rubble. Connected empty tiles count for 1, then based on distance and closeness to empty
+    ratio_empty = 1 - rubble / EnvConfig.MAX_RUBBLE
+    distances_between_all_positions = _get_distances_between_all_positions()
+    scores = np.divide(ratio_empty, distances_between_all_positions, where=distances_between_all_positions != 0)
+    scores[factory_pos_connects_to_empty_pos] = 1
+    scores = scores.reshape(48 * 48, 48 * 48)
+    best_indexes = np.argpartition(-scores, CONFIG.BEST_N_RUBBLE_TILES)[..., : CONFIG.BEST_N_RUBBLE_TILES]
+    best_scores = scores[np.arange(scores.shape[0])[:, None], best_indexes]
+    sum_scores = best_scores.sum(axis=1)
+    return sum_scores.reshape(48, 48)
 
-    # TODO bonus connected / easy to connect?
-    return neighbouring_inverted_rubble + 100 * directly_neighbouring_inverted_rubble
+
+def _get_distances_between_all_positions() -> np.ndarray:
+    positions_board = np.argwhere(np.ones((EnvConfig.map_size, EnvConfig.map_size)))
+    distances_between_all_positions = get_distances_between_positions(positions_board, positions_board)
+    distances_between_all_positions = distances_between_all_positions.reshape((48, 48, 48, 48))
+    return distances_between_all_positions
+
+
+def _set_unspreadable_positions_to_inf_rubble(board: Board) -> np.ndarray:
+    rubble = board.rubble.copy()
+    rubble = rubble.astype("float")
+    unspreadable_positions = board.unspreadable_positions
+    rubble[unspreadable_positions[:, 0], unspreadable_positions[:, 1]] = np.inf
+    return rubble
+
+
+def get_factory_pos_connects_to_empty_pos(rubble: np.ndarray) -> np.ndarray:
+    factory_positions = _get_potential_factory_positions()
+    islands = get_islands(rubble == 0)
+
+    # TODO optimize this function, takes almost 3 seconds
+    factory_pos_connects_to_empty_pos = _get_factory_pos_connects_to_island_pos(islands, factory_positions)
+    return factory_pos_connects_to_empty_pos
+
+
+def _get_factory_pos_connects_to_island_pos(
+    islands_positions_list: List[np.ndarray], factory_positions: np.ndarray
+) -> np.ndarray:
+    # Returns Shape 48 x 48 x 48 x 48: Does (x1, y1) connects to (x2, y2)?
+    factory_pos_connected_to_rubble_pos = np.zeros([EnvConfig.map_size] * 4)
+    # nr_cleared_tiles = np.zeros((EnvConfig.map_size, EnvConfig.map_size))
+
+    for island_positions in islands_positions_list:
+        connected_tiles_mask = _get_is_connected_mask(factory_positions, island_positions)
+        island_tiles_mask = _get_island_tiles_mask(island_positions)
+        booleans_to_add = (connected_tiles_mask[..., None, None] & island_tiles_mask[None, None, ...]).max(axis=2)
+        factory_pos_connected_to_rubble_pos += booleans_to_add
+
+    return factory_pos_connected_to_rubble_pos.astype(bool)
+
+
+def _get_is_connected_mask(factory_positions: np.ndarray, island_positions: np.ndarray) -> np.ndarray:
+    # Return shape is 48 x 48 x nr_island_positions
+    differences_xy = factory_positions[..., None] - island_positions.transpose()[None, None, None, ...]
+    distances_factory_positions_to_island_positions = np.abs(differences_xy).sum(axis=3)
+    min_distances_factory_to_tile = distances_factory_positions_to_island_positions.min(axis=2)
+    min_distance_factory_to_island = min_distances_factory_to_tile.min(axis=2)
+    connected_to_island_mask = min_distance_factory_to_island <= 1
+    not_on_factory_mask = min_distances_factory_to_tile > 0
+    connected_tiles_mask = connected_to_island_mask[:, :, None] & not_on_factory_mask
+    return connected_tiles_mask
+
+
+def _get_island_tiles_mask(island_positions: np.ndarray) -> np.ndarray:
+    # Return shape is nr_island_positions x 48 x 48
+    tiles_mask = np.zeros([island_positions.shape[0], EnvConfig.map_size, EnvConfig.map_size], dtype=bool)
+    index_ax_0 = np.arange(len(island_positions))
+    tiles_mask[index_ax_0, island_positions[:, 0], island_positions[:, 1]] = True
+    return tiles_mask
+
+
+def _get_potential_factory_positions() -> np.ndarray:
+    # Shape 48 x 48 x 9 x 2
+    positions = []
+    for i in range(EnvConfig.map_size):
+        positions_i = []
+        for j in range(EnvConfig.map_size):
+            positions_ij = [(x, y) for x in range(i - 1, i + 2) for y in range(j - 1, j + 2)]
+            positions_i.append(positions_ij)
+
+        positions.append(positions_i)
+
+    positions = np.array(positions)
+    return positions
 
 
 def get_ice_score(board: Board) -> np.ndarray:
     tiles_array = board._get_tiles_xy_array()
     min_distances = _get_min_distances_placing_factory_to_positions(tiles_array, board.ice_positions)
-    base_scores = get_base_scores(min_distances, base_score=20, max_distance=10, best_n_valid=4)
-    direct_neighbor_bonus = get_direct_neighbor_bonus(min_distances, bonus=300)
-    return base_scores + direct_neighbor_bonus
+    base_scores = get_base_scores(min_distances, base_score=CONFIG.BASE_SCORE_ICE)
+    closest_distance_penalty = get_closest_distances_penalty_score(
+        min_distances, penalty=CONFIG.PENALTY_DISTANCE_CLOSEST_ICE
+    )
+
+    scores = np.subtract(base_scores, closest_distance_penalty)
+    return scores
 
 
-def get_base_scores(min_distances: np.ndarray, base_score: int, max_distance: int, best_n_valid: int) -> np.ndarray:
+def get_base_scores(min_distances: np.ndarray, base_score: int, best_n_valid: Optional[int] = None) -> np.ndarray:
     min_distances = min_distances.astype("float")
     base_array = np.array([base_score])
-    valid_mask = (min_distances != 0) & (min_distances <= max_distance)
+    valid_mask = min_distances != 0
     scores = np.divide(base_array, min_distances, out=np.zeros_like(min_distances), where=valid_mask)
-    best_n_scores = np.partition(scores, -best_n_valid, axis=2)[:, :, -best_n_valid:]
-    base_scores = best_n_scores.sum(axis=2)
+    scores = -np.sort(-scores, axis=2)
+    if best_n_valid:
+        scores = scores[:, :, :best_n_valid]
+    scores_weighted_on_closest_pos = scores / np.arange(1, scores.shape[2] + 1)
+    base_scores = scores_weighted_on_closest_pos.sum(axis=2)
     return base_scores
 
 
-def get_direct_neighbor_bonus(min_distances: np.ndarray, bonus: int) -> np.ndarray:
-    has_direct_neighbor = min_distances.min(axis=2) == 1
-    return bonus * has_direct_neighbor
+def get_closest_distances_penalty_score(min_distances: np.ndarray, penalty: int) -> np.ndarray:
+    closest_distances = min_distances.min(axis=2)
+    penalty_score = penalty * np.clip(closest_distances - 1, 0, np.inf)
+    return penalty_score
 
 
 def _get_min_distances_placing_factory_to_positions(tiles_array: np.ndarray, positions: np.ndarray) -> np.ndarray:
@@ -68,49 +161,10 @@ def _get_min_distances_placing_factory_to_positions(tiles_array: np.ndarray, pos
 def get_ore_score(board: Board) -> np.ndarray:
     tiles_array = board._get_tiles_xy_array()
     min_distances = _get_min_distances_placing_factory_to_positions(tiles_array, board.ore_positions)
-    base_scores = get_base_scores(min_distances, base_score=40, max_distance=10, best_n_valid=5)
-    return base_scores
-
-
-def sum_closest_numbers(x: np.ndarray, r: int) -> np.ndarray:
-    conv_array = _get_conv_filter_surrounding_factory(r=r)
-    sum_closest_numbers = convolve2d(x, conv_array, mode="same")
-    return sum_closest_numbers
-
-
-def _get_conv_filter_surrounding_factory(r: int) -> np.ndarray:
-    """Get the convolutional filter of coordinates surrounding a 3x3 tile up to distance r"""
-    array_size = 2 * r + 3
-    coordinates_factory = _get_coordinates_factory(array_size)
-    distance_array = _get_min_distance_to_object_array(array_size, object=coordinates_factory)
-    conv_filter = _convert_min_distance_to_conv_filter(distance_array, r)
-
-    return conv_filter
-
-
-def _get_coordinates_factory(array_size: int) -> CoordinateList:
-    """Get the 3x3 coordinates of the factory in the middle of an array of odd size"""
-    assert array_size % 2 == 1
-    center = array_size // 2
-    coordinates = CoordinateList([Coordinate(center + i, center + j) for i in [-1, 0, 1] for j in [-1, 0, 1]])
-
-    return coordinates
-
-
-def _get_min_distance_to_object_array(array_size: int, object: CoordinateList) -> np.ndarray:
-    min_distance_array = np.empty((array_size, array_size))
-
-    for i in range(array_size):
-        for j in range(array_size):
-            c_ij = Coordinate(i, j)
-            min_distance_array[i, j] = object.min_dis_to(c_ij)
-
-    return min_distance_array
-
-
-def _convert_min_distance_to_conv_filter(distance_array: np.ndarray, r: int) -> np.ndarray:
-    between_0_and_r = (distance_array > 0) & (distance_array <= r)
-    return np.where(between_0_and_r, 1, 0)
+    base_scores = get_base_scores(min_distances, base_score=CONFIG.BASE_SCORE_ORE)
+    additional_bonus_closest_ore = CONFIG.BONUS_CLOSEST_NEIGHBOR_ORE - CONFIG.BASE_SCORE_ORE
+    closest_neighbor_score = get_base_scores(min_distances, additional_bonus_closest_ore, best_n_valid=1)
+    return base_scores + closest_neighbor_score
 
 
 def get_scores(

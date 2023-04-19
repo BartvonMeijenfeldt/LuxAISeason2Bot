@@ -1,4 +1,22 @@
 class CONFIG:
+    # Setup
+    # --------------------------------------
+
+    # ICE
+    BASE_SCORE_ICE: int = 40
+    PENALTY_DISTANCE_CLOSEST_ICE: int = 10_000
+
+    # ORE
+    BASE_SCORE_ORE: int = 20
+    BONUS_CLOSEST_NEIGHBOR_ORE: int = 80
+
+    # RUBBLE
+    VALUE_CONNECTED_TILE: float = 2
+    BEST_N_RUBBLE_TILES: int = 50
+
+    # Gameplay
+    # --------------------------------------
+
     LIGHT_TIME_TO_POWER_COST = 5
     HEAVY_TIME_TO_POWER_COST = 10
     # TODO potential adaptation: start lower, and each timestep that passes increase the optimal path time to power cost
