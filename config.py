@@ -7,7 +7,7 @@ class CONFIG:
     PENALTY_DISTANCE_CLOSEST_ICE: int = 10_000
 
     # ORE
-    BASE_SCORE_ORE: int = 40
+    BASE_SCORE_ORE: int = 20
     BONUS_CLOSEST_NEIGHBOR_ORE: int = 80
 
     # RUBBLE
