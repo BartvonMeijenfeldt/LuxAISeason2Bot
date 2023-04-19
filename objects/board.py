@@ -7,7 +7,8 @@ from collections import defaultdict
 from objects.coordinate import Coordinate, CoordinateList
 from logic.goals.unit_goal import DigGoal, HuntGoal
 from image_processing import get_islands
-from distances import get_n_closests_positions_between_positions
+from distances import init_empty_positions, get_n_closests_positions_between_positions
+from positions import append_positions
 
 if TYPE_CHECKING:
     from objects.actors.unit import Unit
@@ -112,6 +113,32 @@ class Board:
         self._min_distance_to_opp_factory_or_lichen = self._get_min_dis_tiles_to_positions(
             self.opp_factories_or_lichen_tiles
         )
+
+    @property
+    def unspreadable_positions(self) -> np.ndarray:
+        return append_positions(self.resource_positions, self.factory_positions)
+
+    @property
+    def resource_positions(self) -> np.ndarray:
+        return append_positions(self.ice_positions, self.ore_positions)
+
+    @property
+    def factory_positions(self) -> np.ndarray:
+        return append_positions(self.player_factory_positions, self.opp_factory_positions)
+
+    @property
+    def player_factory_positions(self) -> np.ndarray:
+        if not self.player_factory_tiles:
+            return init_empty_positions()
+
+        return self.player_factory_tiles.to_positions()
+
+    @property
+    def opp_factory_positions(self) -> np.ndarray:
+        if not self.opp_factory_tiles:
+            return init_empty_positions()
+
+        return self.opp_factory_tiles.to_positions()
 
     # def _get_rubble_to_remove_for_pathing(self) -> Counter[Tuple[int, int]]:
     #    values_pathing_player = sum([factory.rubble_positions_pathing for factory in self.player_factories], Counter())
