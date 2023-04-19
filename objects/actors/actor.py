@@ -26,8 +26,3 @@ class Actor:
 
     def __eq__(self, __o: Actor) -> bool:
         return self.id == __o.id
-
-    def schedule_goal(self, goal: Goal) -> None:
-        self.goal = goal
-        self.private_action_plan = goal.action_plan
-        self.is_scheduled = True

@@ -476,6 +476,7 @@ class TestPowerPickupSearch(unittest.TestCase):
             constraints=constraints,
             next_goal_c=next_goal_c,
             power_tracker=power_availability_tracker,
+            later_pickup=True,
         )
         search = Search(pick_up_power_graph)
         actions = search.get_actions_to_complete_goal(start=start_ptc)

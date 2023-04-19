@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Sequence
 
 from abc import abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, List, Tuple
+from typing import Optional, Tuple
 from math import ceil, inf
 from copy import copy
 from functools import lru_cache
@@ -59,18 +59,8 @@ class UnitGoal(Goal):
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         ...
 
-    def generate_action_plan(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitActionPlan:
-        self._generate_action_plan(game_state, constraints, power_tracker)
-
-        if not self.action_plan.is_valid_size:
-            raise InvalidGoalError
-
-        return self.action_plan
-
     @abstractmethod
-    def _generate_action_plan(
+    def generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -549,7 +539,7 @@ class CollectGoal(DigGoal):
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         return False
 
-    def _generate_action_plan(
+    def generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -740,7 +730,7 @@ class SupplyPowerGoal(UnitGoal):
 
         return receiving_unit.goal.is_completed(game_state, receiving_unit.private_action_plan)
 
-    def _generate_action_plan(
+    def generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -801,7 +791,7 @@ class SupplyPowerGoal(UnitGoal):
 
                 receiving_unit_powers[index_transfer:] += power_transfer_action.amount
 
-            if not self.action_plan.is_valid_size_after_adding_actions(actions):
+            if self.action_plan.nr_primitive_actions >= 30:
                 if isinstance(self.action_plan.actions[-1], TransferAction):
                     self.action_plan.set_actions(self.action_plan.actions[:-1])
                 break
@@ -900,7 +890,7 @@ class TransferResourceGoal(UnitGoal):
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         return False
 
-    def _generate_action_plan(
+    def generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -1074,7 +1064,7 @@ class ClearRubbleGoal(DigGoal):
     def key(self) -> str:
         return str(self)
 
-    def _generate_action_plan(
+    def generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -1194,7 +1184,7 @@ class DestroyLichenGoal(DigGoal):
     def key(self) -> str:
         return str(self)
 
-    def _generate_action_plan(
+    def generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -1328,7 +1318,7 @@ class HuntGoal(UnitGoal):
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return self.opp not in game_state.opp_units or game_state.is_opponent_factory_tile(self.opp.tc)
 
-    def _generate_action_plan(
+    def generate_action_plan(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> UnitActionPlan:
         constraints_with_current_danger = self._add_opp_danger_constraints(constraints, game_state)
@@ -1450,9 +1440,6 @@ class HuntGoal(UnitGoal):
             if opp_action.is_stationary:
                 return
 
-            if not self.action_plan.is_under_max_size or self.action_plan.nr_primitive_actions > 100:
-                return
-
             next_tc = self.cur_tc.add_action(opp_action)
 
             if constraints.tc_not_allowed(next_tc) or not self.action_plan.can_add_action(opp_action, game_state):
@@ -1539,11 +1526,15 @@ class HuntGoal(UnitGoal):
         last_move_action_opponent = self._get_last_move_action_opponent()
         next_direction = get_reversed_direction(last_move_action_opponent.unit_direction)
 
-        while self.action_plan.is_under_max_size or self.action_plan.nr_primitive_actions > 100:
+        while self.action_plan.nr_primitive_actions < 100:
             action = MoveAction(next_direction)
             next_tc = self.cur_tc.add_action(action)
 
-            if constraints.tc_not_allowed(next_tc) or not self.action_plan.can_add_action(action, game_state):
+            if (
+                constraints.tc_not_allowed(next_tc)
+                or not game_state.is_valid_c_for_player(next_tc)
+                or not self.action_plan.can_add_action(action, game_state)
+            ):
                 return
 
             self.action_plan.append(action)
@@ -1595,33 +1586,28 @@ class FleeGoal(UnitGoal):
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         return False
 
-    def _generate_action_plan(
+    def generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
         power_tracker: PowerTracker,
     ) -> UnitActionPlan:
         self._init_action_plan()
-        self._flee_towards_factory_actions(game_state, constraints)
+        self._add_flee_towards_factory_actions(game_state, constraints)
 
         return self.action_plan
 
-    def _flee_towards_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
+    def _add_flee_towards_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
         closest_factory_c = game_state.get_closest_player_factory_c(c=self.action_plan.final_tc)
         move_actions = self._get_flee_to_actions(
             start_tc=self.unit.tc, goal=closest_factory_c, constraints=constraints, board=game_state.board
         )
 
         move_actions = self.action_plan.get_actions_valid_to_add(move_actions, game_state)
-
-        while move_actions:
-            if self.action_plan.is_valid_size_after_adding_actions(move_actions):
-                self.action_plan.extend(move_actions)
-                break
-
-            move_actions = move_actions[:-1]
-        else:
+        if len(move_actions) == 0:
             raise InvalidGoalError
+
+        self.action_plan.extend(move_actions)
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return CONFIG.BENEFIT_FLEEING
@@ -1659,7 +1645,7 @@ class UnitNoGoal(UnitGoal):
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         return False
 
-    def _generate_action_plan(
+    def generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -1702,7 +1688,7 @@ class EvadeConstraintsGoal(UnitGoal):
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         return False
 
-    def _generate_action_plan(
+    def generate_action_plan(
         self,
         game_state: GameState,
         constraints: Constraints,
@@ -1719,7 +1705,7 @@ class EvadeConstraintsGoal(UnitGoal):
         move_actions = self._get_evade_plan(start_tc=self.unit.tc, constraints=constraints, board=game_state.board)
         self.action_plan.extend(move_actions)
 
-        if not self.action_plan.actor_can_carry_out_plan(game_state):
+        if not self.action_plan.unit_has_enough_power(game_state):
             raise InvalidGoalError
 
     def _get_evade_plan(

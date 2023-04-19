@@ -162,6 +162,9 @@ class GameState:
     def is_opponent_lichen_tile(self, c: Coordinate) -> bool:
         return self.board.is_opponent_lichen_tile(c)
 
+    def is_valid_c_for_player(self, c: Coordinate) -> bool:
+        return self.board.is_valid_c_for_player(c)
+
     @property
     def player_water(self) -> int:
         return self.board.player_water
