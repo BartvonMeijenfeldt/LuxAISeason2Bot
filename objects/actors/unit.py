@@ -65,7 +65,7 @@ class Unit(Actor):
         self.power = power
         self.cargo = cargo
 
-        if self._last_player_action_was_carried_out(action_queue):
+        if self._last_player_private_action_was_carried_out(action_queue):
             self.private_action_plan.step()
 
         self.acted_out_last_action_and_no_update_queue = self._acted_out_last_action_and_no_update_queue(action_queue)
@@ -106,6 +106,14 @@ class Unit(Actor):
         self.primitive_actions_in_queue = get_primitive_actions_from_list(self.action_queue)
         self.nr_primitive_actions_in_queue = len(self.primitive_actions_in_queue)
 
+    def has_too_little_power_for_first_action_in_queue(self, game_state: GameState) -> bool:
+        if not self.primitive_actions_in_queue:
+            return False
+
+        first_action = self.primitive_actions_in_queue[0]
+        power_after_action = self.power + first_action.get_power_change(self.unit_cfg, self.tc, game_state.board)
+        return power_after_action < 0
+
     @property
     def tcs_action_queue(self) -> List[TimeCoordinate]:
         return [self.tc] + UnitActionPlan(self, self.action_queue).time_coordinates
@@ -114,7 +122,10 @@ class Unit(Actor):
     def non_stationary_tcs_neighboring_action_queue(self) -> List[TimeCoordinate]:
         return [tc + direction for tc in self.tcs_action_queue for direction in NON_STATIONARY_DIRECTIONS]
 
-    def _last_player_action_was_carried_out(self, action_queue: list[UnitAction]) -> bool:
+    def _last_player_private_action_was_carried_out(self, action_queue: list[UnitAction]) -> bool:
+        if self.private_action_plan.is_first_action_move_center():
+            return True
+
         last_action_queue = self.send_action_queue if self.send_action_queue else self.action_queue
 
         if not last_action_queue:
@@ -605,6 +616,12 @@ class Unit(Actor):
 
     def set_private_action_plan(self, action_plan: UnitActionPlan) -> None:
         self.private_action_plan = action_plan
+
+    def schedule_goal(self, goal: UnitGoal) -> None:
+        self.goal = goal
+        self.private_action_plan = goal.action_plan
+        self.is_scheduled = True
+        self.can_be_assigned = False
 
     def remove_goal_and_private_action_plan(self) -> None:
         if self.supplied_by:

@@ -125,6 +125,13 @@ class Agent:
                 unit.set_send_no_action_queue()
                 continue
 
+            if (
+                unit.has_too_little_power_for_first_action_in_queue(game_state)
+                and unit.private_action_plan.is_first_action_move_center()
+            ):
+                unit.set_send_no_action_queue()
+                continue
+
             actions[unit.unit_id] = unit.private_action_plan.to_lux_output()
             unit.set_send_action_queue(unit.private_action_plan)
 
