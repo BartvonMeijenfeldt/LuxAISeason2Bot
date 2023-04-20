@@ -293,6 +293,14 @@ class EvadeConstraintsGraph(Graph):
     _potential_actions = [MoveAction(direction) for direction in Direction]
     _move_center_action = MoveAction(Direction.CENTER)
 
+    def _is_valid_action_node(self, action: UnitAction, to_c: TimeCoordinate) -> bool:
+        return not self.constraints.tc_violates_constraint(to_c) and self.board.is_valid_c_for_player(c=to_c)
+
+    def _get_danger_cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
+        base_danger_cost = super()._get_danger_cost(action, to_c)
+        constraints_danger_cost = self.constraints.get_danger_cost(to_c, action.is_stationary)
+        return base_danger_cost + constraints_danger_cost
+
     def potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
         return self._potential_actions
 
