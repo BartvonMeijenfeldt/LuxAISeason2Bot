@@ -13,13 +13,14 @@ from search.search import (
     Search,
     EvadeConstraintsGraph,
     MoveToGraph,
-    MoveNextToGraph,
+    MoveNearCoordinateGraph,
     MoveToTimeGraph,
     MoveNextToTimeGraph,
     DigAtGraph,
     FleeTowardsAnyFactoryGraph,
     PickupPowerGraph,
     Graph,
+    MoveRecklessNearCoordinateGraph,
     TransferToFactoryResourceGraph,
     TransferPowerToUnitResourceGraph,
 )
@@ -242,25 +243,42 @@ class UnitGoal(Goal):
 
         return graph
 
-    def _get_move_next_to_actions(
-        self, start_tc: TimeCoordinate, goal: Coordinate, constraints: Constraints, board: Board
+    def _get_move_near_actions(
+        self,
+        start_tc: TimeCoordinate,
+        goal: Coordinate,
+        distance: int,
+        reckless: bool,
+        constraints: Constraints,
+        board: Board,
     ) -> list[UnitAction]:
 
         goal = Coordinate(*goal.xy)
-        graph = self._get_move_next_to_graph(board=board, goal=goal, constraints=constraints)
+        graph = self._get_move_next_to_graph(
+            board=board, goal=goal, reckless=reckless, distance=distance, constraints=constraints
+        )
         actions = self._search_graph(graph=graph, start=start_tc)
         return actions
 
-    def _get_move_next_to_graph(self, board: Board, goal: Coordinate, constraints: Constraints) -> MoveNextToGraph:
+    def _get_move_next_to_graph(
+        self, board: Board, goal: Coordinate, distance: int, constraints: Constraints, reckless: bool = False
+    ) -> MoveNearCoordinateGraph:
 
         goal = Coordinate(*goal.xy)
-        graph = MoveNextToGraph(
+
+        if reckless:
+            unset_graph = MoveRecklessNearCoordinateGraph
+        else:
+            unset_graph = MoveNearCoordinateGraph
+
+        graph = unset_graph(
             unit_type=self.unit.unit_type,
             board=board,
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,
             goal=goal,
             constraints=constraints,
+            distance=distance,
         )
 
         return graph
@@ -1295,6 +1313,101 @@ class DestroyLichenGoal(DigGoal):
 
 
 @dataclass
+class CampResourceGoal(UnitGoal):
+    resource_c: Coordinate
+    pickup_power: bool
+
+    def __repr__(self) -> str:
+        return f"camp_{self.resource_c}"
+
+    def key(self) -> str:
+        return str(self)
+
+    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
+        return self.unit.tc.distance_to(self.resource_c) <= 1 and not self.unit.is_under_threath(game_state)
+
+    def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
+        # TODO  If cannot safely go home next step would be better
+        return self.unit.power < 0.1 * self.unit.battery_capacity
+
+    def generate_action_plan(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> UnitActionPlan:
+        self._init_action_plan()
+        if self.unit.tc.distance_to(self.resource_c) > 2:
+            # TODO in the case that opponent will have more power:
+            #      add preference diagonal to resource_c such that we have two ways to get next to resource_c
+            self._add_actions_move_near_to_resource_c(
+                distance=2, reckless=False, game_state=game_state, constraints=constraints
+            )
+
+        if self.unit.tc.distance_to(self.resource_c) > 1:
+            self._add_actions_move_near_to_resource_c(
+                distance=1, reckless=True, game_state=game_state, constraints=constraints
+            )
+
+        self._optional_add_repetitive_move_actions(game_state, constraints)
+        return self.action_plan
+
+    def _add_actions_move_near_to_resource_c(
+        self, distance: int, reckless: bool, game_state: GameState, constraints: Constraints
+    ) -> None:
+        actions_move_next_to = self._get_move_near_actions(
+            start_tc=self.cur_tc,
+            goal=self.resource_c,
+            reckless=reckless,
+            constraints=constraints,
+            distance=distance,
+            board=game_state.board,
+        )
+        if not self.action_plan.can_add_actions(actions_move_next_to, game_state):
+            raise NoSolutionError
+
+        self.action_plan.extend(actions_move_next_to)
+
+    def _optional_add_repetitive_move_actions(self, game_state: GameState, constraints: Constraints) -> None:
+        if not self.action_plan and not self.unit.is_under_threath(game_state):
+            return
+
+        while self.action_plan.nr_primitive_actions < 20:
+            if self.cur_tc.distance_to(self.resource_c) == 1:
+                actions = self._get_move_to_actions(self.cur_tc, self.resource_c, constraints, game_state.board)
+            else:
+                actions = self._get_move_near_actions(
+                    self.cur_tc,
+                    self.resource_c,
+                    distance=1,
+                    reckless=False,
+                    constraints=constraints,
+                    board=game_state.board,
+                )
+
+            if not self.action_plan.can_add_actions(actions, game_state):
+                break
+
+            self.action_plan.extend(actions)
+
+    def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        # TODO, should be based on how long I can camp the resource
+        return 1000
+
+    def _get_max_benefit(self, game_state: GameState) -> float:
+        return 1000
+
+    def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+        min_steps_to_coordinate = self.resource_c.distance_to(self.unit.tc)
+        min_cost_per_step = self.unit.move_power_cost + self.unit.time_to_power_cost
+        min_cost = min_steps_to_coordinate * min_cost_per_step
+        return min_cost, min_steps_to_coordinate
+
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+
+@dataclass
 class HuntGoal(UnitGoal):
     opp: Unit
     pickup_power: bool
@@ -1459,7 +1572,14 @@ class HuntGoal(UnitGoal):
 
     def _add_actions_move_next_to_opp_final_c(self, game_state: GameState, constraints: Constraints) -> None:
         opp_final_tc = self.opp_time_coordinates[-1]
-        actions_move_next_to = self._get_move_next_to_actions(self.cur_tc, opp_final_tc, constraints, game_state.board)
+        actions_move_next_to = self._get_move_near_actions(
+            start_tc=self.cur_tc,
+            goal=opp_final_tc,
+            reckless=False,
+            constraints=constraints,
+            distance=1,
+            board=game_state.board,
+        )
         if not self.action_plan.can_add_actions(actions_move_next_to, game_state):
             raise NoSolutionError
 
@@ -1518,7 +1638,7 @@ class HuntGoal(UnitGoal):
         last_move_action_opponent = self._get_last_move_action_opponent(game_state)
         next_direction = get_reversed_direction(last_move_action_opponent.unit_direction)
 
-        while self.action_plan.nr_primitive_actions < 100:
+        while self.action_plan.nr_primitive_actions < 30:
             action = MoveAction(next_direction)
             next_tc = self.cur_tc.add_action(action)
 

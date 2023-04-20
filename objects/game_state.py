@@ -192,3 +192,11 @@ class GameState:
     @property
     def positions_in_heavy_dig_goals(self) -> set[tuple]:
         return self.board.positions_in_heavy_dig_goals
+
+    @property
+    def positions_in_camp_goals(self) -> set[tuple]:
+        return self.board.positions_in_camp_goals
+
+    @property
+    def ice_positions_next_to_opp_factory(self) -> set[tuple]:
+        return self.board.ice_positions_next_to_opp_factory

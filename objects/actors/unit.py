@@ -33,6 +33,7 @@ from logic.goals.unit_goal import (
     EvadeConstraintsGoal,
     SupplyPowerGoal,
     HuntGoal,
+    CampResourceGoal,
 )
 from config import CONFIG
 from exceptions import NoValidGoalFoundError
@@ -495,12 +496,16 @@ class Unit(Actor):
             if self._is_feasible_dig_c(c, game_state)
         ]
 
-    def _get_hunt_unit_goals(self, opp: Unit) -> List[HuntGoal]:
-        return [
-            HuntGoal(self, opp, pickup_power)
-            for pickup_power in [False, True]
-            if pickup_power or self.power > opp.power
-        ]
+    def generate_camp_resource_goals(
+        self, game_state: GameState, resource_c: Coordinate, constraints: Constraints, power_tracker: PowerTracker
+    ) -> CampResourceGoal:
+        camp_resource_goals = self._get_camp_resource_goals(resource_c)
+        goal = self.get_best_goal(camp_resource_goals, game_state, constraints, power_tracker)
+        return goal  # type: ignore
+        ...
+
+    def _get_camp_resource_goals(self, resource_c: Coordinate) -> List[CampResourceGoal]:
+        return [CampResourceGoal(self, resource_c, pickup_power) for pickup_power in [False, True]]
 
     def generate_hunt_unit_goals(
         self, game_state: GameState, opp: Unit, constraints: Constraints, power_tracker: PowerTracker
@@ -509,6 +514,13 @@ class Unit(Actor):
         goal = self.get_best_goal(hunt_goals, game_state, constraints, power_tracker)
         return goal  # type: ignore
         ...
+
+    def _get_hunt_unit_goals(self, opp: Unit) -> List[HuntGoal]:
+        return [
+            HuntGoal(self, opp, pickup_power)
+            for pickup_power in [False, True]
+            if pickup_power or self.power > opp.power
+        ]
 
     def _is_feasible_dig_c(self, c: Coordinate, game_state: GameState) -> bool:
         return not (self.is_light and game_state.get_dis_to_closest_opp_heavy(c) <= 1)

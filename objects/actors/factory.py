@@ -26,6 +26,7 @@ from logic.goals.unit_goal import (
     CollectIceGoal,
     SupplyPowerGoal,
     DestroyLichenGoal,
+    CampResourceGoal,
 )
 from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal, FactoryGoal
 from distances import (
@@ -978,11 +979,41 @@ class Factory(Actor):
 
     def schedule_strategy_attack_opponent(
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> DestroyLichenGoal:
-        return self._schedule_unit_destroy_lichen(game_state, constraints, power_tracker)
+    ) -> UnitGoal:
+        try:
+            return self._schedule_unit_camp_resource(game_state, constraints, power_tracker)
+        except Exception:
+            return self._schedule_unit_destroy_lichen(game_state, constraints, power_tracker)
+
+    def _schedule_unit_camp_resource(
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
+    ) -> CampResourceGoal:
+        valid_postions = game_state.ice_positions_next_to_opp_factory - game_state.positions_in_camp_goals
+        units = self.heavy_available_units
+
+        potential_assignments = [
+            (unit, goal)
+            for pos in valid_postions
+            for unit in units
+            for goal in unit._get_camp_resource_goals(Coordinate(*pos))
+        ]
+
+        if not potential_assignments:
+            raise NoValidGoalFoundError
+
+        unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
+
+        goal = unit.generate_camp_resource_goals(
+            game_state=game_state,
+            resource_c=goal.resource_c,
+            constraints=constraints,
+            power_tracker=power_tracker,
+        )
+        logging.critical(f"Scheduled {unit.unit_id} [{unit.tc}] on camp {goal.resource_c}")
+        return goal
 
     def _schedule_unit_destroy_lichen(
-        self, game_state: GameState, constraints: Constraints, power_tracker
+        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> DestroyLichenGoal:
         dig_pos_set = {c.xy for c in game_state.opp_lichen_tiles}
         valid_pos = dig_pos_set - game_state.positions_in_dig_goals
