@@ -4,14 +4,13 @@ from abc import abstractmethod
 from dataclasses import dataclass
 
 from logic.goals.goal import Goal
-from logic.constraints import Constraints
 from objects.actions.factory_action import BuildHeavyAction, BuildLightAction, WaterAction
 from objects.game_state import GameState
 from objects.actions.factory_action_plan import FactoryActionPlan
 
 if TYPE_CHECKING:
     from objects.actors.factory import Factory
-    from logic.goal_resolution.power_availabilty_tracker import PowerTracker
+    from logic.goal_resolution.schedule_info import ScheduleInfo
 
 
 @dataclass
@@ -19,12 +18,7 @@ class FactoryGoal(Goal):
     factory: Factory
 
     @abstractmethod
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> FactoryActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> FactoryActionPlan:
         ...
 
     def get_value_per_step_of_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
@@ -35,12 +29,7 @@ class FactoryGoal(Goal):
 
 
 class BuildHeavyGoal(FactoryGoal):
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> FactoryActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> FactoryActionPlan:
         self.action_plan = FactoryActionPlan(self.factory, [BuildHeavyAction()])
         return self.action_plan
 
@@ -56,12 +45,7 @@ class BuildHeavyGoal(FactoryGoal):
 
 
 class BuildLightGoal(FactoryGoal):
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> FactoryActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> FactoryActionPlan:
         self.action_plan = FactoryActionPlan(self.factory, [BuildLightAction()])
         return self.action_plan
 
@@ -78,12 +62,7 @@ class BuildLightGoal(FactoryGoal):
 
 @dataclass
 class WaterGoal(FactoryGoal):
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> FactoryActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> FactoryActionPlan:
         self.action_plan = FactoryActionPlan(self.factory, [WaterAction()])
         return self.action_plan
 
@@ -99,12 +78,7 @@ class WaterGoal(FactoryGoal):
 
 
 class FactoryNoGoal(FactoryGoal):
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> FactoryActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> FactoryActionPlan:
         return FactoryActionPlan(self.factory)
 
     def get_best_value_per_step(self, game_state: GameState) -> float:

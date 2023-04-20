@@ -13,7 +13,7 @@ from objects.game_state import GameState
 from objects.actors.factory import Factory
 from objects.actors.unit import Unit
 from logic.early_setup import get_factory_spawn_loc
-from logic.goal_resolution.power_availabilty_tracker import PowerTracker
+from logic.goal_resolution.power_tracker import PowerTracker
 
 logging.basicConfig(level=logging.WARN)
 

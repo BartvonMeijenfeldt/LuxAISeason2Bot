@@ -3,7 +3,7 @@ import unittest
 from typing import List
 from objects.actors.factory import Factory
 from objects.actions.action_plan import PowerRequest as PR
-from logic.goal_resolution.power_availabilty_tracker import PowerTracker as FPAT
+from logic.goal_resolution.power_tracker import PowerTracker as FPAT
 from lux.config import EnvConfig
 from tests.generate_game_state import get_state, FactoryPositions, FactoryPos
 
