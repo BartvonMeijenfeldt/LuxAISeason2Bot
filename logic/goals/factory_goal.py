@@ -30,7 +30,7 @@ class FactoryGoal(Goal):
     def get_value_per_step_of_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return super().get_value_per_step_of_action_plan(action_plan=action_plan, game_state=game_state)
 
-    def get_cost_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
+    def get_power_cost_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return sum(action.get_resource_cost(self.factory) for action in action_plan)
 
 
@@ -47,7 +47,7 @@ class BuildHeavyGoal(FactoryGoal):
     def get_best_value_per_step(self, game_state: GameState) -> float:
         return 10_000
 
-    def get_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
+    def get_power_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return 15_000
 
     @property
@@ -68,7 +68,7 @@ class BuildLightGoal(FactoryGoal):
     def get_best_value_per_step(self, game_state: GameState) -> float:
         return 10_000
 
-    def get_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
+    def get_power_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return 1_000
 
     @property
@@ -90,7 +90,7 @@ class WaterGoal(FactoryGoal):
     def get_best_value_per_step(self, game_state: GameState) -> float:
         return 10_000
 
-    def get_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
+    def get_power_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return 100
 
     @property
@@ -110,7 +110,7 @@ class FactoryNoGoal(FactoryGoal):
     def get_best_value_per_step(self, game_state: GameState) -> float:
         return 0.0
 
-    def get_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
+    def get_power_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
         return 0.0
 
     def __repr__(self) -> str:

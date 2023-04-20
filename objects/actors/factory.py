@@ -1009,7 +1009,6 @@ class Factory(Actor):
             constraints=constraints,
             power_tracker=power_tracker,
         )
-        logging.critical(f"Scheduled {unit.unit_id} [{unit.tc}] on camp {goal.resource_c}")
         return goal
 
     def _schedule_unit_destroy_lichen(

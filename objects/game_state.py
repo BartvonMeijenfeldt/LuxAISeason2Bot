@@ -200,3 +200,9 @@ class GameState:
     @property
     def ice_positions_next_to_opp_factory(self) -> set[tuple]:
         return self.board.ice_positions_next_to_opp_factory
+
+    def get_min_distance_to_any_opp_factory(self, c: Coordinate) -> int:
+        return self.board.get_min_distance_to_any_opp_factory(c)
+
+    def get_min_distance_to_any_player_factory(self, c: Coordinate) -> int:
+        return self.board.get_min_distance_to_any_player_factory(c)

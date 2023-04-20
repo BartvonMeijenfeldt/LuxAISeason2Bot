@@ -25,19 +25,19 @@ class Goal(metaclass=ABCMeta):
         ...
 
     def get_value_per_step_of_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
-        benefit = self.get_benefit_action_plan(action_plan=action_plan, game_state=game_state)
-        cost = self.get_cost_action_plan(action_plan=action_plan, game_state=game_state)
+        benefit = self.get_power_benefit_action_plan(action_plan=action_plan, game_state=game_state)
+        cost = self.get_power_cost_action_plan(action_plan=action_plan, game_state=game_state)
         value = benefit - cost
         value_per_step = value / max(action_plan.nr_time_steps, 1)
 
         return value_per_step
 
     @abstractmethod
-    def get_benefit_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
+    def get_power_benefit_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
         ...
 
     @abstractmethod
-    def get_cost_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
+    def get_power_cost_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:
         ...
 
     @property
