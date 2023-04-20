@@ -1318,7 +1318,7 @@ class HuntGoal(UnitGoal):
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> UnitActionPlan:
         constraints_with_current_danger = self._add_opp_danger_constraints(constraints, game_state)
-        self.opp_time_coordinates = self.opp.tcs_action_queue
+        self.opp_time_coordinates = self.opp.get_tcs_action_queue(game_state)
 
         self._init_action_plan()
         if self.pickup_power:
@@ -1342,7 +1342,7 @@ class HuntGoal(UnitGoal):
         constraints_with_danger = copy(constraints)
         danger = {
             tc: 10_000.0
-            for tc in self.opp.non_stationary_tcs_neighboring_action_queue
+            for tc in self.opp.get_non_stationary_tcs_neighboring_action_queue(game_state)
             if not game_state.is_player_factory_tile(tc)
         }
         constraints_with_danger.add_stationary_danger_coordinates(danger)
@@ -1363,7 +1363,7 @@ class HuntGoal(UnitGoal):
             self._add_hunt_actions_end_c(game_state, constraints)
 
     def _add_hunt_actions_before_end_tc(self, game_state: GameState, constraints: Constraints) -> None:
-        opp_tcs_and_next_actions = self.get_reachable_opp_tcs_and_next_actions()
+        opp_tcs_and_next_actions = self.get_reachable_opp_tcs_and_next_actions(game_state)
 
         for opp_tc, next_action in opp_tcs_and_next_actions:
             try:
@@ -1482,8 +1482,8 @@ class HuntGoal(UnitGoal):
         direction_to_final_c = self.cur_tc.direction_to(opp_final_tc)
         return MoveAction(direction_to_final_c)
 
-    def get_reachable_opp_tcs_and_next_actions(self) -> zip[Tuple[TimeCoordinate, UnitAction]]:
-        index_first_reach = self.nr_steps_after_half_distance
+    def get_reachable_opp_tcs_and_next_actions(self, game_state: GameState) -> zip[Tuple[TimeCoordinate, UnitAction]]:
+        index_first_reach = self.get_nr_steps_after_half_distance(game_state)
         MAX_FUTURE_STEP_TO_REACH = 15
 
         if index_first_reach >= self.opp.nr_primitive_actions_in_queue:
@@ -1494,27 +1494,23 @@ class HuntGoal(UnitGoal):
 
         return zip(tcs, actions)
 
-    @property
-    def opp_tc_in_half_distance_steps(self) -> TimeCoordinate:
-        nr_steps_half_distance = self.nr_steps_after_half_distance
+    def get_opp_tc_in_half_distance_steps(self, game_state: GameState) -> TimeCoordinate:
+        nr_steps_half_distance = self.get_nr_steps_after_half_distance(game_state)
         actions_carried_out = self.opp.primitive_actions_in_queue[:nr_steps_half_distance]
         opp_tc = self.opp.get_tc_after_actions(actions_carried_out)
         return opp_tc
 
-    @property
-    def cur_opp_tc(self) -> TimeCoordinate:
-        return self.opp.get_tc_in_n_steps(self.action_plan.nr_primitive_actions)
+    def get_cur_opp_tc(self, game_state: GameState) -> TimeCoordinate:
+        return self.opp.get_tc_in_n_steps(game_state, self.action_plan.nr_primitive_actions)
 
-    @property
-    def nr_steps_after_half_distance(self) -> int:
-        half_distance = self.cur_distance_to_opp // 2
+    def get_nr_steps_after_half_distance(self, game_state: GameState) -> int:
+        half_distance = self.get_cur_distance_to_opp(game_state) // 2
         nr_steps_taken = self.action_plan.nr_primitive_actions
         nr_steps_half_distance = nr_steps_taken + half_distance
         return nr_steps_half_distance
 
-    @property
-    def cur_distance_to_opp(self) -> int:
-        opp_tc = self.cur_opp_tc
+    def get_cur_distance_to_opp(self, game_state: GameState) -> int:
+        opp_tc = self.get_cur_opp_tc(game_state)
         distance_to_opp = self.action_plan.final_tc.distance_to(opp_tc)
         return distance_to_opp
 
@@ -1565,7 +1561,7 @@ class HuntGoal(UnitGoal):
 
     def _get_min_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         # TODO opp_tc_in_half_distance_steps is not set properly to take into account where the unit moved to
-        return self._get_min_cost_and_steps_go_to_c(self.opp_tc_in_half_distance_steps, game_state)
+        return self._get_min_cost_and_steps_go_to_c(self.get_opp_tc_in_half_distance_steps(game_state), game_state)
 
     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
         return 0
@@ -1647,7 +1643,8 @@ class UnitNoGoal(UnitGoal):
         power_tracker: PowerTracker,
     ) -> UnitActionPlan:
         self.action_plan = UnitActionPlan(actor=self.unit, original_actions=[MoveAction(Direction.CENTER)])
-        self._invalidates_constraint = constraints.any_tc_violates_constraint(self.action_plan.time_coordinates)
+        time_coordinates = self.action_plan.get_time_coordinates(game_state)
+        self._invalidates_constraint = constraints.any_tc_violates_constraint(time_coordinates)
         return self.action_plan
 
     def get_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
@@ -1690,7 +1687,8 @@ class EvadeConstraintsGoal(UnitGoal):
         power_tracker: PowerTracker,
     ) -> UnitActionPlan:
         self._init_action_plan()
-        if constraints.any_tc_violates_constraint(self.action_plan.time_coordinates):
+        time_coordinates = self.action_plan.get_time_coordinates(game_state)
+        if constraints.any_tc_violates_constraint(time_coordinates):
             self._add_evade_actions(game_state, constraints)
         else:
             self.action_plan = UnitActionPlan(actor=self.unit, original_actions=[MoveAction(Direction.CENTER)])

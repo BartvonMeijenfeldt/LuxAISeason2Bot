@@ -107,7 +107,7 @@ class UnitActionPlan(ActionPlan):
     def get_power_requests(self, game_state: GameState) -> List[PowerRequest]:
         return [
             self._create_power_request(action, tc, game_state)
-            for action, tc in zip(self.primitive_actions, [self.actor.tc] + self.time_coordinates)
+            for action, tc in zip(self.primitive_actions, [self.actor.tc] + self.get_time_coordinates(game_state))
             if action.requested_power
         ]
 
@@ -151,13 +151,7 @@ class UnitActionPlan(ActionPlan):
         first_action = self.primitive_actions[0]
         return self.actor.tc.add_action(first_action)
 
-    @property
-    def time_coordinates(self) -> List[TimeCoordinate]:
-        # TODO, there should be some difference between empty and not set yet
-        # Maybe every unit that is not planning to do anything needs to add something about
-        # I am not doing anything next step
-        # Then we can also say that if the action_queue is empty and the first action does nothing
-        # We don't update the action queue
+    def get_time_coordinates(self, game_state: GameState) -> List[TimeCoordinate]:
         if self.is_empty():
             return [self.actor.tc + Direction.CENTER]
 

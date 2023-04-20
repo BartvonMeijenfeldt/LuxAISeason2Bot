@@ -729,7 +729,7 @@ class Factory(Actor):
         supplying_unit, receiving_unit, receiving_c = self._assign_supplying_unit_and_receiving_unit(game_state)
 
         constraints = copy(constraints)
-        constraints.remove_negative_constraints(receiving_unit.private_action_plan.time_coordinates)
+        constraints.remove_negative_constraints(receiving_unit.private_action_plan.get_time_coordinates(game_state))
         power_tracker = copy(power_tracker)
         power_tracker.remove_power_requests(receiving_unit.private_action_plan.get_power_requests(game_state))
 
@@ -741,7 +741,7 @@ class Factory(Actor):
             power_tracker=power_tracker,
         )
 
-        constraints.add_negative_constraints(goal_receiving_unit.action_plan.time_coordinates)
+        constraints.add_negative_constraints(goal_receiving_unit.action_plan.get_time_coordinates(game_state))
         power_tracker.add_power_requests(goal_receiving_unit.action_plan.get_power_requests(game_state))
 
         goal_supplying_unit = self._schedule_supply_goal(
@@ -1023,7 +1023,7 @@ class Factory(Actor):
         for unit in game_state.units:
             if isinstance(unit.goal, DigGoal) and unit.goal.dig_c == c:
                 if unit.private_action_plan:
-                    constraints.remove_negative_constraints(unit.private_action_plan.time_coordinates)
+                    constraints.remove_negative_constraints(unit.private_action_plan.get_time_coordinates(game_state))
                     power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
 
         return constraints, power_tracker
