@@ -182,11 +182,11 @@ class MoveToGraph(GoalGraph):
 
 
 @dataclass
-class MoveNextToGraph(GoalGraph):
+class MoveNearCoordinateGraph(GoalGraph):
+    distance: int
     _potential_actions = [MoveAction(direction) for direction in Direction]
 
     def __post_init__(self):
-        super().__post_init__()
         if not self.constraints:
             self._potential_actions = [MoveAction(dir) for dir in Direction if dir != Direction.CENTER]
 
@@ -197,19 +197,27 @@ class MoveNextToGraph(GoalGraph):
         return self._get_distance_heuristic(node=node)
 
     def node_completes_goal(self, node: Coordinate) -> bool:
-        return self.goal.distance_to(node) == 1
+        return self.goal.distance_to(node) == self.distance
 
-    def _get_distance_next_to_goal(self, to_c: Coordinate) -> int:
-        return max(0, self.goal.distance_to(to_c) - 1)
+    def _get_distance_near_goal(self, to_c: Coordinate) -> int:
+        distance_to_goal = self.goal.distance_to(to_c)
+        difference_required_distance = abs(distance_to_goal - self.distance)
+        return difference_required_distance
 
     def _get_distance_heuristic(self, node: Coordinate) -> float:
-        min_nr_steps = self._get_distance_next_to_goal(node)
+        min_nr_steps = self._get_distance_near_goal(node)
         if min_nr_steps == 0:
             return 0
 
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
         min_distance_cost = min_nr_steps * min_cost_per_step
         return min_distance_cost
+
+
+@dataclass
+class MoveRecklessNearCoordinateGraph(MoveNearCoordinateGraph):
+    def _is_valid_action_node(self, action: UnitAction, to_c: TimeCoordinate) -> bool:
+        return not self.constraints.tc_violates_constraint(to_c) and self.board.is_valid_c_for_player(c=to_c)
 
 
 @dataclass

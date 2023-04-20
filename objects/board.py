@@ -5,10 +5,14 @@ import numpy as np
 from dataclasses import dataclass
 from collections import defaultdict
 from objects.coordinate import Coordinate, CoordinateList
-from logic.goals.unit_goal import DigGoal, HuntGoal
+from logic.goals.unit_goal import DigGoal, HuntGoal, CampResourceGoal
 from image_processing import get_islands
-from distances import init_empty_positions, get_n_closests_positions_between_positions
-from positions import append_positions
+from distances import (
+    init_empty_positions,
+    get_min_distances_between_positions,
+    get_n_closests_positions_between_positions,
+)
+from positions import append_positions, positions_to_set
 
 if TYPE_CHECKING:
     from objects.actors.unit import Unit
@@ -380,3 +384,14 @@ class Board:
     @property
     def positions_in_heavy_dig_goals(self) -> set[tuple]:
         return {unit.goal.dig_c.xy for unit in self.player_units if unit.is_heavy and isinstance(unit.goal, DigGoal)}
+
+    @property
+    def positions_in_camp_goals(self) -> set[tuple]:
+        return {unit.goal.resource_c.xy for unit in self.player_units if isinstance(unit.goal, CampResourceGoal)}
+
+    @property
+    def ice_positions_next_to_opp_factory(self) -> set[tuple]:
+        min_distances = get_min_distances_between_positions(self.ice_positions, self.opp_factory_positions)
+        next_to_distances_mask = min_distances == 1
+        ice_positions_next_to_opp_factory = self.ice_positions[next_to_distances_mask]
+        return positions_to_set(ice_positions_next_to_opp_factory)
