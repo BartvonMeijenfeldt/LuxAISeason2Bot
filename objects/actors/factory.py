@@ -925,10 +925,14 @@ class Factory(Actor):
         power_tracker = copy(schedule_info.power_tracker)
 
         for unit in game_state.units:
-            if isinstance(unit.goal, DigGoal) and unit.goal.dig_c == c:
-                if unit.private_action_plan:
-                    constraints.remove_negative_constraints(unit.private_action_plan.get_time_coordinates(game_state))
-                    power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
+            if (
+                unit.is_scheduled
+                and isinstance(unit.goal, DigGoal)
+                and unit.goal.dig_c == c
+                and unit.private_action_plan
+            ):
+                constraints.remove_negative_constraints(unit.private_action_plan.get_time_coordinates(game_state))
+                power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
 
         schedule_info = replace(schedule_info, constraints=constraints, power_tracker=power_tracker)
 
