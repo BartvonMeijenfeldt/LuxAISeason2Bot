@@ -83,9 +83,7 @@ class Unit(Actor):
         self.time_to_power_cost = CONFIG.LIGHT_TIME_TO_POWER_COST if self.is_light else CONFIG.HEAVY_TIME_TO_POWER_COST
         self.recharge_power = self.unit_cfg.CHARGE
         self.move_power_cost = self.unit_cfg.MOVE_COST
-        self.move_time_and_power_cost = self.move_power_cost + self.time_to_power_cost
         self.dig_power_cost = self.unit_cfg.DIG_COST
-        self.dig_time_and_power_cost = self.dig_power_cost + self.time_to_power_cost
         self.action_queue_cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
         self.battery_capacity = self.unit_cfg.BATTERY_CAPACITY
         self.rubble_removed_per_dig = self.unit_cfg.DIG_RUBBLE_REMOVED
@@ -297,6 +295,8 @@ class Unit(Actor):
                 continue
 
             value = goal.get_value_per_step_of_action_plan(action_plan, game_state)
+            if value < 0 and not goal.is_dummy_goal:
+                continue
 
             priority = -1 * value
             priority_queue.put(goal, priority)
@@ -319,6 +319,9 @@ class Unit(Actor):
 
         for goal in goals:
             best_value = goal.get_best_value_per_step(game_state)
+            if best_value < 0 and not goal.is_dummy_goal:
+                continue
+
             priority = -1 * best_value
             goals_priority_queue.put(goal, priority)
 

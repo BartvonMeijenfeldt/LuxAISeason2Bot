@@ -30,14 +30,23 @@ class CONFIG:
     RUBBLE_CLEAR_FOR_LICHEN_MAX_DISTANCE: int = 3
     RUBBLE_CLEAR_FOR_LICHEN_BONUS_CLEARING: int = 50
 
-    BENEFIT_ICE: float = 40
-    BASE_BENEFIT_ORE: float = 160
-    BENEFIT_ORE_REDUCTION_PER_T: float = 0.16
+    # 1 ice -> 0.25 water -> 5 power (best case, alternating water)
+    ICE_TO_POWER: float = 5
+    # Randomly set
+    ORE_TO_POWER: float = 40
+    BENEFIT_ORE_REDUCTION_PER_T: float = 0.05
 
     BENEFIT_FLEEING: float = 0
     COST_POTENTIALLY_LOSING_UNIT: float = 10_000
 
     ENOUGH_WATER_COLLECTION_NR_TURNS: int = 20
+
+    DESTROY_LICHEN_BASE_VALUE: int = 80
+    DESTROY_LICHEN_VALUE_PER_LICHEN: int = 1
+
+    SUPPLY_POWER_VALUE: int = 10_000
+
+    HUNT_VALUE: int = 10_000
 
     TURN_1_NR_DIGS_HEAVY: int = 37
     LAST_STEP_SCHEDULE_ORE_MINING: int = 900

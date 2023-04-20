@@ -105,10 +105,16 @@ class Board:
             distance_to_player_factory_tiles = self._get_dis_to_player_factory_tiles_array()
             self._min_distance_to_all_player_factories = np.min(distance_to_player_factory_tiles, axis=2)
             self._min_distance_to_player_factory = np.min(self._min_distance_to_all_player_factories, axis=2)
+
             self._closest_player_factory = np.argmin(self._min_distance_to_all_player_factories, axis=2)
             self._closest_player_factory_tile = np.argmin(
                 distance_to_player_factory_tiles.reshape(self.size, self.size, -1, order="F"), axis=2
             )
+
+        if self.opp_factory_tiles:
+            distance_to_opp_factory_tiles = self._get_dis_to_opp_factory_tiles_array()
+            min_distance_to_opp_player_factories = np.min(distance_to_opp_factory_tiles, axis=2)
+            self._min_distance_to_opp_factory = np.min(min_distance_to_opp_player_factories, axis=2)
 
         self._min_distance_to_opp_heavies = self._get_min_dis_tiles_to_opponent_heavies()
         self._min_distance_to_player_factory_or_lichen = self._get_min_dis_tiles_to_positions(
@@ -210,6 +216,11 @@ class Board:
         player_factory_tiles_xy = self._get_player_factory_tiles_array()
         return self._get_distance_tiles_factories(tiles_xy, player_factory_tiles_xy)
 
+    def _get_dis_to_opp_factory_tiles_array(self) -> np.ndarray:
+        tiles_xy = self._get_tiles_xy_array()
+        opp_factory_tiles_xy = self._get_opp_factory_tiles_array()
+        return self._get_distance_tiles_factories(tiles_xy, opp_factory_tiles_xy)
+
     def _get_tiles_xy_array(self) -> np.ndarray:
         """dimensions of (x: size, y: size, xy: 2)"""
         tiles_x = np.arange(self.size)
@@ -220,6 +231,11 @@ class Board:
     def _get_player_factory_tiles_array(self) -> np.ndarray:
         """dimensions (xy: 2, factory_tile: 9, factory: nr_factories)"""
         factory_tiles_pos = np.array([[pos for pos in factory.positions] for factory in self.player_factories])
+        return factory_tiles_pos.transpose()
+
+    def _get_opp_factory_tiles_array(self) -> np.ndarray:
+        """dimensions (xy: 2, factory_tile: 9, factory: nr_factories)"""
+        factory_tiles_pos = np.array([[pos for pos in factory.positions] for factory in self.opp_factories])
         return factory_tiles_pos.transpose()
 
     def _get_distance_tiles_factories(self, tiles_xy: np.ndarray, player_factories_xy: np.ndarray) -> np.ndarray:
@@ -308,6 +324,9 @@ class Board:
     def get_closest_player_factory(self, c: Coordinate) -> Factory:
         closest_factory_index = self._closest_player_factory[c.x, c.y]
         return self.player_factories[closest_factory_index]
+
+    def get_min_distance_to_any_opp_factory(self, c: Coordinate) -> int:
+        return self._min_distance_to_opp_factory[c.x, c.y]
 
     def get_min_distance_to_any_player_factory(self, c: Coordinate) -> int:
         return self._min_distance_to_player_factory[c.x, c.y]

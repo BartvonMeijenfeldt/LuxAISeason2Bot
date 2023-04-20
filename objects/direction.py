@@ -1,5 +1,4 @@
 from enum import Enum
-from random import choice
 from typing import Iterable
 
 
