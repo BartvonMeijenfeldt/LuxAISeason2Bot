@@ -17,7 +17,7 @@ from search.search import (
     MoveToTimeGraph,
     MoveNextToTimeGraph,
     DigAtGraph,
-    FleeToGraph,
+    FleeTowardsAnyFactoryGraph,
     PickupPowerGraph,
     Graph,
     TransferToFactoryResourceGraph,
@@ -265,26 +265,22 @@ class UnitGoal(Goal):
 
         return graph
 
-    def _get_flee_to_actions(
+    def _get_flee_to_any_factory_actions(
         self,
         start_tc: TimeCoordinate,
-        goal: Coordinate,
         constraints: Constraints,
         board: Board,
     ) -> list[UnitAction]:
-        goal = Coordinate(*goal.xy)
-        graph = self._get_flee_to_graph(board=board, goal=goal, constraints=constraints)
+        graph = self._get_flee_to_any_factory_graph(board=board, constraints=constraints)
         actions = self._search_graph(graph=graph, start=start_tc)
         return actions
 
-    def _get_flee_to_graph(self, board: Board, goal: Coordinate, constraints: Constraints) -> FleeToGraph:
-        goal = Coordinate(*goal.xy)
-        graph = FleeToGraph(
+    def _get_flee_to_any_factory_graph(self, board: Board, constraints: Constraints) -> FleeTowardsAnyFactoryGraph:
+        graph = FleeTowardsAnyFactoryGraph(
             unit_type=self.unit.unit_type,
             board=board,
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,
-            goal=goal,
             constraints=constraints,
         )
 
@@ -1598,9 +1594,8 @@ class FleeGoal(UnitGoal):
         return self.action_plan
 
     def _add_flee_towards_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        closest_factory_c = game_state.get_closest_player_factory_c(c=self.action_plan.final_tc)
-        move_actions = self._get_flee_to_actions(
-            start_tc=self.unit.tc, goal=closest_factory_c, constraints=constraints, board=game_state.board
+        move_actions = self._get_flee_to_any_factory_actions(
+            start_tc=self.unit.tc, constraints=constraints, board=game_state.board
         )
 
         move_actions = self.action_plan.get_actions_valid_to_add(move_actions, game_state)
