@@ -156,8 +156,7 @@ class UnitActionPlan(ActionPlan):
             return [self.actor.tc + Direction.CENTER]
 
         simulator = ActionPlanSimulator(self, unit=self.actor)
-        power_time_coordinates = simulator.get_time_coordinates()
-        time_coordinates = [TimeCoordinate(*ptc.xyt) for ptc in power_time_coordinates]
+        time_coordinates = simulator.get_time_coordinates(game_state)
         return time_coordinates
 
     def get_power_time_coordinates(self, game_state: GameState) -> List[PowerTimeCoordinate]:
@@ -293,10 +292,37 @@ class ActionPlanSimulator:
         self._init_start()
         self._simulate_actions(actions=self.action_plan.actions, game_state=game_state)
 
-    def get_time_coordinates(self) -> List[TimeCoordinate]:
+    def get_time_coordinates(self, game_state: GameState) -> List[TimeCoordinate]:
         self._init_start()
+        self._add_center_action_if_too_little_power(game_state)
         self._simulate_actions_for_tc(actions=self.action_plan.primitive_actions)
         return self.time_coordinates
+
+    def _add_center_action_if_too_little_power(self, game_state: GameState) -> None:
+        if self._unit_has_not_enough_power_first_action(game_state):
+            self._add_center_move_action()
+
+    def _unit_has_not_enough_power_first_action(self, game_state: GameState):
+        if len(self.action_plan.actions) == 0:
+            return False
+
+        first_primitive_action = self.action_plan.primitive_actions[0]
+        if self._requires_queue_update_due_to_new_primitive_action(first_primitive_action):
+            self._update_action_queue()
+
+        if self.cur_power < 0:
+            return True
+
+        power_cost_action = first_primitive_action.get_power_change(
+            self.action_plan.actor.unit_cfg, self.unit.tc, game_state.board
+        )
+        return self.cur_power < power_cost_action
+
+    def _add_center_move_action(self) -> None:
+        new_actions = [MoveAction(Direction.CENTER)] + self.action_plan.original_actions
+        self.action_plan = UnitActionPlan(
+            self.action_plan.actor, original_actions=new_actions, is_set=self.action_plan.is_set
+        )
 
     def get_power_time_coordinates(self, game_state: GameState) -> List[PowerTimeCoordinate]:
         self.confirm_power_levels = False

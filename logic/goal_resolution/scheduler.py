@@ -188,8 +188,8 @@ class Scheduler:
 
     def schedule_goals(self, game_state: GameState) -> None:
         self._init_constraints_and_power_tracker(game_state)
-        self._schedule_units_too_little_power_dummy_goal(game_state)
         self._remove_completed_goals(game_state)
+        self._schedule_units_too_little_power_dummy_goal(game_state)
 
         self._reschedule_goals_with_no_private_action_plan(game_state)
         self._schedule_goals_still_fine(game_state)

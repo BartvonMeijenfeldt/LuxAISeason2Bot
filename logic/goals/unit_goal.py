@@ -25,7 +25,7 @@ from search.search import (
 )
 from objects.actions.unit_action import DigAction, MoveAction, TransferAction
 from objects.actions.unit_action_plan import UnitActionPlan, get_primitive_actions_from_list
-from objects.direction import Direction, get_reversed_direction, get_random_direction
+from objects.direction import Direction, get_reversed_direction, get_psuedo_random_direction
 from objects.resource import Resource
 from objects.coordinate import (
     ResourcePowerTimeCoordinate,
@@ -1515,7 +1515,7 @@ class HuntGoal(UnitGoal):
         return distance_to_opp
 
     def _optional_add_alternating_moves(self, game_state: GameState, constraints: Constraints) -> None:
-        last_move_action_opponent = self._get_last_move_action_opponent()
+        last_move_action_opponent = self._get_last_move_action_opponent(game_state)
         next_direction = get_reversed_direction(last_move_action_opponent.unit_direction)
 
         while self.action_plan.nr_primitive_actions < 100:
@@ -1532,13 +1532,13 @@ class HuntGoal(UnitGoal):
             self.action_plan.append(action)
             next_direction = get_reversed_direction(next_direction)
 
-    def _get_last_move_action_opponent(self) -> UnitAction:
+    def _get_last_move_action_opponent(self, game_state: GameState) -> UnitAction:
         actions_carried_out = self.opp.primitive_actions_in_queue[: self.action_plan.nr_primitive_actions]
         reversed_actions_carried_out = actions_carried_out[::-1]
         try:
             last_move_action = next(ma for ma in reversed_actions_carried_out if ma.unit_direction != Direction.CENTER)
         except StopIteration:
-            random_direction = get_random_direction(excluded_directions=[Direction.CENTER])
+            random_direction = get_psuedo_random_direction([Direction.CENTER], seed=game_state.real_env_steps)
             last_move_action = MoveAction(random_direction)
 
         return last_move_action
