@@ -114,13 +114,13 @@ class Unit(Actor):
         power_after_action = self.power + first_action.get_power_change(self.unit_cfg, self.tc, game_state.board)
         return power_after_action < 0
 
-    @property
-    def tcs_action_queue(self) -> List[TimeCoordinate]:
-        return [self.tc] + UnitActionPlan(self, self.action_queue).time_coordinates
+    def get_tcs_action_queue(self, game_state: GameState) -> List[TimeCoordinate]:
+        return [self.tc] + UnitActionPlan(self, self.action_queue).get_time_coordinates(game_state)
 
-    @property
-    def non_stationary_tcs_neighboring_action_queue(self) -> List[TimeCoordinate]:
-        return [tc + direction for tc in self.tcs_action_queue for direction in NON_STATIONARY_DIRECTIONS]
+    def get_non_stationary_tcs_neighboring_action_queue(self, game_state: GameState) -> List[TimeCoordinate]:
+        return [
+            tc + direction for tc in self.get_tcs_action_queue(game_state) for direction in NON_STATIONARY_DIRECTIONS
+        ]
 
     def _last_player_private_action_was_carried_out(self, action_queue: list[UnitAction]) -> bool:
         if self.private_action_plan.is_first_action_move_center():
@@ -658,8 +658,8 @@ class Unit(Actor):
         final_ptc = action_plan.get_final_ptc(game_state)
         return final_ptc.p
 
-    def get_tc_in_n_steps(self, n: int) -> TimeCoordinate:
+    def get_tc_in_n_steps(self, game_state: GameState, n: int) -> TimeCoordinate:
         if n >= len(self.primitive_actions_in_queue):
-            return self.tcs_action_queue[-1]
+            return self.get_tcs_action_queue(game_state)[-1]
 
-        return self.tcs_action_queue[n]
+        return self.get_tcs_action_queue(game_state)[n]

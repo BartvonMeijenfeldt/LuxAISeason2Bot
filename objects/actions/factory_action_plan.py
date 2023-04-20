@@ -57,8 +57,7 @@ class FactoryActionPlan(ActionPlan):
 
         return None
 
-    @property
-    def time_coordinates(self) -> List[TimeCoordinate]:
+    def get_time_coordinates(self, game_state: GameState) -> List[TimeCoordinate]:
         return [
             TimeCoordinate(*self.actor.center_tc.xy, t)
             for t, action in enumerate(self.actions, start=self.actor.center_tc.t + 1)

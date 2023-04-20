@@ -44,5 +44,8 @@ def get_reversed_direction(direction: Direction) -> Direction:
         raise ValueError(f"Unknown direction {direction}")
 
 
-def get_random_direction(excluded_directions: Iterable[Direction]) -> Direction:
-    return choice([d for d in Direction if d not in excluded_directions])
+def get_psuedo_random_direction(excluded_directions: Iterable[Direction], seed: int) -> Direction:
+    # Pseudo random to make games deterministic for debugging purposes
+    directions = [d for d in Direction if d not in excluded_directions]
+    i = seed % len(directions)
+    return directions[i]

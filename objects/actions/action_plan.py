@@ -35,9 +35,8 @@ class ActionPlan(metaclass=ABCMeta):
     def next_tc(self) -> Optional[TimeCoordinate]:
         ...
 
-    @property
     @abstractmethod
-    def time_coordinates(self) -> List[TimeCoordinate]:
+    def get_time_coordinates(self, game_state: GameState) -> List[TimeCoordinate]:
         ...
 
     @abstractmethod

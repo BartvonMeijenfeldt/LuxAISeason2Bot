@@ -188,8 +188,8 @@ class Scheduler:
 
     def schedule_goals(self, game_state: GameState) -> None:
         self._init_constraints_and_power_tracker(game_state)
-        self._schedule_units_too_little_power_dummy_goal(game_state)
         self._remove_completed_goals(game_state)
+        self._schedule_units_too_little_power_dummy_goal(game_state)
 
         self._reschedule_goals_with_no_private_action_plan(game_state)
         self._schedule_goals_still_fine(game_state)
@@ -276,7 +276,7 @@ class Scheduler:
             if unit.goal.plan_needs_adapting(unit.private_action_plan, game_state):
                 continue
 
-            time_coordinates = unit.private_action_plan.time_coordinates
+            time_coordinates = unit.private_action_plan.get_time_coordinates(game_state)
             if self.constraints.any_tc_not_allowed(time_coordinates):
                 self._unschedule_unit_goal(unit, game_state)
             else:
@@ -344,7 +344,7 @@ class Scheduler:
                     power_request.p += 100
                 self.power_tracker.add_power_requests(power_requests=power_requests)
 
-                time_coordinates = goal.action_plan.time_coordinates
+                time_coordinates = goal.action_plan.get_time_coordinates(game_state)
                 for time_coordinate in time_coordinates:
                     tc = TimeCoordinate(time_coordinate.x, time_coordinate.y, t)
                     self.constraints.add_negative_constraint(tc)
@@ -417,7 +417,7 @@ class Scheduler:
         self._update_constraints_and_power_tracker(game_state, goal.action_plan)
 
     def _update_constraints_and_power_tracker(self, game_state: GameState, action_plan: ActionPlan) -> None:
-        self.constraints.add_negative_constraints(action_plan.time_coordinates)
+        self.constraints.add_negative_constraints(action_plan.get_time_coordinates(game_state))
         self.power_tracker.add_power_requests(action_plan.get_power_requests(game_state))
 
     def _update_unit_info(self, goal: UnitGoal) -> None:
@@ -434,7 +434,7 @@ class Scheduler:
 
     def _unschedule_unit_goal(self, unit: Unit, game_state: GameState) -> None:
         if unit.is_scheduled:
-            self.constraints.remove_negative_constraints(unit.private_action_plan.time_coordinates)
+            self.constraints.remove_negative_constraints(unit.private_action_plan.get_time_coordinates(game_state))
             self.power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
 
         supplies, supplied_by = unit.supplies, unit.supplied_by
@@ -452,7 +452,7 @@ class Scheduler:
         power_tracker = copy(self.power_tracker)
 
         if unit.is_scheduled:
-            constraints.remove_negative_constraints(unit.private_action_plan.time_coordinates)
+            constraints.remove_negative_constraints(unit.private_action_plan.get_time_coordinates(game_state))
             power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
 
         return constraints, power_tracker
