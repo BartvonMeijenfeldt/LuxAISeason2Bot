@@ -95,8 +95,8 @@ class GoalGraph(Graph):
             self.unit_cfg, self.goal, self.board
         )
 
-    def _is_valid_action_node(self, action: UnitAction, to_c: TimeCoordinate) -> bool:
-        return not self.constraints.tc_violates_constraint(to_c) and self.board.is_valid_c_for_player(c=to_c)
+    def heuristic(self, node: Coordinate) -> float:
+        return self._get_distance_heuristic(node=node)
 
     def _get_distance_heuristic(self, node: Coordinate) -> float:
         min_nr_steps = node.distance_to(self.goal)
@@ -110,26 +110,34 @@ class GoalGraph(Graph):
     def node_completes_goal(self, node: Coordinate) -> bool:
         return self.goal == node
 
-    def _get_danger_cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
-        base_danger_cost = super()._get_danger_cost(action, to_c)
-        extra_danger = self.constraints.get_danger_cost(to_c, action.is_stationary)
-        return base_danger_cost + extra_danger
-
 
 @dataclass
-class FleeToGraph(GoalGraph):
+class FleeGraph(Graph):
     _potential_actions = [MoveAction(direction) for direction in Direction]
 
-    def potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
-        return self._potential_actions
+    def _is_valid_action_node(self, action: UnitAction, to_c: TimeCoordinate) -> bool:
+        return not self.constraints.tc_violates_constraint(to_c) and self.board.is_valid_c_for_player(c=to_c)
 
-    def heuristic(self, node: Coordinate) -> float:
-        return self._get_distance_heuristic(node=node)
+    def potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
+        for action in self._potential_actions:
+            yield (action)
 
     def _get_danger_cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
         base_danger_cost = super()._get_danger_cost(action, to_c)
         constraints_danger_cost = self.constraints.get_danger_cost(to_c, action.is_stationary)
         return base_danger_cost + constraints_danger_cost
+
+
+@dataclass
+class FleeTowardsAnyFactoryGraph(FleeGraph):
+    def node_completes_goal(self, node: Coordinate) -> bool:
+        return self.board.get_min_distance_to_any_player_factory(node) == 0
+
+    def heuristic(self, node: Coordinate) -> float:
+        min_nr_steps = self.board.get_min_distance_to_any_player_factory(node)
+        min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
+        min_distance_cost = min_nr_steps * min_cost_per_step
+        return min_distance_cost
 
 
 @dataclass
@@ -140,6 +148,9 @@ class TilesToClearGraph(GoalGraph):
     constraints: Constraints = field(init=False, default_factory=Constraints)
     goal: Coordinate
     _potential_actions = [MoveAction(direction) for direction in Direction if direction != direction.CENTER]
+
+    def _is_valid_action_node(self, action: UnitAction, to_c: TimeCoordinate) -> bool:
+        return self.board.is_valid_c_for_player(c=to_c)
 
     def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
         action_power_cost = self.get_power_cost(action=action, to_c=to_c)
@@ -281,6 +292,14 @@ class MoveNextToTimeGraph(GoalGraph):
 class EvadeConstraintsGraph(Graph):
     _potential_actions = [MoveAction(direction) for direction in Direction]
     _move_center_action = MoveAction(Direction.CENTER)
+
+    def _is_valid_action_node(self, action: UnitAction, to_c: TimeCoordinate) -> bool:
+        return not self.constraints.tc_violates_constraint(to_c) and self.board.is_valid_c_for_player(c=to_c)
+
+    def _get_danger_cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
+        base_danger_cost = super()._get_danger_cost(action, to_c)
+        constraints_danger_cost = self.constraints.get_danger_cost(to_c, action.is_stationary)
+        return base_danger_cost + constraints_danger_cost
 
     def potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
         return self._potential_actions

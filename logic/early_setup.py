@@ -171,13 +171,13 @@ def get_scores(
     rubble_score: np.ndarray, ice_score: np.ndarray, ore_score: np.ndarray, valid_spawns: np.ndarray
 ) -> np.ndarray:
     score = rubble_score + ice_score + ore_score
-    score = zero_invalid_spawns(score, valid_spawns)
+    score = set_invalid_spawns_minus_inf(score, valid_spawns)
     return score
 
 
-def zero_invalid_spawns(x: np.ndarray, valid_spawns: np.ndarray) -> np.ndarray:
+def set_invalid_spawns_minus_inf(x: np.ndarray, valid_spawns: np.ndarray) -> np.ndarray:
     x = x.copy()
-    x[~valid_spawns] = 0
+    x[~valid_spawns] = -np.inf
     return x
 
 
