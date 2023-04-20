@@ -1334,6 +1334,7 @@ class CampResourceGoal(UnitGoal):
         self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
     ) -> UnitActionPlan:
         self._init_action_plan()
+
         if self.unit.tc.distance_to(self.resource_c) > 2:
             # TODO in the case that opponent will have more power:
             #      add preference diagonal to resource_c such that we have two ways to get next to resource_c
@@ -1367,6 +1368,7 @@ class CampResourceGoal(UnitGoal):
 
     def _optional_add_repetitive_move_actions(self, game_state: GameState, constraints: Constraints) -> None:
         if not self.action_plan and not self.unit.is_under_threath(game_state):
+            self.action_plan.append(MoveAction(Direction.CENTER, n=20))
             return
 
         while self.action_plan.nr_primitive_actions < 20:
