@@ -3,7 +3,7 @@ import logging
 
 from typing import Dict, Tuple, List
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from abc import ABCMeta, abstractmethod
 from copy import copy
 from math import inf
@@ -13,7 +13,8 @@ from objects.coordinate import TimeCoordinate
 from objects.actors.factory import Factory, Strategy
 from objects.actors.unit import Unit
 from logic.constraints import Constraints
-from logic.goal_resolution.power_availabilty_tracker import PowerTracker
+from logic.goal_resolution.power_tracker import PowerTracker
+from logic.goal_resolution.schedule_info import ScheduleInfo
 from objects.actions.action_plan import ActionPlan
 from logic.goals.factory_goal import BuildLightGoal
 from logic.goals.unit_goal import UnitGoal, DigGoal, SupplyPowerGoal
@@ -202,8 +203,10 @@ class Scheduler:
         self._reschedule_factories_building_on_top_of_units(game_state)
 
     def _init_constraints_and_power_tracker(self, game_state: GameState) -> None:
+        self.game_state = game_state
         self.constraints = Constraints()
         self.power_tracker = PowerTracker(game_state.player_factories)
+        self.schedule_info = ScheduleInfo(game_state, self.constraints, self.power_tracker)
 
     def _schedule_units_too_little_power_dummy_goal(self, game_state: GameState) -> None:
         for unit in game_state.player_units:
@@ -218,7 +221,7 @@ class Scheduler:
             if not unit.is_on_factory(game_state) and unit.can_update_action_queue_and_move:
                 continue
 
-            goal = unit.generate_no_goal_goal(game_state, self.constraints, self.power_tracker)
+            goal = unit.generate_no_goal_goal(self.schedule_info)
             self._schedule_unit_on_goal(goal, game_state)
 
     def _remove_completed_goals(self, game_state: GameState) -> None:
@@ -230,10 +233,8 @@ class Scheduler:
         for unit in game_state.player_units:
             if not unit.supplied_by and not unit.private_action_plan.unit_has_enough_power(game_state) and unit.goal:
                 try:
-                    constraints, power_tracker = self._get_constraints_power_without_unit_scheduled_actions(
-                        unit, game_state
-                    )
-                    goal = unit.get_best_version_goal(unit.goal, game_state, constraints, power_tracker)
+                    schedule_info = self._get_schedule_info_without_unit_scheduled_actions(unit)
+                    goal = unit.get_best_version_goal(unit.goal, schedule_info)
                 except NoValidGoalFoundError:
                     self._unschedule_unit_goal(unit, game_state)
                     continue
@@ -246,10 +247,8 @@ class Scheduler:
                 continue
 
             try:
-                constraints, power_tracker = self._get_constraints_power_without_unit_scheduled_actions(
-                    unit, game_state
-                )
-                goal = unit.get_best_version_goal(unit.goal, game_state, constraints, power_tracker)
+                schedule_info = self._get_schedule_info_without_unit_scheduled_actions(unit)
+                goal = unit.get_best_version_goal(unit.goal, schedule_info)
             except NoValidGoalFoundError:
                 self._unschedule_unit_goal(unit, game_state)
                 continue
@@ -289,7 +288,7 @@ class Scheduler:
 
             if unit.is_under_threath(game_state) and unit.next_step_is_stationary():
                 self._unschedule_unit_goal(unit, game_state)
-                goal = unit.generate_transfer_or_dummy_goal(game_state, self.constraints, self.power_tracker)
+                goal = unit.generate_transfer_or_dummy_goal(self.schedule_info)
                 self._schedule_unit_on_goal(goal, game_state)
             elif unit.next_step_walks_into_tile_where_it_might_be_captured(game_state):
                 self._unschedule_unit_goal(unit, game_state)
@@ -298,7 +297,7 @@ class Scheduler:
         for unit in game_state.player_units:
             if unit.goal and not unit.private_action_plan:
                 try:
-                    goal = unit.get_best_version_goal(unit.goal, game_state, self.constraints, self.power_tracker)
+                    goal = unit.get_best_version_goal(unit.goal, self.schedule_info)
                 except Exception:
                     self._unschedule_unit_goal(unit, game_state)
                     continue
@@ -317,7 +316,7 @@ class Scheduler:
             scores = self._score_strategies_for_factories_with_available_units(game_state)
             factory = self._get_highest_priority_factory(scores)
             strategies = self._get_priority_sorted_strategies_factory(factory, scores)
-            goals = factory.schedule_units(strategies, game_state, self.constraints, self.power_tracker)
+            goals = factory.schedule_units(strategies, self.schedule_info)
             for goal in goals:
                 self._schedule_unit_on_goal(goal, game_state)
 
@@ -326,7 +325,7 @@ class Scheduler:
 
     def _schedule_factory_goals(self, game_state: GameState) -> None:
         for factory in game_state.player_factories:
-            action_plan = factory.schedule_goal(game_state, self.constraints, self.power_tracker)
+            action_plan = factory.schedule_goal(self.schedule_info)
             self._update_constraints_and_power_tracker(game_state, action_plan)
 
     def _reserve_tc_and_power_factories(self, game_state: GameState) -> None:
@@ -335,7 +334,7 @@ class Scheduler:
         for factory in game_state.player_factories:
             for t in range(game_state.real_env_steps + 1, 7):
                 goal = BuildLightGoal(factory)
-                action_plan = goal.generate_action_plan(game_state, self.constraints, self.power_tracker)
+                action_plan = goal.generate_action_plan(self.schedule_info)
 
                 power_requests = action_plan.get_power_requests(game_state)
                 for power_request in power_requests:
@@ -355,7 +354,7 @@ class Scheduler:
                 if self._is_out_of_time():
                     return
 
-                goal = unit.generate_dummy_goal(game_state, self.constraints, self.power_tracker)
+                goal = unit.generate_dummy_goal(self.schedule_info)
                 self._schedule_unit_on_goal(goal, game_state)
 
     def _get_highest_priority_factory(self, scores: Dict[Tuple[Factory, Strategy], float]) -> Factory:
@@ -403,7 +402,7 @@ class Scheduler:
 
             next_tc = factory.private_action_plan.next_tc
             if next_tc and next_tc in next_tc_units:
-                action_plan = factory.schedule_goal(game_state, self.constraints, self.power_tracker, can_build=False)
+                action_plan = factory.schedule_goal(self.schedule_info, can_build=False)
                 self._update_constraints_and_power_tracker(game_state, action_plan)
 
     def _schedule_unit_on_goal(self, goal: UnitGoal, game_state: GameState) -> None:
@@ -444,15 +443,15 @@ class Scheduler:
             if connected_unit:
                 self._unschedule_unit_goal(connected_unit, game_state)
 
-    def _get_constraints_power_without_unit_scheduled_actions(
-        self, unit: Unit, game_state: GameState
-    ) -> Tuple[Constraints, PowerTracker]:
+    def _get_schedule_info_without_unit_scheduled_actions(self, unit: Unit) -> ScheduleInfo:
+        if not unit.is_scheduled:
+            return self.schedule_info
 
+        game_state = self.schedule_info.game_state
         constraints = copy(self.constraints)
         power_tracker = copy(self.power_tracker)
+        constraints.remove_negative_constraints(unit.private_action_plan.get_time_coordinates(game_state))
+        power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
+        schedule_info = replace(self.schedule_info, constraints=constraints, power_tracker=power_tracker)
 
-        if unit.is_scheduled:
-            constraints.remove_negative_constraints(unit.private_action_plan.get_time_coordinates(game_state))
-            power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
-
-        return constraints, power_tracker
+        return schedule_info

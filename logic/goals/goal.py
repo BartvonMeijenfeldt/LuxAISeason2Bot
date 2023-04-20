@@ -5,23 +5,16 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 
 from objects.actions.action_plan import ActionPlan
-from logic.constraints import Constraints
-
 
 if TYPE_CHECKING:
     from objects.game_state import GameState
-    from logic.goal_resolution.power_availabilty_tracker import PowerTracker
+    from logic.goal_resolution.schedule_info import ScheduleInfo
 
 
 @dataclass
 class Goal(metaclass=ABCMeta):
     @abstractmethod
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> ActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> ActionPlan:
         ...
 
     def get_value_per_step_of_action_plan(self, action_plan: ActionPlan, game_state: GameState) -> float:

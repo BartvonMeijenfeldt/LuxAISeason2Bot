@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import List, Sequence, Optional, TYPE_CHECKING, Iterable
 from functools import lru_cache
 from math import ceil
@@ -16,7 +16,6 @@ from objects.resource import Resource
 from objects.actions.unit_action import UnitAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.cargo import Cargo
-from logic.goal_resolution.power_availabilty_tracker import PowerTracker
 from logic.constraints import Constraints
 from objects.direction import Direction, NON_STATIONARY_DIRECTIONS
 from logic.goals.unit_goal import (
@@ -37,6 +36,7 @@ from logic.goals.unit_goal import (
 )
 from config import CONFIG
 from exceptions import NoValidGoalFoundError
+from logic.goal_resolution.schedule_info import ScheduleInfo
 
 if TYPE_CHECKING:
     from objects.actors.factory import Factory
@@ -217,13 +217,13 @@ class Unit(Actor):
         return game_state.is_opponent_heavy_on_tile(next_c)
 
     # Dummy Goal added in case we can not reach factory, should add partial fleeing to solve this problem
-    def generate_transfer_or_dummy_goal(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+    def generate_transfer_or_dummy_goal(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        game_state = schedule_info.game_state
+
         transfer_goals = self._get_relevant_transfer_goals(game_state)
         dummy_goals = self._get_dummy_goals(game_state)
         goals = transfer_goals + dummy_goals
-        goal = self.get_best_goal(goals, game_state, constraints, power_tracker)
+        goal = self.get_best_goal(goals, schedule_info)
         return goal
 
     def _get_flee_goal(self, game_state: GameState) -> FleeGoal:
@@ -255,16 +255,7 @@ class Unit(Actor):
         goal = TransferOreGoal(self, factory)
         return goal
 
-    def generate_clear_rubble_goal(
-        self, game_state: GameState, c: Coordinate, constraints: Constraints, power_tracker: PowerTracker
-    ) -> ClearRubbleGoal:
-        rubble_goals = self._get_clear_rubble_goals(c)
-        goal = self.get_best_goal(rubble_goals, game_state, constraints, power_tracker)
-        return goal  # type: ignore
-
-    def get_best_version_goal(
-        self, goal: UnitGoal, game_state: GameState, constraints: Constraints, power_tracker
-    ) -> UnitGoal:
+    def get_best_version_goal(self, goal: UnitGoal, schedule_info: ScheduleInfo) -> UnitGoal:
         if hasattr(goal, "pickup_power"):
             goals = [copy(goal), copy(goal)]
             for goal, pickup_power in zip(goals, [True, False]):
@@ -272,25 +263,23 @@ class Unit(Actor):
         else:
             goals = [goal]
 
-        return self.get_best_goal(goals, game_state, constraints, power_tracker)
+        return self.get_best_goal(goals, schedule_info)
 
-    def get_best_goal(
-        self,
-        goals: Iterable[UnitGoal],
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> UnitGoal:
+    def get_best_goal(self, goals: Iterable[UnitGoal], schedule_info: ScheduleInfo) -> UnitGoal:
+        game_state = schedule_info.game_state
+        constraints = schedule_info.constraints
+
         goals = list(goals)
         # goals = self.generate_goals(game_state)
         priority_queue = self._init_priority_queue(goals, game_state)
         constraints_with_danger = self._get_constraints_with_danger_tcs(constraints, game_state)
+        schedule_info = replace(schedule_info, constraints=constraints_with_danger)
 
         while not priority_queue.is_empty():
             goal: UnitGoal = priority_queue.pop()
 
             try:
-                action_plan = goal.generate_action_plan(game_state, constraints_with_danger, power_tracker)
+                action_plan = goal.generate_action_plan(schedule_info)
             except Exception:
                 continue
 
@@ -358,11 +347,9 @@ class Unit(Actor):
         # else:
         #     self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
 
-    def generate_dummy_goal(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
-        dummy_goals = self._get_dummy_goals(game_state)
-        goal = self.get_best_goal(dummy_goals, game_state, constraints, power_tracker)
+    def generate_dummy_goal(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        dummy_goals = self._get_dummy_goals(schedule_info.game_state)
+        goal = self.get_best_goal(dummy_goals, schedule_info)
         return goal
 
     def _get_dummy_goals(self, game_state: GameState) -> list[UnitGoal]:
@@ -373,37 +360,31 @@ class Unit(Actor):
 
         return dummy_goals
 
-    def generate_no_goal_goal(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitNoGoal:
+    def generate_no_goal_goal(self, schedule_info: ScheduleInfo) -> UnitNoGoal:
         no_goal_goal = UnitNoGoal(self)
-        goal = self.get_best_goal([no_goal_goal], game_state, constraints, power_tracker)
+        goal = self.get_best_goal([no_goal_goal], schedule_info)
         return goal  # type: ignore
 
     def generate_collect_ore_goal(
         self,
-        game_state: GameState,
+        schedule_info: ScheduleInfo,
         c: Coordinate,
         is_supplied: bool,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
         factory: Factory,
     ) -> CollectOreGoal:
-        ore_goals = self._get_collect_ore_goals(c, game_state, factory, is_supplied)
-        goal = self.get_best_goal(ore_goals, game_state, constraints, power_tracker)
+        ore_goals = self._get_collect_ore_goals(c, schedule_info.game_state, factory, is_supplied)
+        goal = self.get_best_goal(ore_goals, schedule_info)
         return goal  # type: ignore
 
     def generate_supply_power_goal(
         self,
-        game_state: GameState,
+        schedule_info: ScheduleInfo,
         receiving_unit: Unit,
         receiving_action_plan: UnitActionPlan,
         receiving_c: Coordinate,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
     ) -> SupplyPowerGoal:
         supply_goals = self._get_supply_power_goals(receiving_unit, receiving_action_plan, receiving_c)
-        goal = self.get_best_goal(supply_goals, game_state, constraints, power_tracker)
+        goal = self.get_best_goal(supply_goals, schedule_info)
         return goal  # type: ignore
 
     def _get_supply_power_goals(
@@ -427,23 +408,13 @@ class Unit(Actor):
 
     def generate_collect_ice_goal(
         self,
-        game_state: GameState,
+        schedule_info: ScheduleInfo,
         c: Coordinate,
         is_supplied: bool,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
         factory: Factory,
     ) -> CollectIceGoal:
-        ice_goals = self._get_collect_ice_goals(c, game_state, factory, is_supplied)
-        goal = self.get_best_goal(ice_goals, game_state, constraints, power_tracker)
-        return goal  # type: ignore
-
-    def generate_destroy_lichen_goal(
-        self, game_state: GameState, c: Coordinate, constraints: Constraints, power_tracker: PowerTracker
-    ) -> DestroyLichenGoal:
-
-        ice_goals = self._get_destroy_lichen_goals(c, game_state)
-        goal = self.get_best_goal(ice_goals, game_state, constraints, power_tracker)
+        ice_goals = self._get_collect_ice_goals(c, schedule_info.game_state, factory, is_supplied)
+        goal = self.get_best_goal(ice_goals, schedule_info)
         return goal  # type: ignore
 
     def _get_collect_ice_goals(
@@ -499,22 +470,18 @@ class Unit(Actor):
             if self._is_feasible_dig_c(c, game_state)
         ]
 
-    def generate_camp_resource_goals(
-        self, game_state: GameState, resource_c: Coordinate, constraints: Constraints, power_tracker: PowerTracker
-    ) -> CampResourceGoal:
+    def generate_camp_resource_goals(self, schedule_info: ScheduleInfo, resource_c: Coordinate) -> CampResourceGoal:
         camp_resource_goals = self._get_camp_resource_goals(resource_c)
-        goal = self.get_best_goal(camp_resource_goals, game_state, constraints, power_tracker)
+        goal = self.get_best_goal(camp_resource_goals, schedule_info)
         return goal  # type: ignore
         ...
 
     def _get_camp_resource_goals(self, resource_c: Coordinate) -> List[CampResourceGoal]:
         return [CampResourceGoal(self, resource_c, pickup_power) for pickup_power in [False, True]]
 
-    def generate_hunt_unit_goals(
-        self, game_state: GameState, opp: Unit, constraints: Constraints, power_tracker: PowerTracker
-    ) -> HuntGoal:
+    def generate_hunt_unit_goals(self, schedule_info: ScheduleInfo, opp: Unit) -> HuntGoal:
         hunt_goals = self._get_hunt_unit_goals(opp)
-        goal = self.get_best_goal(hunt_goals, game_state, constraints, power_tracker)
+        goal = self.get_best_goal(hunt_goals, schedule_info)
         return goal  # type: ignore
         ...
 

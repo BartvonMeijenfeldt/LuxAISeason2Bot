@@ -4,11 +4,10 @@ import numpy as np
 
 from typing import Tuple, TYPE_CHECKING, Optional, Iterable, Set, Generator, List
 from itertools import product
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from collections import Counter
 from copy import copy
 from enum import Enum, auto
-import logging
 from objects.actions.unit_action_plan import UnitActionPlan
 
 from objects.cargo import Cargo
@@ -16,7 +15,6 @@ from objects.actions.factory_action import WaterAction
 from objects.actors.actor import Actor
 from exceptions import NoValidGoalFoundError
 from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
-from logic.constraints import Constraints
 from logic.goals.unit_goal import DigGoal, CollectGoal
 from objects.actions.factory_action_plan import FactoryActionPlan
 from logic.goals.unit_goal import (
@@ -42,7 +40,7 @@ from lux.config import EnvConfig, LIGHT_CONFIG, HEAVY_CONFIG
 from config import CONFIG
 
 if TYPE_CHECKING:
-    from logic.goal_resolution.power_availabilty_tracker import PowerTracker
+    from logic.goal_resolution.scheduler import ScheduleInfo
     from objects.game_state import GameState
     from objects.board import Board
     from objects.actors.unit import Unit
@@ -305,11 +303,9 @@ class Factory(Actor):
         return get_min_distance_between_positions(rel_positions, positions)
 
     # TODO Can build should be put into the constraints
-    def schedule_goal(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker, can_build: bool = True
-    ) -> FactoryActionPlan:
-        goal = self.get_goal(game_state, can_build)
-        action_plan = goal.generate_action_plan(game_state, constraints, power_tracker)
+    def schedule_goal(self, schedule_info: ScheduleInfo, can_build: bool = True) -> FactoryActionPlan:
+        goal = self.get_goal(schedule_info.game_state, can_build)
+        action_plan = goal.generate_action_plan(schedule_info)
         self.goal = goal
         self.private_action_plan = action_plan
         return action_plan
@@ -547,120 +543,93 @@ class Factory(Actor):
     def schedule_units(
         self,
         strategies: Iterable[Strategy],
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
+        schedule_info: ScheduleInfo,
     ) -> List[UnitGoal]:
         if self.sorted_threaths_invaders:
             try:
-                return [self._schedule_hunt_invaders(game_state, constraints, power_tracker)]
+                return [self._schedule_hunt_invaders(schedule_info)]
             except NoValidGoalFoundError:
                 pass
 
         if self.has_heavy_unsupplied_collecting_next_to_factory and self.has_light_unit_available:
             try:
-                return self._schedule_supply_goal_and_reschedule_receiving_unit(game_state, constraints, power_tracker)
+                return self._schedule_supply_goal_and_reschedule_receiving_unit(schedule_info)
             except NoValidGoalFoundError:
                 pass
 
         for strategy in strategies:
             try:
-                return [self._schedule_unit_on_strategy(strategy, game_state, constraints, power_tracker)]
+                return [self._schedule_unit_on_strategy(strategy, schedule_info)]
             except NoValidGoalFoundError:
                 continue
 
-        return [self._schedule_first_unit_by_own_preference(game_state, constraints, power_tracker)]
+        return [self._schedule_first_unit_by_own_preference(schedule_info)]
 
-    def _schedule_hunt_invaders(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+    def _schedule_hunt_invaders(self, schedule_info: ScheduleInfo) -> UnitGoal:
         while self.sorted_threaths_invaders:
             invader = self.sorted_threaths_invaders.pop()
-            if invader in game_state.hunted_opp_units:
+            if invader in schedule_info.game_state.hunted_opp_units:
                 continue
 
             try:
-                return self._schedule_hunt_invader(invader, game_state, constraints, power_tracker)
+                return self._schedule_hunt_invader(invader, schedule_info)
             except NoValidGoalFoundError:
                 continue
 
         raise NoValidGoalFoundError
 
-    def _schedule_hunt_invader(
-        self, invader: Unit, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+    def _schedule_hunt_invader(self, invader: Unit, schedule_info: ScheduleInfo) -> UnitGoal:
         if invader.is_light:
-            return self._schedule_hunt_invader_with_units(
-                invader, self.light_available_units, game_state, constraints, power_tracker
-            )
+            return self._schedule_hunt_invader_with_units(invader, self.light_available_units, schedule_info)
         else:
-            return self._schedule_hunt_invader_with_units(
-                invader, self.heavy_available_units, game_state, constraints, power_tracker
-            )
+            return self._schedule_hunt_invader_with_units(invader, self.heavy_available_units, schedule_info)
 
     def _schedule_hunt_invader_with_units(
-        self,
-        invader: Unit,
-        units: Iterable[Unit],
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
+        self, invader: Unit, units: Iterable[Unit], schedule_info: ScheduleInfo
     ) -> UnitGoal:
 
         potential_assignments = [(unit, goal) for unit in units for goal in unit._get_hunt_unit_goals(invader)]
+        return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
 
-        if not potential_assignments:
-            raise NoValidGoalFoundError
-
-        unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
-        goal = unit.generate_hunt_unit_goals(game_state, invader, constraints, power_tracker)
-        return goal
-
-    def _schedule_unit_on_strategy(
-        self, strategy: Strategy, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+    def _schedule_unit_on_strategy(self, strategy: Strategy, schedule_info: ScheduleInfo) -> UnitGoal:
 
         if strategy == Strategy.INCREASE_LICHEN_TILES:
-            goal = self.schedule_strategy_increase_lichen_tiles(game_state, constraints, power_tracker)
+            goal = self.schedule_strategy_increase_lichen_tiles(schedule_info)
         elif strategy == Strategy.INCREASE_LICHEN:
-            goal = self.schedule_strategy_increase_lichen(game_state, constraints, power_tracker)
+            goal = self.schedule_strategy_increase_lichen(schedule_info)
         elif strategy == Strategy.INCREASE_UNITS:
-            goal = self.schedule_strategy_increase_units(game_state, constraints, power_tracker)
+            goal = self.schedule_strategy_increase_units(schedule_info)
         elif strategy == Strategy.COLLECT_ICE:
-            goal = self.schedule_strategy_collect_ice(game_state, constraints, power_tracker)
+            goal = self.schedule_strategy_collect_ice(schedule_info)
         elif strategy == Strategy.ATTACK_OPPONENT:
-            goal = self.schedule_strategy_attack_opponent(game_state, constraints, power_tracker)
+            goal = self.schedule_strategy_attack_opponent(schedule_info)
         else:
             raise ValueError("Strategy is not a known strategy")
 
         return goal
 
-    def _schedule_first_unit_by_own_preference(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
-        logging.info(
-            f"{game_state.real_env_steps}: player {game_state.player_team.team_id} scheduled unit by own preference"
-        )
+    def _schedule_first_unit_by_own_preference(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        game_state = schedule_info.game_state
 
         unit = next(self.available_units)
         all_goals = unit.generate_goals(game_state, self)
         best_goal = max(all_goals, key=lambda g: g.get_best_value_per_step(game_state))
         dummy_goals = unit._get_dummy_goals(game_state)
         goals = [best_goal] + dummy_goals
-        goal = unit.get_best_goal(goals, game_state, constraints, power_tracker)
+        goal = unit.get_best_goal(goals, schedule_info)
         return goal
 
-    def schedule_strategy_increase_lichen(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
-        if not self.enough_water_collection_for_next_turns(game_state):
-            return self.schedule_strategy_collect_ice(game_state, constraints, power_tracker)
-        else:
-            return self.schedule_strategy_increase_lichen_tiles(game_state, constraints, power_tracker)
+    def schedule_strategy_increase_lichen(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        game_state = schedule_info.game_state
 
-    def schedule_strategy_increase_lichen_tiles(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+        if not self.enough_water_collection_for_next_turns(game_state):
+            return self.schedule_strategy_collect_ice(schedule_info)
+        else:
+            return self.schedule_strategy_increase_lichen_tiles(schedule_info)
+
+    def schedule_strategy_increase_lichen_tiles(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        game_state = schedule_info.game_state
+
         rubble_positions = self._get_suitable_dig_positions_for_lichen(game_state)
         if not rubble_positions:
             raise NoValidGoalFoundError
@@ -670,15 +639,10 @@ class Factory(Actor):
         else:
             units = self.available_units
 
-        return self._schedule_unit_on_rubble_pos(rubble_positions, units, game_state, constraints, power_tracker)
+        return self._schedule_unit_on_rubble_pos(rubble_positions, units, schedule_info)
 
     def _schedule_unit_on_rubble_pos(
-        self,
-        rubble_positions: Iterable[Tuple],
-        units: Iterable[Unit],
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
+        self, rubble_positions: Iterable[Tuple], units: Iterable[Unit], schedule_info: ScheduleInfo
     ) -> UnitGoal:
 
         potential_assignments = [
@@ -688,21 +652,21 @@ class Factory(Actor):
             for goal in unit._get_clear_rubble_goals(Coordinate(*pos))
         ]
 
+        return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
+
+    def get_best_assignment(
+        self, potential_assignments: List[Tuple[Unit, UnitGoal]], schedule_info: ScheduleInfo
+    ) -> UnitGoal:
+
         if not potential_assignments:
             raise NoValidGoalFoundError
 
-        unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
-        constraints, power_tracker = self._get_constraints_and_power_without_units_on_dig_c(
-            goal.dig_c, game_state, constraints, power_tracker
-        )
-        goal = unit.generate_clear_rubble_goal(game_state, goal.dig_c, constraints, power_tracker)
-        # self._schedule_unit_on_goal(unit, goal)
-        return goal
+        unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(schedule_info.game_state))
+        if isinstance(goal, DigGoal):
+            schedule_info = self._get_schedule_info_without_units_on_dig_c(goal.dig_c, schedule_info)
 
-    def _get_closest_available_unit_to_pos(self, pos: np.ndarray) -> Unit:
-        c = Coordinate(*pos)
-        unit = min(self.available_units, key=lambda u: c.distance_to(u.tc))
-        return unit
+        goal = unit.get_best_version_goal(goal, schedule_info)
+        return goal
 
     def _get_suitable_dig_positions_for_lichen(self, game_state: GameState) -> Set[Tuple]:
         rubble_positions_favorite = positions_to_set(self.rubble_positions_next_to_can_spread_pos)
@@ -724,35 +688,28 @@ class Factory(Actor):
         water_cost_next_n_turns = CONFIG.ENOUGH_WATER_COLLECTION_NR_TURNS * self.water_cost
         return water_available_next_n_turns > water_cost_next_n_turns
 
-    def _schedule_supply_goal_and_reschedule_receiving_unit(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> List[UnitGoal]:
-        supplying_unit, receiving_unit, receiving_c = self._assign_supplying_unit_and_receiving_unit(game_state)
+    def _schedule_supply_goal_and_reschedule_receiving_unit(self, schedule_info: ScheduleInfo) -> List[UnitGoal]:
+        game_state = schedule_info.game_state
 
-        constraints = copy(constraints)
-        constraints.remove_negative_constraints(receiving_unit.private_action_plan.get_time_coordinates(game_state))
-        power_tracker = copy(power_tracker)
-        power_tracker.remove_power_requests(receiving_unit.private_action_plan.get_power_requests(game_state))
+        supplying_unit, receiving_unit, receiving_c = self._assign_supplying_unit_and_receiving_unit(game_state)
+        schedule_info = self._get_schedule_info_without_unit_scheduled_actions(schedule_info, receiving_unit)
 
         goal_receiving_unit = self._reschedule_receiving_collect_goal(
+            schedule_info=schedule_info,
             unit=receiving_unit,
             receiving_c=receiving_c,
-            game_state=game_state,
-            constraints=constraints,
-            power_tracker=power_tracker,
         )
 
-        constraints.add_negative_constraints(goal_receiving_unit.action_plan.get_time_coordinates(game_state))
-        power_tracker.add_power_requests(goal_receiving_unit.action_plan.get_power_requests(game_state))
+        tcs = goal_receiving_unit.action_plan.get_time_coordinates(game_state)
+        schedule_info.constraints.add_negative_constraints(tcs)
+        schedule_info.power_tracker.add_power_requests(goal_receiving_unit.action_plan.get_power_requests(game_state))
 
         goal_supplying_unit = self._schedule_supply_goal(
-            game_state=game_state,
+            schedule_info=schedule_info,
             supplying_unit=supplying_unit,
             receiving_action_plan=goal_receiving_unit.action_plan,
             receiving_unit=receiving_unit,
             receiving_c=receiving_c,
-            constraints=constraints,
-            power_tracker=power_tracker,
         )
 
         # TODO add check here whether the receiving unit will get power in time
@@ -778,30 +735,21 @@ class Factory(Actor):
         return (supplying_unit, receiving_unit, receiving_c)
 
     def _reschedule_receiving_collect_goal(
-        self,
-        unit: Unit,
-        receiving_c: Coordinate,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
+        self, unit: Unit, receiving_c: Coordinate, schedule_info: ScheduleInfo
     ) -> CollectGoal:
 
         if isinstance(unit.goal, CollectOreGoal):
             return unit.generate_collect_ore_goal(
-                game_state=game_state,
+                schedule_info=schedule_info,
                 c=receiving_c,
                 is_supplied=True,
-                constraints=constraints,
-                power_tracker=power_tracker,
                 factory=self,
             )
         elif isinstance(unit.goal, CollectIceGoal):
             return unit.generate_collect_ice_goal(
-                game_state=game_state,
+                schedule_info=schedule_info,
                 c=receiving_c,
                 is_supplied=True,
-                constraints=constraints,
-                power_tracker=power_tracker,
                 factory=self,
             )
 
@@ -809,185 +757,115 @@ class Factory(Actor):
 
     def _schedule_supply_goal(
         self,
-        game_state: GameState,
+        schedule_info: ScheduleInfo,
         supplying_unit: Unit,
         receiving_unit: Unit,
         receiving_action_plan: UnitActionPlan,
         receiving_c: Coordinate,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
     ) -> SupplyPowerGoal:
 
         goal = supplying_unit.generate_supply_power_goal(
-            game_state, receiving_unit, receiving_action_plan, receiving_c, constraints, power_tracker
+            schedule_info, receiving_unit, receiving_action_plan, receiving_c
         )
         return goal
 
-    def schedule_strategy_increase_units(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+    def schedule_strategy_increase_units(self, schedule_info: ScheduleInfo) -> UnitGoal:
         # Collect Ore / Clear Path to Ore / Supply Power to heavy on Ore
         if self.has_heavy_unit_available:
-            return self._schedule_heavy_on_ore(game_state, constraints, power_tracker)
+            return self._schedule_heavy_on_ore(schedule_info)
         else:
-            return self._schedule_light_on_ore_task(game_state, constraints, power_tracker)
+            return self._schedule_light_on_ore_task(schedule_info)
 
-    def _schedule_heavy_on_ore(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+    def _schedule_heavy_on_ore(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        game_state = schedule_info.game_state
         valid_ore_positions_set = game_state.board.ore_positions_set - game_state.positions_in_heavy_dig_goals
-        goal = self._schedule_unit_on_ore_pos(
-            valid_ore_positions_set, self.heavy_available_units, game_state, constraints, power_tracker
-        )
+        goal = self._schedule_unit_on_ore_pos(valid_ore_positions_set, self.heavy_available_units, schedule_info)
         return goal
 
-    def _schedule_light_on_ore_task(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+    def _schedule_light_on_ore_task(self, schedule_info: ScheduleInfo) -> UnitGoal:
         try:
-            return self._schedule_light_on_ore(game_state, constraints, power_tracker)
+            return self._schedule_light_on_ore(schedule_info)
         except Exception:
-            rubble_positions = self.get_rubble_positions_to_clear_for_ore(game_state)
+            rubble_positions = self.get_rubble_positions_to_clear_for_ore(schedule_info.game_state)
             if not rubble_positions:
                 raise NoValidGoalFoundError
 
             return self._schedule_unit_on_rubble_pos(
                 rubble_positions,
                 self.light_available_units,
-                game_state,
-                constraints,
-                power_tracker,
+                schedule_info,
             )
 
-    def _schedule_light_on_ore(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+    def _schedule_light_on_ore(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        game_state = schedule_info.game_state
         valid_ore_positions_set = game_state.board.ore_positions_set - game_state.positions_in_dig_goals
-        return self._schedule_unit_on_ore_pos(
-            valid_ore_positions_set, self.light_available_units, game_state, constraints, power_tracker
-        )
+        return self._schedule_unit_on_ore_pos(valid_ore_positions_set, self.light_available_units, schedule_info)
 
     def _schedule_unit_on_ore_pos(
-        self,
-        ore_positions: Iterable[Tuple],
-        units: Iterable[Unit],
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
+        self, ore_positions: Iterable[Tuple], units: Iterable[Unit], schedule_info: ScheduleInfo
     ) -> CollectOreGoal:
 
         potential_assignments = [
             (unit, goal)
             for unit in units
             for pos in ore_positions
-            for goal in unit._get_collect_ore_goals(Coordinate(*pos), game_state, factory=self, is_supplied=False)
+            for goal in unit._get_collect_ore_goals(
+                Coordinate(*pos), schedule_info.game_state, factory=self, is_supplied=False
+            )
         ]
 
-        if not potential_assignments:
-            raise NoValidGoalFoundError
+        return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
 
-        unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
-        constraints, power_tracker = self._get_constraints_and_power_without_units_on_dig_c(
-            goal.dig_c, game_state, constraints, power_tracker
-        )
-        goal = unit.generate_collect_ore_goal(
-            game_state=game_state,
-            c=goal.dig_c,
-            is_supplied=False,
-            constraints=constraints,
-            power_tracker=power_tracker,
-            factory=self,
-        )
-        # self._schedule_unit_on_goal(unit, goal)
-        return goal
-
-    def schedule_strategy_collect_ice(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+    def schedule_strategy_collect_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
         # Collect Ice / Clear Path to Ice / Supply Power to heavy on Ice
         if self.has_heavy_unit_available:
-            return self._schedule_heavy_on_ice(game_state, constraints, power_tracker)
+            return self._schedule_heavy_on_ice(schedule_info)
         else:
-            return self._schedule_light_on_ice_task(game_state, constraints, power_tracker)
+            return self._schedule_light_on_ice_task(schedule_info)
 
-    def _schedule_heavy_on_ice(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+    def _schedule_heavy_on_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        game_state = schedule_info.game_state
         valid_ice_positions_set = game_state.board.ice_positions_set - game_state.positions_in_heavy_dig_goals
-        return self._schedule_unit_on_ice_pos(
-            valid_ice_positions_set, self.heavy_available_units, game_state, constraints, power_tracker
-        )
+        return self._schedule_unit_on_ice_pos(valid_ice_positions_set, self.heavy_available_units, schedule_info)
 
-    def _schedule_light_on_ice_task(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+    def _schedule_light_on_ice_task(self, schedule_info: ScheduleInfo) -> UnitGoal:
         try:
-            return self._schedule_light_on_ice(game_state, constraints, power_tracker)
+            return self._schedule_light_on_ice(schedule_info)
         except Exception:
-            rubble_positions = self.get_rubble_positions_to_clear_for_ice(game_state)
+            rubble_positions = self.get_rubble_positions_to_clear_for_ice(schedule_info.game_state)
             if not rubble_positions:
                 raise NoValidGoalFoundError
 
-            return self._schedule_unit_on_rubble_pos(
-                rubble_positions,
-                self.light_available_units,
-                game_state,
-                constraints,
-                power_tracker,
-            )
+            return self._schedule_unit_on_rubble_pos(rubble_positions, self.light_available_units, schedule_info)
 
-    def _schedule_light_on_ice(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+    def _schedule_light_on_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        game_state = schedule_info.game_state
         valid_ice_positions_set = game_state.board.ice_positions_set - game_state.positions_in_dig_goals
-        return self._schedule_unit_on_ice_pos(
-            valid_ice_positions_set, self.light_available_units, game_state, constraints, power_tracker
-        )
+        return self._schedule_unit_on_ice_pos(valid_ice_positions_set, self.light_available_units, schedule_info)
 
     def _schedule_unit_on_ice_pos(
-        self,
-        ice_positions: Iterable[Tuple],
-        units: Iterable[Unit],
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
+        self, ice_positions: Iterable[Tuple], units: Iterable[Unit], schedule_info: ScheduleInfo
     ) -> CollectIceGoal:
 
         potential_assignments = [
             (unit, goal)
             for unit in units
             for pos in ice_positions
-            for goal in unit._get_collect_ice_goals(Coordinate(*pos), game_state, factory=self, is_supplied=False)
+            for goal in unit._get_collect_ice_goals(
+                Coordinate(*pos), schedule_info.game_state, factory=self, is_supplied=False
+            )
         ]
 
-        if not potential_assignments:
-            raise NoValidGoalFoundError
+        return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
 
-        unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
-        constraints, power_tracker = self._get_constraints_and_power_without_units_on_dig_c(
-            goal.dig_c, game_state, constraints, power_tracker
-        )
-        goal = unit.generate_collect_ice_goal(
-            game_state=game_state,
-            c=goal.dig_c,
-            is_supplied=False,
-            constraints=constraints,
-            power_tracker=power_tracker,
-            factory=self,
-        )
-        return goal
-
-    def schedule_strategy_attack_opponent(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitGoal:
+    def schedule_strategy_attack_opponent(self, schedule_info: ScheduleInfo) -> UnitGoal:
         try:
-            return self._schedule_unit_camp_resource(game_state, constraints, power_tracker)
+            return self._schedule_unit_camp_resource(schedule_info)
         except Exception:
-            return self._schedule_unit_destroy_lichen(game_state, constraints, power_tracker)
+            return self._schedule_unit_destroy_lichen(schedule_info)
 
-    def _schedule_unit_camp_resource(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> CampResourceGoal:
+    def _schedule_unit_camp_resource(self, schedule_info: ScheduleInfo) -> CampResourceGoal:
+        game_state = schedule_info.game_state
         valid_postions = game_state.ice_positions_next_to_opp_factory - game_state.positions_in_camp_goals
         units = self.heavy_available_units
 
@@ -1003,17 +881,11 @@ class Factory(Actor):
 
         unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
 
-        goal = unit.generate_camp_resource_goals(
-            game_state=game_state,
-            resource_c=goal.resource_c,
-            constraints=constraints,
-            power_tracker=power_tracker,
-        )
+        goal = unit.generate_camp_resource_goals(schedule_info=schedule_info, resource_c=goal.resource_c)
         return goal
 
-    def _schedule_unit_destroy_lichen(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> DestroyLichenGoal:
+    def _schedule_unit_destroy_lichen(self, schedule_info: ScheduleInfo) -> DestroyLichenGoal:
+        game_state = schedule_info.game_state
         dig_pos_set = {c.xy for c in game_state.opp_lichen_tiles}
         valid_pos = dig_pos_set - game_state.positions_in_dig_goals
 
@@ -1029,26 +901,28 @@ class Factory(Actor):
             for goal in unit._get_destroy_lichen_goals(Coordinate(*pos), game_state)
         ]
 
-        if not potential_assignments:
-            raise NoValidGoalFoundError
+        return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
 
-        unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
-        constraints, power_tracker = self._get_constraints_and_power_without_units_on_dig_c(
-            goal.dig_c, game_state, constraints, power_tracker
-        )
-        goal = unit.generate_destroy_lichen_goal(
-            game_state=game_state,
-            c=goal.dig_c,
-            constraints=constraints,
-            power_tracker=power_tracker,
-        )
-        return goal
+    def _get_schedule_info_without_unit_scheduled_actions(
+        self, schedule_info: ScheduleInfo, unit: Unit
+    ) -> ScheduleInfo:
+        if not unit.is_scheduled:
+            return schedule_info
 
-    def _get_constraints_and_power_without_units_on_dig_c(
-        self, c: Coordinate, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> Tuple[Constraints, PowerTracker]:
-        constraints = copy(constraints)
-        power_tracker = copy(power_tracker)
+        game_state = schedule_info.game_state
+        constraints = copy(schedule_info.constraints)
+        power_tracker = copy(schedule_info.power_tracker)
+
+        constraints.remove_negative_constraints(unit.private_action_plan.get_time_coordinates(game_state))
+        power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
+        schedule_info = replace(schedule_info, constraints=constraints, power_tracker=power_tracker)
+
+        return schedule_info
+
+    def _get_schedule_info_without_units_on_dig_c(self, c: Coordinate, schedule_info: ScheduleInfo) -> ScheduleInfo:
+        game_state = schedule_info.game_state
+        constraints = copy(schedule_info.constraints)
+        power_tracker = copy(schedule_info.power_tracker)
 
         for unit in game_state.units:
             if isinstance(unit.goal, DigGoal) and unit.goal.dig_c == c:
@@ -1056,4 +930,6 @@ class Factory(Actor):
                     constraints.remove_negative_constraints(unit.private_action_plan.get_time_coordinates(game_state))
                     power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
 
-        return constraints, power_tracker
+        schedule_info = replace(schedule_info, constraints=constraints, power_tracker=power_tracker)
+
+        return schedule_info

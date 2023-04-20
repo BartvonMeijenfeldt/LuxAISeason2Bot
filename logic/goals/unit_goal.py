@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Sequence
 
 from abc import abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Optional, Tuple
 from math import floor, ceil, inf
 from copy import copy
@@ -50,7 +50,8 @@ if TYPE_CHECKING:
     from objects.board import Board
     from lux.config import UnitConfig
     from objects.actions.unit_action import UnitAction
-    from logic.goal_resolution.power_availabilty_tracker import PowerTracker
+    from logic.goal_resolution.power_tracker import PowerTracker
+    from logic.goal_resolution.schedule_info import ScheduleInfo
 
 
 @dataclass
@@ -63,12 +64,7 @@ class UnitGoal(Goal):
         ...
 
     @abstractmethod
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> UnitActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
         ...
 
     @abstractmethod
@@ -109,21 +105,19 @@ class UnitGoal(Goal):
 
     def _get_pickup_power_graph(
         self,
-        board: Board,
-        power_tracker: PowerTracker,
-        constraints: Constraints,
+        schedule_info: ScheduleInfo,
         later_pickup: bool = True,
         next_goal_c: Optional[Coordinate] = None,
     ) -> PickupPowerGraph:
         graph = PickupPowerGraph(
             unit_type=self.unit.unit_type,
-            board=board,
+            board=schedule_info.game_state.board,
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,
-            constraints=constraints,
+            constraints=schedule_info.constraints,
             later_pickup=later_pickup,
             next_goal_c=next_goal_c,
-            power_tracker=power_tracker,
+            power_tracker=schedule_info.power_tracker,
         )
 
         return graph
@@ -148,16 +142,12 @@ class UnitGoal(Goal):
 
     def _add_power_pickup_actions(
         self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
+        schedule_info: ScheduleInfo,
         next_goal_c: Optional[Coordinate] = None,
         later_pickup: bool = True,
     ) -> None:
         actions = self._get_power_pickup_actions(
-            game_state,
-            constraints,
-            power_tracker,
+            schedule_info,
             next_goal_c,
             later_pickup,
         )
@@ -165,20 +155,18 @@ class UnitGoal(Goal):
 
     def _get_power_pickup_actions(
         self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
+        schedule_info: ScheduleInfo,
         next_goal_c: Optional[Coordinate] = None,
         later_pickup: bool = True,
     ) -> list[UnitAction]:
+        game_state = schedule_info.game_state
+
         p = self.action_plan.get_final_ptc(game_state).p
         if p == self.unit.battery_capacity:
             return []
 
         graph = self._get_pickup_power_graph(
-            board=game_state.board,
-            power_tracker=power_tracker,
-            constraints=constraints,
+            schedule_info=schedule_info,
             next_goal_c=next_goal_c,
             later_pickup=later_pickup,
         )
@@ -550,21 +538,13 @@ class CollectGoal(DigGoal):
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         return False
 
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> UnitActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
+        game_state = schedule_info.game_state
+        constraints = schedule_info.constraints
 
         self._init_action_plan()
         if self.pickup_power:
-            self._add_power_pickup_actions(
-                game_state=game_state,
-                constraints=constraints,
-                next_goal_c=self.dig_c,
-                power_tracker=power_tracker,
-            )
+            self._add_power_pickup_actions(schedule_info, next_goal_c=self.dig_c)
 
             if not self.action_plan.unit_has_enough_power(game_state):
                 raise InvalidGoalError
@@ -740,16 +720,13 @@ class SupplyPowerGoal(UnitGoal):
 
         return receiving_unit.goal.is_completed(game_state, receiving_unit.private_action_plan)
 
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> UnitActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
+        game_state = schedule_info.game_state
+        constraints = schedule_info.constraints
 
         self._init_action_plan()
         self._add_move_to_supply_c_actions(game_state=game_state, constraints=constraints)
-        self._add_supply_actions(game_state, constraints, power_tracker)
+        self._add_supply_actions(schedule_info)
 
         return self.action_plan
 
@@ -766,7 +743,11 @@ class SupplyPowerGoal(UnitGoal):
         if not self.action_plan.unit_has_enough_power(game_state):
             raise InvalidGoalError
 
-    def _add_supply_actions(self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker) -> None:
+    def _add_supply_actions(self, schedule_info: ScheduleInfo) -> None:
+        game_state = schedule_info.game_state
+        constraints = schedule_info.constraints
+        power_tracker = schedule_info.power_tracker
+
         receiving_unit_ptcs = self.receiving_action_plan.get_power_time_coordinates(game_state)
         receiving_unit_powers = np.array([ptc.p for ptc in receiving_unit_ptcs])
 
@@ -776,9 +757,8 @@ class SupplyPowerGoal(UnitGoal):
                 power_tracker_up_to_date = copy(power_tracker)
                 power_requests_up_to_now = self.action_plan.get_power_requests(game_state)
                 power_tracker_up_to_date.add_power_requests(power_requests_up_to_now)
-                actions = self._get_power_pickup_actions(
-                    game_state, constraints, power_tracker_up_to_date, self.receiving_c
-                )
+                schedule_info = replace(schedule_info, power_tracker=power_tracker_up_to_date)
+                actions = self._get_power_pickup_actions(schedule_info, self.receiving_c)
             else:
                 actions = self._get_transfer_resources_to_unit_actions(game_state, constraints)
                 index_transfer = self.action_plan.nr_primitive_actions + len(actions) - 1
@@ -900,12 +880,9 @@ class TransferResourceGoal(UnitGoal):
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         return False
 
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> UnitActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
+        game_state = schedule_info.game_state
+        constraints = schedule_info.constraints
 
         self._init_action_plan()
         self._add_transfer_resources_to_factory_actions(board=game_state.board, constraints=constraints)
@@ -1072,21 +1049,14 @@ class ClearRubbleGoal(DigGoal):
     def key(self) -> str:
         return str(self)
 
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> UnitActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
+        game_state = schedule_info.game_state
+        constraints = schedule_info.constraints
+
         self._init_action_plan()
 
         if self.pickup_power:
-            self._add_power_pickup_actions(
-                game_state=game_state,
-                constraints=constraints,
-                next_goal_c=self.dig_c,
-                power_tracker=power_tracker,
-            )
+            self._add_power_pickup_actions(schedule_info=schedule_info, next_goal_c=self.dig_c)
 
             if not self.action_plan.unit_has_enough_power(game_state):
                 raise InvalidGoalError
@@ -1189,21 +1159,14 @@ class DestroyLichenGoal(DigGoal):
     def key(self) -> str:
         return str(self)
 
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> UnitActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
+        game_state = schedule_info.game_state
+        constraints = schedule_info.constraints
+
         self._init_action_plan()
 
         if self.pickup_power:
-            self._add_power_pickup_actions(
-                game_state=game_state,
-                constraints=constraints,
-                next_goal_c=self.dig_c,
-                power_tracker=power_tracker,
-            )
+            self._add_power_pickup_actions(schedule_info=schedule_info, next_goal_c=self.dig_c)
 
             if not self.action_plan.unit_has_enough_power(game_state):
                 raise InvalidGoalError
@@ -1456,17 +1419,16 @@ class HuntGoal(UnitGoal):
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return self.opp not in game_state.opp_units or game_state.is_opponent_factory_tile(self.opp.tc)
 
-    def generate_action_plan(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
+        game_state = schedule_info.game_state
+        constraints = schedule_info.constraints
+
         constraints_with_current_danger = self._add_opp_danger_constraints(constraints, game_state)
         self.opp_time_coordinates = self.opp.get_tcs_action_queue(game_state)
 
         self._init_action_plan()
         if self.pickup_power:
-            self._add_power_pickup_actions(
-                game_state, constraints, power_tracker, Coordinate(*self.opp.tc.xy), later_pickup=False
-            )
+            self._add_power_pickup_actions(schedule_info, Coordinate(*self.opp.tc.xy), later_pickup=False)
 
         constraints_with_current_danger = self._add_opp_danger_constraints(constraints, game_state)
 
@@ -1730,12 +1692,10 @@ class FleeGoal(UnitGoal):
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         return False
 
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> UnitActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
+        game_state = schedule_info.game_state
+        constraints = schedule_info.constraints
+
         self._init_action_plan()
         self._add_flee_towards_factory_actions(game_state, constraints)
 
@@ -1787,12 +1747,10 @@ class UnitNoGoal(UnitGoal):
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         return False
 
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> UnitActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
+        game_state = schedule_info.game_state
+        constraints = schedule_info.constraints
+
         self.action_plan = UnitActionPlan(actor=self.unit, original_actions=[MoveAction(Direction.CENTER)])
         time_coordinates = self.action_plan.get_time_coordinates(game_state)
         self._invalidates_constraint = constraints.any_tc_violates_constraint(time_coordinates)
@@ -1837,12 +1795,10 @@ class EvadeConstraintsGoal(UnitGoal):
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         return False
 
-    def generate_action_plan(
-        self,
-        game_state: GameState,
-        constraints: Constraints,
-        power_tracker: PowerTracker,
-    ) -> UnitActionPlan:
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
+        game_state = schedule_info.game_state
+        constraints = schedule_info.constraints
+
         self._init_action_plan()
         time_coordinates = self.action_plan.get_time_coordinates(game_state)
         if constraints.any_tc_violates_constraint(time_coordinates):

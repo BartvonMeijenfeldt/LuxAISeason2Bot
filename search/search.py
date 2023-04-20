@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from objects.board import Board
     from lux.config import UnitConfig
     from objects.actors.factory import Factory
-    from logic.goal_resolution.power_availabilty_tracker import PowerTracker
+    from logic.goal_resolution.power_tracker import PowerTracker
 
 
 @dataclass

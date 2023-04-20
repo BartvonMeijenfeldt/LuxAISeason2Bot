@@ -3,7 +3,7 @@ import unittest
 from typing import Optional, Sequence
 
 from logic.constraints import Constraints
-from logic.goal_resolution.power_availabilty_tracker import PowerTracker
+from logic.goal_resolution.power_tracker import PowerTracker
 from objects.coordinate import (
     Coordinate as C,
     DigCoordinate as DC,
