@@ -4,9 +4,7 @@ import logging
 from typing import Dict, Tuple, List
 from collections import defaultdict
 from dataclasses import dataclass, replace
-from abc import ABCMeta, abstractmethod
 from copy import copy
-from math import inf
 
 from objects.game_state import GameState
 from objects.coordinate import TimeCoordinate
@@ -18,154 +16,8 @@ from logic.goal_resolution.schedule_info import ScheduleInfo
 from objects.actions.action_plan import ActionPlan
 from logic.goals.factory_goal import BuildLightGoal
 from logic.goals.unit_goal import UnitGoal, DigGoal, SupplyPowerGoal
-from lux.config import EnvConfig
-from config import CONFIG
 from exceptions import NoValidGoalFoundError
-
-
-class FactoryValue(metaclass=ABCMeta):
-    threshold: float
-    upper_threshold: bool
-    strategy: Strategy
-
-    @abstractmethod
-    def compute_value(self, factory: Factory, game_state: GameState) -> float:
-        ...
-
-    def compute_score(self, factory: Factory, game_state: GameState) -> float:
-        value = self.compute_value(factory, game_state)
-        normalized_value = value / self.threshold
-        if self.upper_threshold and normalized_value > 1:
-            return normalized_value - 1
-
-        if not self.upper_threshold and normalized_value < 1:
-            inverted_value = 1 / max(normalized_value, 0.01)
-            return inverted_value - 1
-
-        return 0
-
-
-class TooMuchWaterValue(FactoryValue):
-    threshold = 3
-    upper_threshold = True
-    strategy = Strategy.INCREASE_LICHEN_TILES
-
-    def compute_value(self, factory: Factory, game_state: GameState) -> float:
-        if factory.has_enough_space_to_increase_lichen(game_state):
-            return 0.0
-
-        return factory.water / max(30, factory.nr_lichen_tiles)
-
-
-class TooLittleIceCollectionValue(FactoryValue):
-    threshold = 1.3
-    upper_threshold = False
-    strategy = Strategy.COLLECT_ICE
-    nr_steps = 50
-
-    def compute_value(self, factory: Factory, game_state: GameState) -> float:
-
-        water = factory.water
-        safety_water_quantity = 50
-        water_available = water - safety_water_quantity
-
-        # TODO, this water collection calculates per step now, but it should be from the start of the goal
-        # so we know if we can maintain our lichen in general
-        water_collection_per_step = factory.get_water_collection_per_step(game_state)
-
-        water_cost_per_step = max(6, factory.water_cost) / 2  # assume water every other turn
-
-        return (water_available + self.nr_steps * water_collection_per_step) / (self.nr_steps * water_cost_per_step)
-
-
-class PowerUnitValue(FactoryValue):
-    nr_steps = 50
-    threshold = 1.2
-
-    def compute_value(self, factory: Factory, game_state: GameState) -> float:
-        power = self._get_power(factory)
-        power_generation_per_step = self._get_expected_power_generation_per_step(factory, game_state)
-        expected_power_usage_per_step = self._get_power_usage_per_step(factory, game_state)
-
-        value = (power + self.nr_steps * power_generation_per_step) / (self.nr_steps * expected_power_usage_per_step)
-        return value
-
-    @staticmethod
-    def _get_power(factory: Factory) -> float:
-        factory_power = factory.power
-        units_power = sum(unit.power for unit in factory.units)
-        power = factory_power + units_power
-        return power
-
-    def _get_expected_power_generation_per_step(self, factory: Factory, game_state: GameState) -> float:
-        power_generation_factory = EnvConfig.FACTORY_CHARGE
-
-        if factory.enough_water_collection_for_next_turns(game_state):
-            expected_lichen = 0
-        else:
-            expected_lichen = factory.get_nr_connected_positions_including_being_cleared(game_state)
-
-        total_lichen = factory.nr_connected_lichen_tiles + expected_lichen
-        power_generation_lichen = EnvConfig.POWER_PER_CONNECTED_LICHEN_TILE * total_lichen
-        power_generation = power_generation_factory + power_generation_lichen
-
-        return power_generation
-
-    def _get_power_usage_per_step(self, factory: Factory, game_state) -> float:
-        metal_in_factory = factory.metal
-        metal_collection = factory.get_metal_collection_per_step(game_state)
-
-        metal_value_units = sum(unit.unit_cfg.METAL_COST for unit in factory.units)
-        metal_value = metal_value_units + metal_in_factory + metal_collection
-
-        metal_value = max(metal_value, 10)
-        EXPECTED_POWER_USAGE_PER_METAL = 0.4
-        expected_power_usage_per_step = metal_value * EXPECTED_POWER_USAGE_PER_METAL
-        return expected_power_usage_per_step
-
-
-class UpperPowerUnitValue(PowerUnitValue):
-    upper_threshold = True
-    strategy = Strategy.INCREASE_UNITS
-
-    def compute_score(self, factory: Factory, game_state: GameState) -> float:
-        if game_state.real_env_steps > CONFIG.LAST_STEP_SCHEDULE_ORE_MINING:
-            return -inf
-
-        return super().compute_score(factory, game_state)
-
-
-class LowerPowerUnitValue(PowerUnitValue):
-    upper_threshold = False
-    strategy = Strategy.INCREASE_LICHEN
-
-
-class AttackOpponentValue(FactoryValue):
-    threshold = 0.8
-    upper_threshold = True
-    strategy = Strategy.ATTACK_OPPONENT
-
-    def compute_value(self, factory: Factory, game_state: GameState) -> float:
-        if not factory.nr_scheduled_units:
-            return 0.85
-
-        ratio_attacking = factory.nr_attack_scheduled_units / factory.nr_scheduled_units
-        ratio_not_attacking = 1 - ratio_attacking
-
-        # Always want attacking to be at least slightly better than 0 such that we prefer attacking over ore mining
-        # After last ore step minign
-        ratio = max(ratio_not_attacking, self.threshold + 0.01)
-
-        return ratio
-
-
-VALUES = [
-    TooMuchWaterValue(),
-    TooLittleIceCollectionValue(),
-    UpperPowerUnitValue(),
-    LowerPowerUnitValue(),
-    AttackOpponentValue(),
-]
+from logic.goal_resolution.factory_signal import SIGNALS
 
 
 @dataclass
@@ -263,6 +115,9 @@ class Scheduler:
             if unit.is_scheduled:
                 continue
 
+            if not unit.supplied_by and not unit.private_action_plan.unit_has_enough_power(game_state) and unit.goal:
+                continue
+
             if unit.is_under_threath(game_state) and unit.next_step_is_stationary():
                 continue
 
@@ -313,7 +168,7 @@ class Scheduler:
             if not self._exists_available_unit(game_state) or self._is_out_of_time():
                 break
 
-            scores = self._score_strategies_for_factories_with_available_units(game_state)
+            scores = self._score_signal_strategies_for_factories_with_available_units(game_state)
             factory = self._get_highest_priority_factory(scores)
             strategies = self._get_priority_sorted_strategies_factory(factory, scores)
             goals = factory.schedule_units(strategies, self.schedule_info)
@@ -360,33 +215,33 @@ class Scheduler:
     def _get_highest_priority_factory(self, scores: Dict[Tuple[Factory, Strategy], float]) -> Factory:
         return max(scores, key=scores.get)[0]  # type: ignore
 
-    def _score_strategies_for_factories_with_available_units(
+    def _score_signal_strategies_for_factories_with_available_units(
         self, game_state: GameState
     ) -> Dict[Tuple[Factory, Strategy], float]:
         scores = dict()
 
         for factory in game_state.player_factories:
             if factory.has_unit_available:
-                factory_score = self._calculate_score_factory(factory, game_state)
-                for (factory, strategy), score in factory_score.items():
-                    scores[(factory, strategy)] = score
+                factory_signal = self._calculate_signal_factory(factory, game_state)
+                for (factory, strategy), signal in factory_signal.items():
+                    scores[(factory, strategy)] = signal
 
         return scores
 
     def _get_priority_sorted_strategies_factory(
-        self, factory, scores: Dict[Tuple[Factory, Strategy], float]
+        self, factory, signals: Dict[Tuple[Factory, Strategy], float]
     ) -> List[Strategy]:
-        strategies_factory = [strat for (fact, strat), val in scores.items() if fact == factory and val >= 0]
-        strategies_factory.sort(key=lambda s: -scores[factory, s])
+        strategies_factory = [strat for (fact, strat), signal in signals.items() if fact == factory and signal > 0]
+        strategies_factory.sort(key=lambda s: -signals[factory, s])
         return strategies_factory
 
-    def _calculate_score_factory(
+    def _calculate_signal_factory(
         self, factory: Factory, game_state: GameState
     ) -> Dict[Tuple[Factory, Strategy], float]:
         scores = defaultdict(lambda: 0.0)
-        for value in VALUES:
-            score = value.compute_score(factory, game_state)
-            scores[(factory, value.strategy)] += score
+        for signal in SIGNALS:
+            score = signal.compute_signal(factory, game_state)
+            scores[(factory, signal.strategy)] += score
 
         return dict(scores)
 
@@ -409,7 +264,7 @@ class Scheduler:
         if isinstance(goal, DigGoal):
             self._remove_other_units_from_dig_goal(goal, game_state)
 
-        if goal != goal.unit.goal:
+        if goal.unit.is_scheduled:
             self._unschedule_unit_goal(goal.unit, game_state)
 
         self._update_unit_info(goal)

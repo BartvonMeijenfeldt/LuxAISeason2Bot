@@ -46,7 +46,7 @@ class Graph(metaclass=ABCMeta):
         for action in self.potential_actions(c=c):
             to_c = c.add_action(action)
             if self._is_valid_action_node(action, to_c):
-                yield ((action, to_c))
+                yield action, to_c
 
     def _is_valid_action_node(self, action: UnitAction, to_c: TimeCoordinate) -> bool:
         return (
@@ -57,13 +57,20 @@ class Graph(metaclass=ABCMeta):
 
     def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
         action_power_cost = self.get_power_cost(action=action, to_c=to_c)
+        on_resource_next_to_base_cost = self._get_penalty_on_resource_next_to_base(action=action, to_c=to_c)
         danger_cost = self._get_danger_cost(action=action, to_c=to_c)
-        return action_power_cost + self.time_to_power_cost + danger_cost
+        return action_power_cost + self.time_to_power_cost + on_resource_next_to_base_cost + danger_cost
 
     def get_power_cost(self, action: UnitAction, to_c: Coordinate) -> float:
         power_change = action.get_power_change_by_end_c(unit_cfg=self.unit_cfg, end_c=to_c, board=self.board)
         power_cost = max(0, -power_change)
         return power_cost
+
+    def _get_penalty_on_resource_next_to_base(self, action: UnitAction, to_c: TimeCoordinate) -> float:
+        if self.board.is_resource_c(to_c) and self.board.get_min_distance_to_any_player_factory(to_c) == 1:
+            return 1
+        else:
+            return 0
 
     def _get_danger_cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
         if self.unit_type == "HEAVY":
@@ -120,7 +127,7 @@ class FleeGraph(Graph):
 
     def potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
         for action in self._potential_actions:
-            yield (action)
+            yield action
 
     def _get_danger_cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
         base_danger_cost = super()._get_danger_cost(action, to_c)
@@ -337,10 +344,10 @@ class PickupPowerGraph(Graph):
                 power_pickup_amount = max(0, power_pickup_amount)
 
                 potential_pickup_action = PickupAction(amount=power_pickup_amount, resource=Resource.POWER)
-                yield (potential_pickup_action)
+                yield potential_pickup_action
 
         for action in self._potential_move_actions:
-            yield (action)
+            yield action
 
     def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
         move_cost = super().cost(action, to_c)
@@ -407,10 +414,10 @@ class TranserResourceGraph(Graph):
                 amount=self.q,
                 resource=self.resource,
             )
-            yield (transfer_action)
+            yield transfer_action
 
         for action in self._potential_move_actions:
-            yield (action)
+            yield action
 
     @abstractmethod
     def _can_transfer(self, c: Coordinate) -> bool:
@@ -506,17 +513,10 @@ class DigAtGraph(GoalGraph):
 
     def potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
         if self.goal.x == c.x and self.goal.y == c.y:
-            max_t = self.constraints.max_t
-            if max_t and max_t <= c.t:
-                yield (self._potential_dig_action)
-            else:
-                for action in self._potential_move_actions:
-                    yield (action)
+            yield self._potential_dig_action
 
-                yield (self._potential_dig_action)
-        else:
-            for action in self._potential_move_actions:
-                yield (action)
+        for action in self._potential_move_actions:
+            yield action
 
     def heuristic(self, node: DigTimeCoordinate) -> float:
         distance_min_cost = self._get_distance_heuristic(node=node)

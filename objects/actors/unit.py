@@ -90,6 +90,8 @@ class Unit(Actor):
         self.resources_gained_per_dig = self.unit_cfg.DIG_RESOURCE_GAIN
         self.lichen_removed_per_dig = self.unit_cfg.DIG_LICHEN_REMOVED
         self.update_action_queue_power_cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
+        self.cargo_space = self.unit_cfg.CARGO_SPACE
+        self.nr_digs_empty_to_full_cargo = ceil(self.cargo_space / self.resources_gained_per_dig)
 
     def _set_unit_state_variables(self) -> None:
         self.is_scheduled = False
@@ -270,7 +272,6 @@ class Unit(Actor):
         constraints = schedule_info.constraints
 
         goals = list(goals)
-        # goals = self.generate_goals(game_state)
         priority_queue = self._init_priority_queue(goals, game_state)
         constraints_with_danger = self._get_constraints_with_danger_tcs(constraints, game_state)
         schedule_info = replace(schedule_info, constraints=constraints_with_danger)
@@ -342,10 +343,8 @@ class Unit(Actor):
             self._add_ore_goals(game_state, factory)
 
         self._add_relevant_transfer_goals(game_state)
-        # if game_state.real_env_steps >= CONFIG.START_STEP_DESTROYING_LICHEN:
-        #     self._add_destroy_lichen_goals(game_state, n=10)
-        # else:
-        #     self._add_ice_goals(game_state, n=2, return_to_current_closest_factory=True)
+        if game_state.real_env_steps >= CONFIG.START_STEP_DESTROYING_LICHEN:
+            self._add_destroy_lichen_goals(game_state, n=10)
 
     def generate_dummy_goal(self, schedule_info: ScheduleInfo) -> UnitGoal:
         dummy_goals = self._get_dummy_goals(schedule_info.game_state)

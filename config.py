@@ -33,8 +33,8 @@ class CONFIG:
     # 1 ice -> 0.25 water -> 5 power (best case, alternating water)
     ICE_TO_POWER: float = 5
     # Randomly set
-    ORE_TO_POWER: float = 40
-    BENEFIT_ORE_REDUCTION_PER_T: float = 0.05
+    ORE_TO_POWER: float = 10
+    BENEFIT_ORE_REDUCTION_PER_T: float = 0.01
 
     BENEFIT_FLEEING: float = 0
     COST_POTENTIALLY_LOSING_UNIT: float = 10_000
@@ -43,6 +43,8 @@ class CONFIG:
 
     DESTROY_LICHEN_BASE_VALUE: int = 80
     DESTROY_LICHEN_VALUE_PER_LICHEN: int = 1
+    START_FOCUSSING_ON_DESTROYING_LICHEN: int = 875
+    FOCUS_ON_DESTROY_LICHEN_VALUE_MULTIPLIER: int = 3
 
     SUPPLY_POWER_VALUE: int = 10_000
 
@@ -52,3 +54,18 @@ class CONFIG:
     LAST_STEP_SCHEDULE_ORE_MINING: int = 900
     FIRST_STEP_HEAVY_ALLOWED_TO_DIG_RUBBLE: int = 300
     FIRST_STEP_HEAVY_ALLOWED_TO_DESTROY_LICHEN: int = 300
+
+    # Factory Scheduling
+    # --------------------------------------
+    WATER_COLLECTION_VERSUS_USAGE_MIN_TARGET: float = 1.2
+
+    # Power Usage
+    EXPECTED_POWER_CONSUMPTION_HEAVY_PER_TURN: float = 40
+    EXPECTED_POWER_CONSUMPTION_LIGHT_PER_TURN: float = 3.5
+
+    # PowerUnitSignal
+    POWER_UNIT_RATIO_NR_STEPS: int = 50
+
+    # UnitImportanceSignal
+    START_UNIT_IMPORTANCE_SIGNAL: float = 2.0
+    LAST_TURN_UNIT_IMPORTANCE: int = 900

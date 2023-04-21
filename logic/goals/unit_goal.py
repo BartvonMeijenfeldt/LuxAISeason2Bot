@@ -411,7 +411,7 @@ class DigGoal(UnitGoal):
                 if actions:
                     return actions
 
-                raise
+                raise InvalidGoalError
 
             actions.extend(new_actions)
 
@@ -1243,7 +1243,12 @@ class DestroyLichenGoal(DigGoal):
         if lichen_removed < lichen_at_pos:
             return 0
 
-        return CONFIG.DESTROY_LICHEN_BASE_VALUE + lichen_removed * CONFIG.DESTROY_LICHEN_VALUE_PER_LICHEN
+        benefit = CONFIG.DESTROY_LICHEN_BASE_VALUE + lichen_removed * CONFIG.DESTROY_LICHEN_VALUE_PER_LICHEN
+
+        if game_state.real_env_steps > CONFIG.START_FOCUSSING_ON_DESTROYING_LICHEN:
+            benefit = benefit * CONFIG.FOCUS_ON_DESTROY_LICHEN_VALUE_MULTIPLIER
+
+        return benefit
 
     def _get_min_power_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         min_cost_digging, max_nr_digs = self._get_min_cost_and_steps_max_nr_digs(game_state)

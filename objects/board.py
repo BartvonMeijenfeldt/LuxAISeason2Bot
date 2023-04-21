@@ -39,6 +39,8 @@ class Board:
 
         self.ice_positions = np.transpose(np.where(self.ice))
         self.ore_positions = np.transpose(np.where(self.ore))
+        self.resource_positions = append_positions(self.ice_positions, self.ore_positions)
+        self.resource_positions_set = positions_to_set(self.resource_positions)
         self._is_rubble_no_resource = self._get_is_rubble_no_resource()
         self.rubble_positions = self._get_rubble_positions()
 
@@ -127,10 +129,6 @@ class Board:
     @property
     def unspreadable_positions(self) -> np.ndarray:
         return append_positions(self.resource_positions, self.factory_positions)
-
-    @property
-    def resource_positions(self) -> np.ndarray:
-        return append_positions(self.ice_positions, self.ore_positions)
 
     @property
     def factory_positions(self) -> np.ndarray:
@@ -414,3 +412,6 @@ class Board:
         next_to_distances_mask = min_distances == 1
         ice_positions_next_to_opp_factory = self.ice_positions[next_to_distances_mask]
         return positions_to_set(ice_positions_next_to_opp_factory)
+
+    def is_resource_c(self, c: Coordinate) -> bool:
+        return c.xy in self.resource_positions_set
