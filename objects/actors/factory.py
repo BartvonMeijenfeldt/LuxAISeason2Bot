@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import numpy as np
 
+
 from typing import Tuple, TYPE_CHECKING, Optional, Iterable, Set, Generator, List
 from itertools import product
 from dataclasses import dataclass, field, replace
 from collections import Counter
 from copy import copy
 from enum import Enum, auto
-from objects.actions.unit_action_plan import UnitActionPlan
+from math import floor
 
+from objects.actions.unit_action_plan import UnitActionPlan
 from objects.cargo import Cargo
 from objects.actions.factory_action import WaterAction
 from objects.actors.actor import Actor
@@ -50,7 +52,7 @@ class Strategy(Enum):
     INCREASE_LICHEN_TILES = auto()
     INCREASE_LICHEN = auto()
     COLLECT_ICE = auto()
-    INCREASE_UNITS = auto()
+    COLLECT_ORE = auto()
     ATTACK_OPPONENT = auto()
 
 
@@ -147,6 +149,11 @@ class Factory(Actor):
         sorted_distance_positions = positions[sorted_indexes]
         return sorted_distance_positions
 
+    @property
+    def maintain_lichen_water_cost(self) -> float:
+        """Assumes watering every other turn"""
+        return EnvConfig.FACTORY_WATER_CONSUMPTION + self.water_cost / 2
+
     def get_rubble_positions_to_clear(self, game_state: GameState) -> Set[Tuple]:
         rubble_positions_free = self._rubble_positions_to_clear - game_state.positions_in_dig_goals
         return rubble_positions_free
@@ -159,10 +166,12 @@ class Factory(Actor):
         rubble_positions_free = self._rubble_positions_to_clear_for_ore - game_state.positions_in_dig_goals
         return rubble_positions_free
 
-    def has_enough_space_to_increase_lichen(self, game_state: GameState) -> bool:
+    def nr_tiles_needed_to_grow_to_lichen_target(self, game_state: GameState) -> int:
+        lichen_size_target = self.get_lichen_size_target_for_current_water_collection()
         nr_connected_positions = self.get_nr_connected_positions_including_being_cleared(game_state)
-        space_free_positions = nr_connected_positions - self.nr_connected_lichen_tiles
-        return space_free_positions > 2
+        nr_tiles_needed = lichen_size_target - nr_connected_positions
+        nr_tiles_needed = max(0, nr_tiles_needed)
+        return nr_tiles_needed
 
     def get_nr_connected_positions_including_being_cleared(self, game_state: GameState) -> int:
         # TODO, take into account if positions being cleared connects to other positions
@@ -425,43 +434,99 @@ class Factory(Actor):
     def __repr__(self) -> str:
         return f"Factory[id={self.unit_id}, center={self.center_tc.xy}]"
 
-    def get_ice_collection_per_step(self, game_state: GameState) -> float:
-        ice_collection_per_step = 0
+    @property
+    def power_including_units(self) -> float:
+        units_power = sum(unit.power for unit in self.units)
+        power = self.power + units_power
+        return power
 
-        for unit in self.units:
-            goal = unit.goal
+    def get_expected_power_generation(self, game_state: GameState) -> int:
+        expected_lichen_size = self.get_expected_lichen_size(game_state)
+        power_generation = EnvConfig.FACTORY_CHARGE + expected_lichen_size * EnvConfig.POWER_PER_CONNECTED_LICHEN_TILE
+        return power_generation
 
-            if goal:
-                quantity_ice = goal.quantity_ice_to_transfer(game_state)
-                nr_steps = max(goal.action_plan.nr_primitive_actions, 1)
-                ice_collection_per_step_unit = quantity_ice / nr_steps
-                ice_collection_per_step += ice_collection_per_step_unit
+    def get_expected_lichen_size(self, game_state: GameState) -> int:
+        lichen_size_target = self.get_lichen_size_target_for_current_water_collection()
+        if lichen_size_target < self.nr_connected_lichen_tiles:
+            return self.nr_connected_lichen_tiles
 
-        return ice_collection_per_step
+        nr_expected_connected_positions = self.get_nr_connected_positions_including_being_cleared(game_state)
+        return min(nr_expected_connected_positions, lichen_size_target)
 
-    def get_water_collection_per_step(self, game_state: GameState) -> float:
-        ice_collection_per_step = self.get_ice_collection_per_step(game_state)
+    def get_lichen_size_target_for_current_water_collection(self) -> int:
+        water_collection_per_step = self.get_water_collection_per_step()
+        tiles_target = floor(water_collection_per_step * EnvConfig.LICHEN_WATERING_COST_FACTOR) * 2  # Alternating water
+        return tiles_target
+
+    def get_expected_power_consumption(self) -> float:
+        metal_in_factory = self.metal + self.ore / EnvConfig.ORE_METAL_RATIO
+        metal_collection = self.get_metal_collection_per_step()
+        metal_expected = metal_in_factory + metal_collection
+
+        # Assume next unit just as likely to be light as heavy
+        expected_nr_lights = self.nr_light_units + metal_expected / LIGHT_CONFIG.METAL_COST / 2
+        expected_nr_heavies = self.nr_heavy_units + metal_expected / HEAVY_CONFIG.METAL_COST / 2
+
+        lights_power_consumption = expected_nr_lights * CONFIG.EXPECTED_POWER_CONSUMPTION_LIGHT_PER_TURN
+        heavies_power_consumption = expected_nr_heavies * CONFIG.EXPECTED_POWER_CONSUMPTION_HEAVY_PER_TURN
+
+        expected_power_usage_per_step = lights_power_consumption + heavies_power_consumption
+        return expected_power_usage_per_step
+
+    def get_water_collection_per_step(self) -> float:
+        ice_collection_per_step = self.get_ice_collection_per_step()
         water_collection_per_step = ice_collection_per_step / EnvConfig.ICE_WATER_RATIO
         return water_collection_per_step
 
-    def get_ore_collection_per_step(self, game_state: GameState) -> float:
-        ore_collection_per_step = 0
+    def get_ice_collection_per_step(self) -> float:
+        return sum(
+            self._resource_collection_per_step(unit.goal)
+            for unit in self.scheduled_units
+            if isinstance(unit.goal, CollectIceGoal)
+        )
 
-        for unit in self.units:
-            goal = unit.goal
-
-            if goal:
-                quantity_ore = goal.quantity_ore_to_transfer(game_state)
-                nr_steps = max(goal.action_plan.nr_primitive_actions, 1)
-                ore_collection_per_step_unit = quantity_ore / nr_steps
-                ore_collection_per_step += ore_collection_per_step_unit
-
-        return ore_collection_per_step
-
-    def get_metal_collection_per_step(self, game_state: GameState) -> float:
-        ore_collection_per_step = self.get_ore_collection_per_step(game_state)
+    def get_metal_collection_per_step(self) -> float:
+        ore_collection_per_step = self.get_ore_collection_per_step()
         metal_collection_per_step = ore_collection_per_step / EnvConfig.ORE_METAL_RATIO
         return metal_collection_per_step
+
+    def get_ore_collection_per_step(self) -> float:
+        return sum(
+            self._resource_collection_per_step(unit.goal)
+            for unit in self.scheduled_units
+            if isinstance(unit.goal, CollectOreGoal)
+        )
+
+    def _resource_collection_per_step(self, goal: CollectGoal) -> float:
+        # Assumes full battery
+
+        unit = goal.unit
+
+        if goal.is_supplied:
+            nr_steps_moving = 0
+            nr_steps_power_pickup = 0
+            nr_steps_digging = unit.nr_digs_empty_to_full_cargo
+        else:
+
+            distance_resource_to_factory = self.min_distance_to_c(goal.dig_c)
+            nr_steps_moving = 2 * distance_resource_to_factory
+            nr_steps_power_pickup = 1
+
+            power_available_for_digging = unit.battery_capacity - nr_steps_moving * unit.move_power_cost
+            ratio_day_night = EnvConfig.DAY_LENGTH / EnvConfig.CYCLE_LENGTH
+            average_power_charge = ratio_day_night * unit.recharge_power
+            net_power_change_per_dig = unit.dig_power_cost - average_power_charge
+            # This is approximate value which will be different for day and night
+            max_nr_digs = power_available_for_digging / net_power_change_per_dig
+            nr_steps_digging = min(unit.nr_digs_empty_to_full_cargo, max_nr_digs)
+
+        resource_collection = nr_steps_digging * unit.resources_gained_per_dig
+
+        nr_steps_transfer = 1
+        nr_steps = nr_steps_digging + nr_steps_moving + nr_steps_power_pickup + nr_steps_transfer
+
+        resource_collection_per_step = resource_collection / nr_steps
+        return resource_collection_per_step
 
     @property
     def nr_can_spread_to_positions_being_cleared(self) -> int:
@@ -597,8 +662,8 @@ class Factory(Actor):
             goal = self.schedule_strategy_increase_lichen_tiles(schedule_info)
         elif strategy == Strategy.INCREASE_LICHEN:
             goal = self.schedule_strategy_increase_lichen(schedule_info)
-        elif strategy == Strategy.INCREASE_UNITS:
-            goal = self.schedule_strategy_increase_units(schedule_info)
+        elif strategy == Strategy.COLLECT_ORE:
+            goal = self.schedule_strategy_collect_ore(schedule_info)
         elif strategy == Strategy.COLLECT_ICE:
             goal = self.schedule_strategy_collect_ice(schedule_info)
         elif strategy == Strategy.ATTACK_OPPONENT:
@@ -620,9 +685,7 @@ class Factory(Actor):
         return goal
 
     def schedule_strategy_increase_lichen(self, schedule_info: ScheduleInfo) -> UnitGoal:
-        game_state = schedule_info.game_state
-
-        if not self.enough_water_collection_for_next_turns(game_state):
+        if not self.enough_water_collection_for_next_turns():
             return self.schedule_strategy_collect_ice(schedule_info)
         else:
             return self.schedule_strategy_increase_lichen_tiles(schedule_info)
@@ -682,8 +745,8 @@ class Factory(Actor):
 
         return set()
 
-    def enough_water_collection_for_next_turns(self, game_state: GameState) -> bool:
-        water_collection = self.get_water_collection_per_step(game_state)
+    def enough_water_collection_for_next_turns(self) -> bool:
+        water_collection = self.get_water_collection_per_step()
         water_available_next_n_turns = self.water + CONFIG.ENOUGH_WATER_COLLECTION_NR_TURNS * water_collection
         water_cost_next_n_turns = CONFIG.ENOUGH_WATER_COLLECTION_NR_TURNS * self.water_cost
         return water_available_next_n_turns > water_cost_next_n_turns
@@ -712,7 +775,6 @@ class Factory(Actor):
             receiving_c=receiving_c,
         )
 
-        # TODO add check here whether the receiving unit will get power in time
         return [goal_receiving_unit, goal_supplying_unit]
 
     def _assign_supplying_unit_and_receiving_unit(self, game_state: GameState) -> Tuple[Unit, Unit, Coordinate]:
@@ -769,7 +831,7 @@ class Factory(Actor):
         )
         return goal
 
-    def schedule_strategy_increase_units(self, schedule_info: ScheduleInfo) -> UnitGoal:
+    def schedule_strategy_collect_ore(self, schedule_info: ScheduleInfo) -> UnitGoal:
         # Collect Ore / Clear Path to Ore / Supply Power to heavy on Ore
         if self.has_heavy_unit_available:
             return self._schedule_heavy_on_ore(schedule_info)

@@ -65,7 +65,7 @@ class Constraints:
         if not self.negative:
             return None
 
-        return max(xyt[0] for xyt in self.negative)
+        return max(xyt[2] for xyt in self.negative)
 
     def any_tc_violates_constraint(self, tcs: Iterable[TimeCoordinate]) -> bool:
         if not self:
