@@ -542,7 +542,7 @@ class Search:
         self.cost_so_far: dict[Coordinate, float] = {}
         self.graph = graph
 
-    def get_actions_to_complete_goal(self, start: Coordinate, budget: int = 100) -> List[UnitAction]:
+    def get_actions_to_complete_goal(self, start: Coordinate, budget: Optional[int] = None) -> List[UnitAction]:
         self._init_search(start)
         final_node = self._find_optimal_solution(budget)
         return self._get_solution_actions(final_node)
@@ -552,7 +552,10 @@ class Search:
         self.cost_so_far[start] = 0
         self.frontier.put(start, 0)
 
-    def _find_optimal_solution(self, budget: int) -> Coordinate:  # type: ignore
+    def _find_optimal_solution(self, budget: Optional[int] = None) -> Coordinate:  # type: ignore
+        if not budget:
+            budget = CONFIG.SEARCH_BUDGET_HEAVY if self.graph.unit_type == "HEAVY" else CONFIG.SEARCH_BUDGET_LIGHT
+
         for i in itertools.count():
             if self.frontier.is_empty():
                 raise NoSolutionError

@@ -19,12 +19,25 @@ class FactorySignal(metaclass=ABCMeta):
         ...
 
 
+class AlmostOutOfWaterSignal(FactorySignal):
+    strategy = Strategy.IMMEDIATELY_RETURN_ICE
+
+    def compute_signal(self, factory: Factory, game_state: GameState) -> float:
+        water_supply_factory = factory.water + factory.ice * EnvConfig.ICE_WATER_RATIO
+        if water_supply_factory < CONFIG.TOO_LITTLE_WATER_DISTRESS_LEVEL:
+            water_supply_and_incoming = factory.get_incoming_ice_before_no_water() * EnvConfig.ICE_WATER_RATIO
+            if water_supply_and_incoming < CONFIG.TOO_LITTLE_WATER_DISTRESS_LEVEL:
+                return CONFIG.DISTRESS_SIGNAL
+
+        return 0.0
+
+
 class TooLittleLichenTilesSignal(FactorySignal):
     strategy = Strategy.INCREASE_LICHEN_TILES
 
     def compute_signal(self, factory: Factory, game_state: GameState) -> float:
         nr_tiles_needed_to_grow = factory.nr_tiles_needed_to_grow_to_lichen_target(game_state)
-        signal = min(sqrt(nr_tiles_needed_to_grow), 2)
+        signal = min(sqrt(nr_tiles_needed_to_grow), CONFIG.MAX_SIGNAL_TOO_LITTE_LICHEN)
         return signal
 
 
@@ -66,7 +79,9 @@ class CollectOreSignal(PowerUnitSignal):
         if game_state.real_env_steps > CONFIG.LAST_STEP_SCHEDULE_ORE_MINING:
             return -inf
 
-        power_unit_signal = max(1, super().compute_signal(factory, game_state))
+        power_unit_signal = max(
+            CONFIG.UNIT_IMPORTANCE_MIN_LEVEL_POWER_UNIT, super().compute_signal(factory, game_state)
+        )
         unit_importance_signal = self._get_unit_importance_signal(game_state)
         return power_unit_signal * unit_importance_signal
 
@@ -85,6 +100,7 @@ class AttackOpponentSignal(FactorySignal):
 
 
 SIGNALS: List[FactorySignal] = [
+    AlmostOutOfWaterSignal(),
     TooLittleLichenTilesSignal(),
     IceCollectionSignal(),
     CollectOreSignal(),

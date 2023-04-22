@@ -247,6 +247,11 @@ class Unit(Actor):
 
         return goals
 
+    def generate_transfer_ice_goal(self, schedule_info: ScheduleInfo, factory: Factory) -> UnitGoal:
+
+        goal = TransferIceGoal(self, factory)
+        return self.get_best_goal([goal], schedule_info)
+
     def _get_transfer_ice_goal(self, game_state: GameState, return_to_current_closest_factory: bool = True) -> UnitGoal:
         factory = game_state.get_closest_player_factory(c=self.tc) if return_to_current_closest_factory else None
         goal = TransferIceGoal(self, factory)
@@ -382,15 +387,29 @@ class Unit(Actor):
         receiving_action_plan: UnitActionPlan,
         receiving_c: Coordinate,
     ) -> SupplyPowerGoal:
-        supply_goals = self._get_supply_power_goals(receiving_unit, receiving_action_plan, receiving_c)
+        supply_c = schedule_info.game_state.get_closest_player_factory_c(c=receiving_c)
+        supply_goals = self._get_supply_power_goals(
+            receiving_unit, receiving_action_plan, receiving_c=receiving_c, supply_c=supply_c
+        )
         goal = self.get_best_goal(supply_goals, schedule_info)
         return goal  # type: ignore
 
     def _get_supply_power_goals(
-        self, receiving_unit: Unit, receiving_action_plan: UnitActionPlan, receiving_c: Coordinate
+        self,
+        receiving_unit: Unit,
+        receiving_action_plan: UnitActionPlan,
+        receiving_c: Coordinate,
+        supply_c: Coordinate,
     ) -> List[SupplyPowerGoal]:
         return [
-            SupplyPowerGoal(self, receiving_unit, receiving_action_plan, receiving_c, pickup_power)
+            SupplyPowerGoal(
+                self,
+                receiving_unit=receiving_unit,
+                receiving_action_plan=receiving_action_plan,
+                receiving_c=receiving_c,
+                supply_c=supply_c,
+                pickup_power=pickup_power,
+            )
             for pickup_power in [True, False]
         ]
 
@@ -411,16 +430,24 @@ class Unit(Actor):
         c: Coordinate,
         is_supplied: bool,
         factory: Factory,
+        quantity: Optional[int] = None,
     ) -> CollectIceGoal:
-        ice_goals = self._get_collect_ice_goals(c, schedule_info.game_state, factory, is_supplied)
+        ice_goals = self._get_collect_ice_goals(c, schedule_info.game_state, factory, is_supplied, quantity)
         goal = self.get_best_goal(ice_goals, schedule_info)
         return goal  # type: ignore
 
     def _get_collect_ice_goals(
-        self, c: Coordinate, game_state: GameState, factory: Factory, is_supplied: bool
+        self, c: Coordinate, game_state: GameState, factory: Factory, is_supplied: bool, quantity: Optional[int] = None
     ) -> list[CollectIceGoal]:
         ice_goals = [
-            CollectIceGoal(unit=self, pickup_power=pickup_power, dig_c=c, factory=factory, is_supplied=is_supplied)
+            CollectIceGoal(
+                unit=self,
+                pickup_power=pickup_power,
+                dig_c=c,
+                factory=factory,
+                is_supplied=is_supplied,
+                quantity=quantity,
+            )
             for pickup_power in [False, True]
             if self._is_feasible_dig_c(c, game_state)
         ]
@@ -644,3 +671,12 @@ class Unit(Actor):
             return self.get_tcs_action_queue(game_state)[-1]
 
         return self.get_tcs_action_queue(game_state)[n]
+
+    def get_nr_digs_to_quantity_resource(self, resource: Resource, q: int) -> int:
+        resource_in_cargo = self.get_quantity_resource_in_cargo(resource)
+        if resource_in_cargo >= q:
+            return 0
+
+        quantity_to_mine = q - resource_in_cargo
+        nr_digs_required = ceil(quantity_to_mine / self.resources_gained_per_dig)
+        return nr_digs_required

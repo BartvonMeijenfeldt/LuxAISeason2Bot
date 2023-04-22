@@ -338,34 +338,33 @@ class UnitGoal(Goal):
     def quantity_ore_to_transfer(self, game_state: GameState) -> int:
         ...
 
-    def _get_min_steps_moving_to_c_with_pickup_power(self, c: Coordinate, game_state: GameState) -> int:
+    def _get_min_steps_moving_to_power_pickup(self, c: Coordinate, game_state: GameState) -> int:
         closest_factory_c = game_state.board.get_closest_player_factory_tile(self.unit.tc)
         nr_steps_to_factory_tile = self.unit.tc.distance_to(closest_factory_c)
-        nr_steps_to_c = closest_factory_c.distance_to(c)
-        nr_steps_moving = nr_steps_to_factory_tile + nr_steps_to_c
-        return nr_steps_moving
+        return nr_steps_to_factory_tile
+
+    def _get_min_steps_move_to_c_after_optional_power_pickup(self, c: Coordinate, game_state: GameState) -> int:
+        if self.pickup_power:  # type: ignore
+            factory = game_state.board.get_closest_player_factory(self.unit.tc)
+            nr_steps = factory.min_distance_to_c(c)
+        else:
+            nr_steps = self.unit.tc.distance_to(c)
+
+        return nr_steps
 
     def _get_min_nr_steps_moving_and_power_pickup_to_c(self, c: Coordinate, game_state: GameState) -> tuple[int, int]:
         if self.pickup_power:  # type: ignore
-            return self._get_min_nr_steps_moving_and_power_pickup_to_c_with_pickup_power(c, game_state)
+            nr_steps_power_pickup = 1
+            nr_steps_moving_to_power_pickup = self._get_min_steps_moving_to_power_pickup(c, game_state)
         else:
-            return self._get_min_nr_steps_moving_and_power_pickup_to_c_without_pickup_power(c)
+            nr_steps_power_pickup = 0
+            nr_steps_moving_to_power_pickup = 0
 
-    def _get_min_nr_steps_moving_and_power_pickup_to_c_with_pickup_power(
-        self, c: Coordinate, game_state: GameState
-    ) -> tuple[int, int]:
-
-        nr_steps_moving = self._get_min_steps_moving_to_c_with_pickup_power(c, game_state)
-        nr_steps_power_pickup = 1
+        nr_steps_moving_after_power_pick = self._get_min_steps_move_to_c_after_optional_power_pickup(c, game_state)
+        nr_steps_moving = nr_steps_moving_to_power_pickup + nr_steps_moving_after_power_pick
         return nr_steps_moving, nr_steps_power_pickup
 
-    def _get_min_nr_steps_moving_and_power_pickup_to_c_without_pickup_power(self, c: Coordinate) -> tuple[int, int]:
-
-        nr_steps_moving = self.unit.tc.distance_to(c)
-        nr_steps_power_pickup = 0
-        return nr_steps_moving, nr_steps_power_pickup
-
-    def _get_min_nr_steps_to_c(self, c: Coordinate, game_state: GameState) -> int:
+    def _get_min_nr_steps_to_c_optional_power_pickup(self, c: Coordinate, game_state: GameState) -> int:
         nr_steps_moving, nr_steps_power_pickup = self._get_min_nr_steps_moving_and_power_pickup_to_c(c, game_state)
         return nr_steps_moving + nr_steps_power_pickup
 
@@ -385,6 +384,10 @@ class UnitGoal(Goal):
 class DigGoal(UnitGoal):
     pickup_power: bool
     dig_c: Coordinate
+
+    @property
+    def safety_level_power(self) -> int:
+        return 2 * self.unit.move_power_cost + self.unit.update_action_queue_power_cost
 
     @abstractmethod
     def _get_benefit_n_digs(self, n_digs: int, game_state: GameState) -> float:
@@ -437,8 +440,6 @@ class DigGoal(UnitGoal):
             self.unit.time_to_power_cost,
             self.unit.unit_cfg,
         )
-        move_action_to_incl_power_needed_to_update_queue = MoveAction(Direction.RIGHT)
-        actions_move_back.append(move_action_to_incl_power_needed_to_update_queue)
 
         while low < high:
             mid = (high + low) // 2
@@ -446,8 +447,9 @@ class DigGoal(UnitGoal):
                 mid += 1
 
             potential_actions = self._get_actions_up_to_n_digs(actions, mid)
+            potential_actions_with_back = potential_actions + actions_move_back
 
-            if self.action_plan.can_add_actions(potential_actions + actions_move_back, game_state):
+            if self.action_plan.can_add_actions(potential_actions_with_back, game_state, self.safety_level_power):
                 low = mid
             else:
                 high = mid - 1
@@ -512,7 +514,9 @@ class DigGoal(UnitGoal):
     def get_power_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
         return self._get_benefit_n_digs(action_plan.nr_digs, game_state)
 
-    def _get_min_cost_and_steps_max_nr_digs(self, game_state: GameState) -> tuple[float, int]:
+    def _get_min_cost_and_steps_max_nr_digs(
+        self, game_state: GameState, non_dig_power_used_after_pickup: int
+    ) -> tuple[float, int]:
         max_nr_digs = self._get_best_max_nr_digs(game_state)
         min_cost_digging = max_nr_digs * self.unit.dig_power_cost
 
@@ -523,7 +527,7 @@ class DigGoal(UnitGoal):
 class CollectGoal(DigGoal):
     is_supplied: bool
     factory: Optional[Factory] = field(default=None)
-    # quantity: Optional[int] = None
+    quantity: Optional[int] = None
     resource: Resource = field(init=False)
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
@@ -554,7 +558,10 @@ class CollectGoal(DigGoal):
         return self.action_plan
 
     def _add_dig_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        max_nr_digs = self._get_max_nr_digs_current_ptc(game_state)
+        if self.quantity:
+            max_nr_digs = self.unit.get_nr_digs_to_quantity_resource(self.resource, q=self.quantity)
+        else:
+            max_nr_digs = self._get_max_nr_digs_current_ptc(game_state)
 
         actions_max_nr_digs = self._get_dig_plan(
             start_tc=self.action_plan.final_tc,
@@ -579,12 +586,18 @@ class CollectGoal(DigGoal):
         self.action_plan.extend(max_valid_digs_actions)
 
     def _add_transfer_resources_to_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        actions = self._get_transfer_resources_to_factory_actions(board=game_state.board, constraints=constraints)
-        self.action_plan.extend(actions=actions)
-        if not (self.is_supplied or self._is_heavy_startup(game_state)) and not self.action_plan.unit_has_enough_power(
-            game_state
-        ):
-            raise InvalidGoalError
+        while self.action_plan.nr_digs:
+            actions = self._get_transfer_resources_to_factory_actions(board=game_state.board, constraints=constraints)
+
+            if (self.is_supplied or self._is_heavy_startup(game_state)) or self.action_plan.can_add_actions(
+                actions, game_state, self.safety_level_power
+            ):
+                self.action_plan.extend(actions=actions)
+                return
+
+            self.action_plan.set_actions(self.action_plan.primitive_actions[:-1])
+
+        raise InvalidGoalError
 
     def _is_heavy_startup(self, game_state: GameState) -> bool:
         return self.unit.is_heavy and game_state.real_env_steps in [1, 2]
@@ -655,24 +668,41 @@ class CollectGoal(DigGoal):
         ...
 
     def _get_min_power_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
-        min_cost_digging, max_nr_digs = self._get_min_cost_and_steps_max_nr_digs(game_state)
         min_cost_go_to_c, min_steps_go_to_c = self._get_min_cost_and_steps_go_to_c(self.dig_c, game_state)
         min_cost_transfer, min_steps_transfer = self._get_min_cost_and_steps_transfer_resource(game_state)
+        min_cost_digging, max_nr_digs = self._get_min_cost_and_steps_max_nr_digs(game_state)
 
         min_cost = min_cost_digging + min_cost_go_to_c + min_cost_transfer
         min_steps = max_nr_digs + min_steps_go_to_c + min_steps_transfer
 
         return min_cost, min_steps
 
+    def _get_min_cost_and_steps_max_nr_digs(self, game_state: GameState) -> Tuple[float, int]:
+        move_steps_after_pickup = self._get_min_steps_move_to_c_after_optional_power_pickup(self.dig_c, game_state)
+        min_move_steps_transfer = self._get_min_move_steps_to_factory(game_state)
+        nr_move_steps = move_steps_after_pickup + min_move_steps_transfer
+        power_used = nr_move_steps * self.unit.move_power_cost
+        return super()._get_min_cost_and_steps_max_nr_digs(game_state, non_dig_power_used_after_pickup=power_used)
+
     def _get_min_cost_and_steps_transfer_resource(self, game_state: GameState) -> tuple[float, int]:
-        nr_steps_to_closest_factory = game_state.board.get_min_distance_to_any_player_factory(self.dig_c)
-        nr_steps_next_to_closest_factory = max(nr_steps_to_closest_factory - 1, 0)
+        nr_steps_move_to_factory = self._get_min_move_steps_to_factory(game_state)
+
+        nr_steps_next_to_closest_factory = max(nr_steps_move_to_factory - 1, 0)
         nr_steps_transfer = 1
         nr_steps = nr_steps_next_to_closest_factory + nr_steps_transfer
 
         cost = nr_steps_next_to_closest_factory * self.unit.move_power_cost
 
         return cost, nr_steps
+
+    def _get_min_move_steps_to_factory(self, game_state: GameState) -> int:
+        if self.factory:
+            strain_id = self.factory.strain_id
+            nr_steps_move_to_factory = game_state.board.get_min_distance_to_player_factory(self.dig_c, strain_id)
+        else:
+            nr_steps_move_to_factory = game_state.board.get_min_distance_to_any_player_factory(self.dig_c)
+
+        return nr_steps_move_to_factory
 
 
 @lru_cache(256)
@@ -697,6 +727,7 @@ class SupplyPowerGoal(UnitGoal):
     receiving_unit: Unit
     receiving_action_plan: UnitActionPlan
     receiving_c: Coordinate
+    supply_c: Coordinate
     pickup_power: bool
 
     def __repr__(self) -> str:
@@ -731,13 +762,11 @@ class SupplyPowerGoal(UnitGoal):
         return self.action_plan
 
     def _add_move_to_supply_c_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        supply_c = game_state.get_closest_player_factory_c(c=self.receiving_c)
-
-        if self.unit.tc.xy == supply_c.xy:
+        if self.unit.tc.xy == self.supply_c.xy:
             return
 
         move_actions = self._get_move_to_actions(
-            start_tc=self.unit.tc, goal=supply_c, constraints=constraints, board=game_state.board
+            start_tc=self.unit.tc, goal=self.supply_c, constraints=constraints, board=game_state.board
         )
         self.action_plan.extend(move_actions)
         if not self.action_plan.unit_has_enough_power(game_state):
@@ -752,7 +781,8 @@ class SupplyPowerGoal(UnitGoal):
         receiving_unit_powers = np.array([ptc.p for ptc in receiving_unit_ptcs])
 
         power_pickup_turn = self.pickup_power
-        while True:
+
+        while self.action_plan.nr_primitive_actions <= len(receiving_unit_ptcs):
             if power_pickup_turn:
                 power_tracker_up_to_date = copy(power_tracker)
                 power_requests_up_to_now = self.action_plan.get_power_requests(game_state)
@@ -767,11 +797,12 @@ class SupplyPowerGoal(UnitGoal):
                     break
 
                 power_transfer_action: TransferAction = actions[-1]  # type: ignore
-                receiving_unit_power_after_transfer = receiving_unit_powers[index_transfer]
+                receiving_unit_power_after_transfer = receiving_unit_powers[index_transfer:]
 
                 power_transfer_amount = self._get_adjusted_power_transfer_amount(
-                    receiving_unit_power=receiving_unit_power_after_transfer,
+                    receiving_unit_cur_power=receiving_unit_power_after_transfer,
                     power_transfer=power_transfer_action.amount,
+                    power_tracker=power_tracker,
                     game_state=game_state,
                 )
                 power_transfer_action.amount = power_transfer_amount
@@ -781,16 +812,10 @@ class SupplyPowerGoal(UnitGoal):
 
                 receiving_unit_powers[index_transfer:] += power_transfer_action.amount
 
-            if self.action_plan.nr_primitive_actions >= 30:
-                if isinstance(self.action_plan.actions[-1], TransferAction):
-                    self.action_plan.set_actions(self.action_plan.actions[:-1])
-                break
-
             self.action_plan.extend(actions)
             power_pickup_turn = not power_pickup_turn
 
-        max_transfer_index = self.action_plan.nr_primitive_actions - 1
-        if receiving_unit_powers[:max_transfer_index].min() < 0:
+        if receiving_unit_powers.min() < 0:
             raise InvalidGoalError
 
     def _get_transfer_resources_to_unit_actions(
@@ -820,11 +845,18 @@ class SupplyPowerGoal(UnitGoal):
         return graph
 
     def _get_adjusted_power_transfer_amount(
-        self, receiving_unit_power: int, power_transfer: int, game_state: GameState
+        self,
+        receiving_unit_cur_power: np.ndarray,
+        power_transfer: int,
+        power_tracker: PowerTracker,
+        game_state: GameState,
     ) -> int:
 
-        power_transfer = self._remove_surplus_power(receiving_unit_power, power_transfer)
-        power_transfer = self._remove_safety_reduction(power_transfer, game_state)
+        power_transfer = self._remove_surplus_power(receiving_unit_cur_power[0], power_transfer)
+        power_transfer = self._if_low_eco_remove_everything_above_bare_minimum(
+            receiving_unit_cur_power, power_tracker, power_transfer, game_state
+        )
+        power_transfer = self._remove_safety_reduction_supplying_unit(power_transfer, game_state)
         power_transfer = self._remove_min_power_income_for_other_units_factory(power_transfer, game_state)
         power_transfer = max(0, power_transfer)
         return power_transfer
@@ -834,7 +866,25 @@ class SupplyPowerGoal(UnitGoal):
         power_transfer_minus_surplus = power_transfer - surplus_power
         return power_transfer_minus_surplus
 
-    def _remove_safety_reduction(self, power_transfer: int, game_state: GameState) -> int:
+    def _if_low_eco_remove_everything_above_bare_minimum(
+        self, receiving_unit_powers, power_tracker: PowerTracker, power_transfer: int, game_state: GameState
+    ) -> int:
+        factory = game_state.get_closest_player_factory(self.cur_tc)
+        factory_power_available = power_tracker.get_power_available(factory, self.cur_tc.t)
+
+        if factory_power_available >= CONFIG.LOW_ECO_FACTORY_THRESHOLD:
+            return power_transfer
+
+        try:
+            receiving_unit_power_in_two_steps = receiving_unit_powers[2]
+        except IndexError:
+            receiving_unit_power_in_two_steps = receiving_unit_powers[0] - 2 * HEAVY_CONFIG.DIG_COST
+
+        bare_minimum_level = CONFIG.MINIMUM_POWER_RECEIVING_UNIT_LOW_ECO
+        bare_minimum_power = max(0, bare_minimum_level - receiving_unit_power_in_two_steps)
+        return min(power_transfer, bare_minimum_power)
+
+    def _remove_safety_reduction_supplying_unit(self, power_transfer: int, game_state: GameState) -> int:
         supplying_unit_power_left = self.action_plan.get_final_ptc(game_state).p - power_transfer
         safety_level = self.unit.action_queue_cost + self.unit.move_power_cost
         safety_reduction = max(0, safety_level - supplying_unit_power_left)
@@ -1138,6 +1188,11 @@ class ClearRubbleGoal(DigGoal):
 
         return min_cost, min_steps
 
+    def _get_min_cost_and_steps_max_nr_digs(self, game_state: GameState) -> Tuple[float, int]:
+        move_steps_after_pickup = self._get_min_steps_move_to_c_after_optional_power_pickup(self.dig_c, game_state)
+        power_used = move_steps_after_pickup * self.unit.move_power_cost
+        return super()._get_min_cost_and_steps_max_nr_digs(game_state, non_dig_power_used_after_pickup=power_used)
+
     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
         return 0
 
@@ -1201,7 +1256,7 @@ class DestroyLichenGoal(DigGoal):
 
     def _get_nr_max_digs_to_destroy_lichen(self, game_state: GameState) -> int:
         # Can underestimate the amount of digs when constraints make the unit appear a move later there
-        nr_steps_to_lichen = self._get_min_nr_steps_to_c(self.dig_c, game_state)
+        nr_steps_to_lichen = self._get_min_nr_steps_to_c_optional_power_pickup(self.dig_c, game_state)
         max_lichen_upon_arrival = self._get_max_lichen_in_n_steps(game_state.board, nr_steps_to_lichen)
         return self._get_nr_max_dig_to_destroy_lichen_unit_at_lichen(max_lichen_upon_arrival)
 
@@ -1232,7 +1287,7 @@ class DestroyLichenGoal(DigGoal):
     def _get_lichen_removed(self, n_digs: int, game_state: GameState) -> int:
         # TODO lichen removed depends on when you arrive, so for action plan evaluation might need to adapt this
         max_lichen_removed = self.unit.rubble_removed_per_dig * n_digs
-        nr_steps_to_lichen = self._get_min_nr_steps_to_c(self.dig_c, game_state)
+        nr_steps_to_lichen = self._get_min_nr_steps_to_c_optional_power_pickup(self.dig_c, game_state)
         nr_steps_to_remove_lichen = nr_steps_to_lichen + n_digs
         max_lichen_upon_arrival = self._get_max_lichen_in_n_steps(game_state.board, nr_steps_to_remove_lichen)
         lichen_removed = min(max_lichen_removed, max_lichen_upon_arrival)
@@ -1258,6 +1313,11 @@ class DestroyLichenGoal(DigGoal):
         min_steps = max_nr_digs + min_steps_go_to_c
 
         return min_cost, min_steps
+
+    def _get_min_cost_and_steps_max_nr_digs(self, game_state: GameState) -> Tuple[float, int]:
+        move_steps_after_pickup = self._get_min_steps_move_to_c_after_optional_power_pickup(self.dig_c, game_state)
+        power_used = move_steps_after_pickup * self.unit.move_power_cost
+        return super()._get_min_cost_and_steps_max_nr_digs(game_state, non_dig_power_used_after_pickup=power_used)
 
     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
         return 0
@@ -1563,6 +1623,7 @@ class HuntGoal(UnitGoal):
         self.action_plan.extend(actions_next_to)
 
     def _add_hunt_actions_end_c(self, game_state: GameState, constraints: Constraints) -> None:
+        # This seems to be stupid when they return to their factories
         self._add_actions_move_next_to_opp_final_c(game_state, constraints)
         self._optional_add_action_move_onto_final_c(game_state, constraints)
 
@@ -1606,7 +1667,7 @@ class HuntGoal(UnitGoal):
             return zip([])
 
         tcs = self.opp_time_coordinates[index_first_reach:MAX_FUTURE_STEP_TO_REACH]
-        actions = self.opp_time_coordinates[index_first_reach:MAX_FUTURE_STEP_TO_REACH]
+        actions = self.opp.primitive_actions_in_queue[index_first_reach:MAX_FUTURE_STEP_TO_REACH]
 
         return zip(tcs, actions)
 

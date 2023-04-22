@@ -11,6 +11,7 @@ from copy import copy
 from enum import Enum, auto
 from math import floor
 
+from objects.actions.unit_action import TransferAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.cargo import Cargo
 from objects.actions.factory_action import WaterAction
@@ -19,6 +20,7 @@ from exceptions import NoValidGoalFoundError
 from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
 from logic.goals.unit_goal import DigGoal, CollectGoal
 from objects.actions.factory_action_plan import FactoryActionPlan
+from objects.resource import Resource
 from logic.goals.unit_goal import (
     UnitGoal,
     ClearRubbleGoal,
@@ -27,6 +29,7 @@ from logic.goals.unit_goal import (
     SupplyPowerGoal,
     DestroyLichenGoal,
     CampResourceGoal,
+    TransferIceGoal,
 )
 from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal, FactoryGoal
 from distances import (
@@ -49,6 +52,7 @@ if TYPE_CHECKING:
 
 
 class Strategy(Enum):
+    IMMEDIATELY_RETURN_ICE = auto()
     INCREASE_LICHEN_TILES = auto()
     INCREASE_LICHEN = auto()
     COLLECT_ICE = auto()
@@ -168,6 +172,7 @@ class Factory(Actor):
 
     def nr_tiles_needed_to_grow_to_lichen_target(self, game_state: GameState) -> int:
         lichen_size_target = self.get_lichen_size_target_for_current_water_collection()
+        lichen_size_target = max(CONFIG.MIN_TILES_GROWTH_TARGET, lichen_size_target)
         nr_connected_positions = self.get_nr_connected_positions_including_being_cleared(game_state)
         nr_tiles_needed = lichen_size_target - nr_connected_positions
         nr_tiles_needed = max(0, nr_tiles_needed)
@@ -228,7 +233,7 @@ class Factory(Actor):
     def _get_rubble_positions_to_clear_for_pathing(self, board: Board, positions: np.ndarray) -> Set[Tuple]:
         for ore_pos in positions[:5]:
             closest_factory_pos = get_closest_pos_between_pos_and_positions(ore_pos, self.positions)
-            positions = get_positions_on_optimal_path_between_pos_and_pos(ore_pos, closest_factory_pos, board)
+            positions = get_positions_on_optimal_path_between_pos_and_pos(closest_factory_pos, ore_pos, board)
             rubble_mask = board.are_rubble_positions(positions)
             rubble_positions = positions[rubble_mask]
             if rubble_positions.shape[0]:
@@ -445,8 +450,24 @@ class Factory(Actor):
         power_generation = EnvConfig.FACTORY_CHARGE + expected_lichen_size * EnvConfig.POWER_PER_CONNECTED_LICHEN_TILE
         return power_generation
 
+    def get_incoming_ice_before_no_water(self) -> int:
+        incoming_ice = 0
+        for unit in self.scheduled_units:
+            if not isinstance(unit.goal, CollectIceGoal) or isinstance(unit.goal, TransferIceGoal):
+                continue
+
+            for action in unit.private_action_plan.primitive_actions[: self.water]:
+                if not isinstance(action, TransferAction):
+                    continue
+
+                if action.resource == Resource.ICE:
+                    incoming_ice += action.amount
+
+        return incoming_ice
+
     def get_expected_lichen_size(self, game_state: GameState) -> int:
         lichen_size_target = self.get_lichen_size_target_for_current_water_collection()
+
         if lichen_size_target < self.nr_connected_lichen_tiles:
             return self.nr_connected_lichen_tiles
 
@@ -543,18 +564,23 @@ class Factory(Actor):
         return nr_positions
 
     @property
-    def has_heavy_unsupplied_collecting_next_to_factory(self) -> bool:
-        return any(True for _ in self.heavy_units_unsupplied_collecting_next_to_factory)
+    def has_heavy_unsupplied_collecting_next_to_factory_free_supply_c(self) -> bool:
+        return any(True for _ in self.heavy_units_unsupplied_collecting_next_to_factory_free_supply_c)
 
     @property
-    def heavy_units_unsupplied_collecting_next_to_factory(self) -> Generator[Unit, None, None]:
+    def heavy_units_unsupplied_collecting_next_to_factory_free_supply_c(self) -> Generator[Unit, None, None]:
         return (
             heavy
             for heavy in self.heavy_units
             if isinstance(heavy.goal, CollectGoal)
             and self.min_distance_to_c(heavy.goal.dig_c) == 1
             and not heavy.supplied_by
+            and not any(self.min_distance_to_c(c) == 1 for c in self.coordinates_in_supply_c_goals)
         )
+
+    @property
+    def coordinates_in_supply_c_goals(self) -> list[Coordinate]:
+        return [unit.goal.supply_c for unit in self.units if isinstance(unit.goal, SupplyPowerGoal)]
 
     def min_distance_to_c(self, c: Coordinate) -> int:
         pos = np.array(c.xy)
@@ -602,6 +628,14 @@ class Factory(Actor):
         return (unit for unit in self.units if not unit.is_scheduled)
 
     @property
+    def units_with_ice(self) -> Generator[Unit, None, None]:
+        return (unit for unit in self.units if unit.ice)
+
+    @property
+    def units_collecting_ice(self) -> Generator[Unit, None, None]:
+        return (unit for unit in self.units if isinstance(unit.goal, CollectIceGoal))
+
+    @property
     def has_unassigned_units(self) -> bool:
         return any(not unit.private_action_plan for unit in self.units)
 
@@ -616,7 +650,7 @@ class Factory(Actor):
             except NoValidGoalFoundError:
                 pass
 
-        if self.has_heavy_unsupplied_collecting_next_to_factory and self.has_light_unit_available:
+        if self.has_heavy_unsupplied_collecting_next_to_factory_free_supply_c and self.has_light_unit_available:
             try:
                 return self._schedule_supply_goal_and_reschedule_receiving_unit(schedule_info)
             except NoValidGoalFoundError:
@@ -668,6 +702,8 @@ class Factory(Actor):
             goal = self.schedule_strategy_collect_ice(schedule_info)
         elif strategy == Strategy.ATTACK_OPPONENT:
             goal = self.schedule_strategy_attack_opponent(schedule_info)
+        elif strategy == Strategy.IMMEDIATELY_RETURN_ICE:
+            goal = self.schedule_strategy_immediately_return_ice(schedule_info)
         else:
             raise ValueError("Strategy is not a known strategy")
 
@@ -728,6 +764,8 @@ class Factory(Actor):
         if isinstance(goal, DigGoal):
             schedule_info = self._get_schedule_info_without_units_on_dig_c(goal.dig_c, schedule_info)
 
+        schedule_info = self._get_schedule_info_without_unit_scheduled_actions(schedule_info, unit)
+
         goal = unit.get_best_version_goal(goal, schedule_info)
         return goal
 
@@ -781,9 +819,12 @@ class Factory(Actor):
         potential_assignments = [
             (supply_unit, goal)
             for supply_unit in self.light_available_units
-            for receiving_unit in self.heavy_units_unsupplied_collecting_next_to_factory
+            for receiving_unit in self.heavy_units_unsupplied_collecting_next_to_factory_free_supply_c
             for goal in supply_unit._get_supply_power_goals(
-                receiving_unit, receiving_unit.private_action_plan, receiving_unit.goal.dig_c  # type: ignore
+                receiving_unit,
+                receiving_unit.private_action_plan,
+                receiving_unit.goal.dig_c,  # type: ignore
+                supply_c=game_state.get_closest_player_factory_c(receiving_unit.goal.dig_c),  # type: ignore
             )
         ]
 
@@ -964,6 +1005,59 @@ class Factory(Actor):
         ]
 
         return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
+
+    def schedule_strategy_immediately_return_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        nr_steps_to_go = self.water - CONFIG.ICE_MUST_COME_IN_BEFORE_LEVEL
+
+        for unit in self.units_collecting_ice:
+            try:
+                return self._attempt_get_shortened_collect_ice_goal(schedule_info, unit, nr_steps_to_go)
+            except Exception:
+                continue
+
+        for unit in self.units_with_ice:
+            try:
+                return unit.generate_transfer_ice_goal(schedule_info, self)
+            except Exception:
+                continue
+
+        try:
+            self._schedule_any_heavy_on_ice(schedule_info)
+        except Exception:
+            pass
+
+        try:
+            self._schedule_any_light_on_ice(schedule_info)
+        except Exception:
+            pass
+
+        raise NoValidGoalFoundError
+
+    def _schedule_any_heavy_on_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        game_state = schedule_info.game_state
+        valid_ice_positions_set = game_state.board.ice_positions_set - game_state.positions_in_heavy_dig_goals
+        return self._schedule_unit_on_ice_pos(valid_ice_positions_set, self.heavy_units, schedule_info)
+
+    def _schedule_any_light_on_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        game_state = schedule_info.game_state
+        valid_ice_positions_set = game_state.board.ice_positions_set - game_state.positions_in_dig_goals
+        return self._schedule_unit_on_ice_pos(valid_ice_positions_set, self.light_units, schedule_info)
+
+    def _attempt_get_shortened_collect_ice_goal(
+        self, schedule_info: ScheduleInfo, unit: Unit, nr_steps_to_go: int
+    ) -> UnitGoal:
+        goal: CollectIceGoal = unit.goal  # type: ignore
+        step_ice_incoming = unit.private_action_plan.nr_primitive_actions
+        if step_ice_incoming <= nr_steps_to_go:
+            raise NoValidGoalFoundError
+
+        nr_steps_to_reduce = step_ice_incoming - nr_steps_to_go
+        ice_to_transfer = goal.quantity_ice_to_transfer(schedule_info.game_state)
+        new_quantity = ice_to_transfer - nr_steps_to_reduce * unit.resources_gained_per_dig
+        schedule_info_without_unit = self._get_schedule_info_without_unit_scheduled_actions(schedule_info, unit)
+        return unit.generate_collect_ice_goal(
+            schedule_info_without_unit, goal.dig_c, goal.is_supplied, self, new_quantity
+        )
 
     def _get_schedule_info_without_unit_scheduled_actions(
         self, schedule_info: ScheduleInfo, unit: Unit
