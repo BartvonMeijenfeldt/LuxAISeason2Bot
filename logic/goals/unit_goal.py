@@ -704,6 +704,14 @@ class CollectGoal(DigGoal):
 
         return nr_steps_move_to_factory
 
+    def get_best_value_per_step(self, game_state: GameState) -> float:
+        # To prefer mining on own/safe resources. Done after the get_best_value_per_step so it will not affect
+        # Whether a goal is valuable, since it will be above 0 regardless of this positive denominator
+        best_value_per_step = super().get_best_value_per_step(game_state)
+        tiebreaker_owner_ship = game_state.board.resource_ownership[self.dig_c.xy] / 10_000
+        # internal_ownership = self.factory.internal_normalized_resource_ownership[self.dig_c.xy]
+        return best_value_per_step + tiebreaker_owner_ship
+
 
 @lru_cache(256)
 def get_actions_a_to_b(

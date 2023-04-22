@@ -455,7 +455,7 @@ class Unit(Actor):
         return ice_goals
 
     def _add_ice_goals(self, game_state: GameState, factory: Factory) -> None:
-        ice_positions = game_state.board.ice_positions_set - game_state.positions_in_dig_goals
+        ice_positions = game_state.board.minable_ice_positions_set - game_state.positions_in_dig_goals
 
         ice_goals = [
             CollectIceGoal(
@@ -468,7 +468,7 @@ class Unit(Actor):
         self.goals.extend(ice_goals)
 
     def _add_ore_goals(self, game_state: GameState, factory: Factory) -> None:
-        ore_positions = game_state.board.ore_positions_set - game_state.positions_in_dig_goals
+        ore_positions = game_state.board.minable_ore_positions_set - game_state.positions_in_dig_goals
 
         ore_goals = [
             CollectOreGoal(

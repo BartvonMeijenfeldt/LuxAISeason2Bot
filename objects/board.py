@@ -13,6 +13,7 @@ from distances import (
     get_n_closests_positions_between_positions,
 )
 from positions import append_positions, positions_to_set
+from config import CONFIG
 
 if TYPE_CHECKING:
     from objects.actors.unit import Unit
@@ -125,6 +126,22 @@ class Board:
         self._min_distance_to_opp_factory_or_lichen = self._get_min_dis_tiles_to_positions(
             self.opp_factories_or_lichen_tiles
         )
+
+        if self.player_factory_tiles and self.opp_factory_tiles:
+            self.resource_ownership = self._get_resource_ownership()
+            self.minable_ice_positions_set = self._get_minable_positions(self.ice_positions_set)
+            self.minable_ore_positions_set = self._get_minable_positions(self.ore_positions_set)
+
+    def _get_minable_positions(self, resource_positoins: Iterable[tuple]) -> set[tuple]:
+        min_ownership_required = CONFIG.MIN_OWNERSHIP_REQUIRED_FOR_MINING
+        return {tuple(pos) for pos in resource_positoins if self.resource_ownership[pos] > min_ownership_required}
+
+    def _get_resource_ownership(self) -> dict[tuple, float]:
+        resource_positions = self.resource_positions
+        distances_to_player = get_min_distances_between_positions(resource_positions, self.player_factory_positions)
+        distances_to_opp = get_min_distances_between_positions(resource_positions, self.opp_factory_positions)
+        percent_owner_ship = distances_to_opp / (distances_to_opp + distances_to_player)
+        return {tuple(pos): percent for pos, percent in zip(resource_positions, percent_owner_ship)}
 
     @property
     def unspreadable_positions(self) -> np.ndarray:
