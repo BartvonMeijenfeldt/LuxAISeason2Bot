@@ -58,6 +58,7 @@ class Unit(Actor):
         super().__post_init__()
         self.private_action_plan = UnitActionPlan(self, [], is_set=True)
         self.send_action_queue = None
+        self.infeasible_assignments = set()
         self._set_unit_final_variables()
         self._set_unit_state_variables()
 
@@ -95,6 +96,7 @@ class Unit(Actor):
 
     def _set_unit_state_variables(self) -> None:
         self.is_scheduled = False
+        self.infeasible_assignments.clear()
         self.x = self.tc.x
         self.y = self.tc.y
         self.power_space_left = self.battery_capacity - self.power
@@ -287,6 +289,9 @@ class Unit(Actor):
             try:
                 action_plan = goal.generate_action_plan(schedule_info)
             except Exception:
+                if not goal.key.startswith("No_Goal_"):
+                    self.infeasible_assignments.add(goal.assignment_key)
+
                 continue
 
             value = goal.get_value_per_step_of_action_plan(action_plan, game_state)
@@ -313,6 +318,9 @@ class Unit(Actor):
         goals_priority_queue = PriorityQueue()
 
         for goal in goals:
+            if not self.is_feasible_assignment(goal):
+                continue
+
             best_value = goal.get_best_value_per_step(game_state)
             if best_value < 0 and not goal.is_dummy_goal:
                 continue
@@ -375,8 +383,9 @@ class Unit(Actor):
         c: Coordinate,
         is_supplied: bool,
         factory: Factory,
+        quantity: Optional[int] = None,
     ) -> CollectOreGoal:
-        ore_goals = self._get_collect_ore_goals(c, schedule_info.game_state, factory, is_supplied)
+        ore_goals = self._get_collect_ore_goals(c, schedule_info.game_state, factory, is_supplied, quantity)
         goal = self.get_best_goal(ore_goals, schedule_info)
         return goal  # type: ignore
 
@@ -414,10 +423,17 @@ class Unit(Actor):
         ]
 
     def _get_collect_ore_goals(
-        self, c: Coordinate, game_state: GameState, factory: Factory, is_supplied: bool
+        self, c: Coordinate, game_state: GameState, factory: Factory, is_supplied: bool, quantity: Optional[int] = None
     ) -> list[CollectOreGoal]:
         ore_goals = [
-            CollectOreGoal(unit=self, pickup_power=pickup_power, dig_c=c, factory=factory, is_supplied=is_supplied)
+            CollectOreGoal(
+                unit=self,
+                pickup_power=pickup_power,
+                dig_c=c,
+                factory=factory,
+                is_supplied=is_supplied,
+                quantity=quantity,
+            )
             for pickup_power in [False, True]
             if self._is_feasible_dig_c(c, game_state)
         ]
@@ -680,3 +696,6 @@ class Unit(Actor):
         quantity_to_mine = q - resource_in_cargo
         nr_digs_required = ceil(quantity_to_mine / self.resources_gained_per_dig)
         return nr_digs_required
+
+    def is_feasible_assignment(self, goal: UnitGoal) -> bool:
+        return goal.assignment_key not in self.infeasible_assignments

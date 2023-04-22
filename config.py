@@ -86,3 +86,7 @@ class CONFIG:
     START_UNIT_IMPORTANCE_SIGNAL: float = 2.0
     LAST_TURN_UNIT_IMPORTANCE: int = 900
     UNIT_IMPORTANCE_MIN_LEVEL_POWER_UNIT: float = 0.8
+
+    # Start attack en masse
+    ATTACK_EN_MASSE_START_STEP: int = 850
+    ATTACK_EN_MASSE_SIGNAL: float = 2.5

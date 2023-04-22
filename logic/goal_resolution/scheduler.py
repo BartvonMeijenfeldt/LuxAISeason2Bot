@@ -44,6 +44,14 @@ class Scheduler:
         self._remove_completed_goals(game_state)
         self._schedule_units_too_little_power_dummy_goal(game_state)
 
+        # This should be done to make sure that units don't reserve this spot but it's hard because if I add this to
+        # the tcs, this unit can not make a plan which is really bad if the unit is on a factory
+
+        # Add pre-reservations, to allow the unit to reserve it already but also know that this was his pre-reservation
+        # And can remove it when he is planning himslef
+
+        # self._reserve_for_units_that_can_not_move_current_c_next_step(game_state)
+
         self._reschedule_goals_with_no_private_action_plan(game_state)
         self._schedule_goals_still_fine(game_state)
         self._reschedule_goals_too_little_power(game_state)
@@ -71,10 +79,17 @@ class Scheduler:
                 continue
 
             if not unit.is_on_factory(game_state) and unit.can_update_action_queue_and_move:
+                # I want to reserve this for this unit, but also want him to be able to still pickup power
+
                 continue
 
             goal = unit.generate_no_goal_goal(self.schedule_info)
             self._schedule_unit_on_goal(goal, game_state)
+
+    # def _reserve_for_units_that_can_not_move_current_c_next_step(self, game_state: GameState) -> None:
+    #     for unit in game_state.player_units:
+    #         if unit.is_on_factory(game_state) and unit.can_update_action_queue:
+    #             pass
 
     def _remove_completed_goals(self, game_state: GameState) -> None:
         for unit in game_state.player_units:
@@ -101,7 +116,7 @@ class Scheduler:
             try:
                 schedule_info = self._get_schedule_info_without_unit_scheduled_actions(unit)
                 goal = unit.get_best_version_goal(unit.goal, schedule_info)
-            except NoValidGoalFoundError:
+            except Exception:
                 self._unschedule_unit_goal(unit, game_state)
                 continue
 
