@@ -681,10 +681,12 @@ class Factory(Actor):
                 pass
 
         for strategy in strategies:
-            try:
-                return [self._schedule_unit_on_strategy(strategy, schedule_info)]
-            except NoValidGoalFoundError:
-                continue
+            nr_retries = 3
+            for _ in range(nr_retries):
+                try:
+                    return [self._schedule_unit_on_strategy(strategy, schedule_info)]
+                except NoValidGoalFoundError:
+                    continue
 
         return [self._schedule_first_unit_by_own_preference(schedule_info)]
 
@@ -781,6 +783,10 @@ class Factory(Actor):
         self, potential_assignments: List[Tuple[Unit, UnitGoal]], schedule_info: ScheduleInfo
     ) -> UnitGoal:
 
+        potential_assignments = [
+            (unit, goal) for unit, goal in potential_assignments if unit.is_feasible_assignment(goal)
+        ]
+
         if not potential_assignments:
             raise NoValidGoalFoundError
 
@@ -871,13 +877,11 @@ class Factory(Actor):
                 c=receiving_c,
                 is_supplied=True,
                 factory=self,
+                quantity=unit.goal.quantity,
             )
         elif isinstance(unit.goal, CollectIceGoal):
             return unit.generate_collect_ice_goal(
-                schedule_info=schedule_info,
-                c=receiving_c,
-                is_supplied=True,
-                factory=self,
+                schedule_info=schedule_info, c=receiving_c, is_supplied=True, factory=self, quantity=unit.goal.quantity
             )
 
         raise RuntimeError("Not supposed to happen")
@@ -986,10 +990,10 @@ class Factory(Actor):
         return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
 
     def schedule_strategy_attack_opponent(self, schedule_info: ScheduleInfo) -> UnitGoal:
-        try:
-            return self._schedule_unit_camp_resource(schedule_info)
-        except Exception:
-            return self._schedule_unit_destroy_lichen(schedule_info)
+        # try:
+        #     return self._schedule_unit_camp_resource(schedule_info)
+        # except Exception:
+        return self._schedule_unit_destroy_lichen(schedule_info)
 
     def _schedule_unit_camp_resource(self, schedule_info: ScheduleInfo) -> CampResourceGoal:
         game_state = schedule_info.game_state

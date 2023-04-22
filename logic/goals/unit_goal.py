@@ -59,6 +59,11 @@ class UnitGoal(Goal):
     unit: Unit
     is_dummy_goal = False
 
+    @property
+    @abstractmethod
+    def assignment_key(self) -> str:
+        ...
+
     @abstractmethod
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         ...
@@ -749,6 +754,10 @@ class SupplyPowerGoal(UnitGoal):
     def key(self) -> str:
         return str(self)
 
+    @property
+    def assignment_key(self) -> str:
+        return f"{self.key}_{self.pickup_power}"
+
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         if not self.unit.supplies:
             return True
@@ -1009,6 +1018,10 @@ class CollectIceGoal(CollectGoal):
     def key(self) -> str:
         return str(self)
 
+    @property
+    def assignment_key(self) -> str:
+        return f"{self.key}_{self.pickup_power}"
+
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ice(game_state)
 
@@ -1029,6 +1042,10 @@ class TransferIceGoal(TransferResourceGoal):
     @property
     def key(self) -> str:
         return str(self)
+
+    @property
+    def assignment_key(self) -> str:
+        return self.key
 
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ice(game_state)
@@ -1055,6 +1072,10 @@ class CollectOreGoal(CollectGoal):
     def key(self) -> str:
         return str(self)
 
+    @property
+    def assignment_key(self) -> str:
+        return f"{self.key}_{self.pickup_power}"
+
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ore(game_state)
 
@@ -1075,6 +1096,10 @@ class TransferOreGoal(TransferResourceGoal):
     @property
     def key(self) -> str:
         return str(self)
+
+    @property
+    def assignment_key(self) -> str:
+        return self.key
 
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ore(game_state)
@@ -1106,6 +1131,10 @@ class ClearRubbleGoal(DigGoal):
     @property
     def key(self) -> str:
         return str(self)
+
+    @property
+    def assignment_key(self) -> str:
+        return f"{self.key}_{self.pickup_power}"
 
     def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
         game_state = schedule_info.game_state
@@ -1177,11 +1206,11 @@ class ClearRubbleGoal(DigGoal):
     #     score_lichen_removed = self._get_score_rubble_removed(rubble_removed, game_state)
     #     return importance_lichen * score_lichen_removed
 
-    def _get_score_rubble_removed(self, rubble_removed: int, game_state: GameState) -> float:
-        if not self._clears_rubble(rubble_removed, game_state):
-            return rubble_removed
+    # def _get_score_rubble_removed(self, rubble_removed: int, game_state: GameState) -> float:
+    #     if not self._clears_rubble(rubble_removed, game_state):
+    #         return rubble_removed
 
-        return rubble_removed + CONFIG.RUBBLE_CLEAR_FOR_LICHEN_BONUS_CLEARING
+    #     return rubble_removed + CONFIG.RUBBLE_CLEAR_FOR_LICHEN_BONUS_CLEARING
 
     def _clears_rubble(self, rubble_removed: int, game_state: GameState) -> bool:
         rubble_at_pos = game_state.board.rubble[self.dig_c.xy]
@@ -1221,6 +1250,10 @@ class DestroyLichenGoal(DigGoal):
     @property
     def key(self) -> str:
         return str(self)
+
+    @property
+    def assignment_key(self) -> str:
+        return f"{self.key}_{self.pickup_power}"
 
     def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
         game_state = schedule_info.game_state
@@ -1294,7 +1327,7 @@ class DestroyLichenGoal(DigGoal):
 
     def _get_lichen_removed(self, n_digs: int, game_state: GameState) -> int:
         # TODO lichen removed depends on when you arrive, so for action plan evaluation might need to adapt this
-        max_lichen_removed = self.unit.rubble_removed_per_dig * n_digs
+        max_lichen_removed = self.unit.lichen_removed_per_dig * n_digs
         nr_steps_to_lichen = self._get_min_nr_steps_to_c_optional_power_pickup(self.dig_c, game_state)
         nr_steps_to_remove_lichen = nr_steps_to_lichen + n_digs
         max_lichen_upon_arrival = self._get_max_lichen_in_n_steps(game_state.board, nr_steps_to_remove_lichen)
@@ -1305,6 +1338,9 @@ class DestroyLichenGoal(DigGoal):
         lichen_at_pos = game_state.board.lichen[self.dig_c.xy]
         if lichen_removed < lichen_at_pos:
             return 0
+
+        if game_state.real_env_steps >= CONFIG.ATTACK_EN_MASSE_START_STEP:
+            return 10_000
 
         benefit = CONFIG.DESTROY_LICHEN_BASE_VALUE + lichen_removed * CONFIG.DESTROY_LICHEN_VALUE_PER_LICHEN
 
@@ -1344,6 +1380,10 @@ class CampResourceGoal(UnitGoal):
 
     def key(self) -> str:
         return str(self)
+
+    @property
+    def assignment_key(self) -> str:
+        return f"{self.key}_{self.pickup_power}"
 
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         return self.unit.tc.distance_to(self.resource_c) <= 1 and not self.unit.is_under_threath(game_state)
@@ -1486,8 +1526,13 @@ class HuntGoal(UnitGoal):
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         return not self.opp.acted_out_last_action_and_no_update_queue
 
+    @property
     def key(self) -> str:
         return str(self)
+
+    @property
+    def assignment_key(self) -> str:
+        return f"{self.key}_{self.pickup_power}"
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return self.opp not in game_state.opp_units or game_state.is_opponent_factory_tile(self.opp.tc)
@@ -1796,6 +1841,10 @@ class FleeGoal(UnitGoal):
     def key(self) -> str:
         return str(self)
 
+    @property
+    def assignment_key(self) -> str:
+        return self.key
+
     def _get_min_power_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         min_steps = game_state.board.get_min_distance_to_any_player_factory(self.unit.tc)
         min_cost = min_steps * self.unit.move_power_cost
@@ -1852,6 +1901,10 @@ class UnitNoGoal(UnitGoal):
     @property
     def key(self) -> str:
         return str(self)
+
+    @property
+    def assignment_key(self) -> str:
+        return self.key
 
     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
         return 0
@@ -1930,6 +1983,10 @@ class EvadeConstraintsGoal(UnitGoal):
     @property
     def key(self) -> str:
         return str(self)
+
+    @property
+    def assignment_key(self) -> str:
+        return self.key
 
     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
         return 0

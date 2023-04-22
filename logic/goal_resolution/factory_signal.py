@@ -23,6 +23,9 @@ class AlmostOutOfWaterSignal(FactorySignal):
     strategy = Strategy.IMMEDIATELY_RETURN_ICE
 
     def compute_signal(self, factory: Factory, game_state: GameState) -> float:
+        if game_state.real_env_steps > 900:
+            return 0.0
+
         water_supply_factory = factory.water + factory.ice * EnvConfig.ICE_WATER_RATIO
         if water_supply_factory < CONFIG.TOO_LITTLE_WATER_DISTRESS_LEVEL:
             water_supply_and_incoming = factory.get_incoming_ice_before_no_water() * EnvConfig.ICE_WATER_RATIO
@@ -95,6 +98,8 @@ class AttackOpponentSignal(FactorySignal):
     strategy = Strategy.ATTACK_OPPONENT
 
     def compute_signal(self, factory: Factory, game_state: GameState) -> float:
+        if game_state.real_env_steps >= CONFIG.ATTACK_EN_MASSE_START_STEP:
+            return CONFIG.ATTACK_EN_MASSE_SIGNAL
         # TODO should be 1.0 if used a multiplier
         return 0.8
 
