@@ -16,6 +16,8 @@ class CONFIG:
 
     # Gameplay
     # --------------------------------------
+    MAX_DISTANCE_DESTROY_LICHEN: int = 100
+
     SEARCH_BUDGET_HEAVY: int = 300
     SEARCH_BUDGET_LIGHT: int = 150
 
@@ -26,7 +28,7 @@ class CONFIG:
     # TODO potential adaptation: start lower, and each timestep that passes increase the optimal path time to power cost
     OPTIMAL_PATH_TIME_TO_POWER_COST = 50
 
-    START_STEP_DESTROYING_LICHEN = 500
+    START_STEP_DESTROYING_LICHEN = 50
 
     RUBBLE_VALUE_CLEAR_FOR_RESOURCE: float = 10.0
     RUBBLE_VALUE_CLEAR_FOR_LICHEN_BASE: float = 10.0
@@ -51,8 +53,6 @@ class CONFIG:
 
     DESTROY_LICHEN_BASE_VALUE: int = 80
     DESTROY_LICHEN_VALUE_PER_LICHEN: int = 1
-    START_FOCUSSING_ON_DESTROYING_LICHEN: int = 875
-    FOCUS_ON_DESTROY_LICHEN_VALUE_MULTIPLIER: int = 3
 
     SUPPLY_POWER_VALUE: int = 10_000
 
@@ -65,6 +65,8 @@ class CONFIG:
 
     # Factory Scheduling
     # --------------------------------------
+    MAX_DISTANCE_FOR_RESOURCE_CLEARING: int = 15
+
     ICE_MUST_COME_IN_BEFORE_LEVEL: int = 3
     TOO_LITTLE_WATER_DISTRESS_LEVEL: int = 40
     DISTRESS_SIGNAL: int = 100
@@ -90,3 +92,7 @@ class CONFIG:
     # Start attack en masse
     ATTACK_EN_MASSE_START_STEP: int = 850
     ATTACK_EN_MASSE_SIGNAL: float = 2.5
+
+    # Schedule
+    OUT_OF_TIME_MAIN_SCHEDULING: float = 2.6
+    OUT_OF_TIME_UNASSIGNED_SCHEDULING: float = 2.8

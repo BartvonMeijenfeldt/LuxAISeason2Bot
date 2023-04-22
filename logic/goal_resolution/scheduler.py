@@ -1,15 +1,15 @@
 import time
 import logging
 
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Set
 from collections import defaultdict
-from dataclasses import dataclass, replace
-from copy import copy
+from dataclasses import dataclass, field
 
 from objects.game_state import GameState
 from objects.coordinate import TimeCoordinate
 from objects.actors.factory import Factory, Strategy
 from objects.actors.unit import Unit
+from objects.direction import Direction
 from logic.constraints import Constraints
 from logic.goal_resolution.power_tracker import PowerTracker
 from logic.goal_resolution.schedule_info import ScheduleInfo
@@ -18,21 +18,34 @@ from logic.goals.factory_goal import BuildLightGoal
 from logic.goals.unit_goal import UnitGoal, DigGoal, SupplyPowerGoal
 from exceptions import NoValidGoalFoundError
 from logic.goal_resolution.factory_signal import SIGNALS
+from config import CONFIG
 
 
 @dataclass
 class Scheduler:
     turn_start_time: float
     DEBUG_MODE: bool
+    factories_unavailable: Set[Factory] = field(init=False, default_factory=set)
 
-    def _is_out_of_time(self) -> bool:
+    def _is_out_of_time_main_scheduling(self) -> bool:
         if self.DEBUG_MODE:
             return False
 
-        is_out_of_time = self._get_time_taken() > 2.8
+        is_out_of_time = self._get_time_taken() > CONFIG.OUT_OF_TIME_MAIN_SCHEDULING
 
         if is_out_of_time:
-            logging.critical("RAN OUT OF TIME")
+            logging.critical("RAN OUT OF TIME MAIN SCHEDULING")
+
+        return is_out_of_time
+
+    def _is_out_of_time_scheduling_unassigned_units(self) -> bool:
+        if self.DEBUG_MODE:
+            return False
+
+        is_out_of_time = self._get_time_taken() > CONFIG.OUT_OF_TIME_UNASSIGNED_SCHEDULING
+
+        if is_out_of_time:
+            logging.critical("RAN OUT OF TIME UNASSIGNED SCHEDULING")
 
         return is_out_of_time
 
@@ -43,14 +56,7 @@ class Scheduler:
         self._init_constraints_and_power_tracker(game_state)
         self._remove_completed_goals(game_state)
         self._schedule_units_too_little_power_dummy_goal(game_state)
-
-        # This should be done to make sure that units don't reserve this spot but it's hard because if I add this to
-        # the tcs, this unit can not make a plan which is really bad if the unit is on a factory
-
-        # Add pre-reservations, to allow the unit to reserve it already but also know that this was his pre-reservation
-        # And can remove it when he is planning himslef
-
-        # self._reserve_for_units_that_can_not_move_current_c_next_step(game_state)
+        self._reserve_next_tc_for_units_that_can_not_move(game_state)
 
         self._reschedule_goals_with_no_private_action_plan(game_state)
         self._schedule_goals_still_fine(game_state)
@@ -74,22 +80,19 @@ class Scheduler:
                 continue
 
             if unit.is_on_factory(game_state) and unit.can_update_action_queue:
-                # TODO, in this case we do know the unit will be stationary although we still might want to set a plan
-                # Setting this unit as stationary can help reduce collisions with own units
                 continue
 
             if not unit.is_on_factory(game_state) and unit.can_update_action_queue_and_move:
-                # I want to reserve this for this unit, but also want him to be able to still pickup power
-
                 continue
 
             goal = unit.generate_no_goal_goal(self.schedule_info)
             self._schedule_unit_on_goal(goal, game_state)
 
-    # def _reserve_for_units_that_can_not_move_current_c_next_step(self, game_state: GameState) -> None:
-    #     for unit in game_state.player_units:
-    #         if unit.is_on_factory(game_state) and unit.can_update_action_queue:
-    #             pass
+    def _reserve_next_tc_for_units_that_can_not_move(self, game_state: GameState) -> None:
+        for unit in game_state.player_units:
+            if unit.can_not_move_this_step(game_state):
+                next_tc = unit.tc + Direction.CENTER
+                self.constraints.add_negative_constraint(next_tc)
 
     def _remove_completed_goals(self, game_state: GameState) -> None:
         for unit in game_state.player_units:
@@ -100,7 +103,7 @@ class Scheduler:
         for unit in game_state.player_units:
             if not unit.supplied_by and not unit.private_action_plan.unit_has_enough_power(game_state) and unit.goal:
                 try:
-                    schedule_info = self._get_schedule_info_without_unit_scheduled_actions(unit)
+                    schedule_info = self.schedule_info.copy_without_unit_scheduled_actions(unit)
                     goal = unit.get_best_version_goal(unit.goal, schedule_info)
                 except NoValidGoalFoundError:
                     self._unschedule_unit_goal(unit, game_state)
@@ -114,7 +117,7 @@ class Scheduler:
                 continue
 
             try:
-                schedule_info = self._get_schedule_info_without_unit_scheduled_actions(unit)
+                schedule_info = self.schedule_info.copy_without_unit_scheduled_actions(unit)
                 goal = unit.get_best_version_goal(unit.goal, schedule_info)
             except Exception:
                 self._unschedule_unit_goal(unit, game_state)
@@ -180,18 +183,31 @@ class Scheduler:
             self._reserve_tc_and_power_factories(game_state)
 
         while True:
-            if not self._exists_available_unit(game_state) or self._is_out_of_time():
+            if not self._exists_available_unit(game_state) or self._is_out_of_time_main_scheduling():
                 break
 
             scores = self._score_signal_strategies_for_factories_with_available_units(game_state)
             factory = self._get_highest_priority_factory(scores)
             strategies = self._get_priority_sorted_strategies_factory(factory, scores)
-            goals = factory.schedule_units(strategies, self.schedule_info)
+
+            try:
+                goals = factory.schedule_units(strategies, self.schedule_info)
+            except Exception:
+                self._set_factory_unavailable(factory)
+                continue
+
             for goal in goals:
                 self._schedule_unit_on_goal(goal, game_state)
 
+    def _set_factory_unavailable(self, factory: Factory) -> None:
+        self.factories_unavailable.add(factory)
+
     def _exists_available_unit(self, game_state: GameState) -> bool:
-        return any(factory.has_unit_available for factory in game_state.player_factories)
+        return any(
+            factory.has_unit_available
+            for factory in game_state.player_factories
+            if factory not in self.factories_unavailable
+        )
 
     def _schedule_factory_goals(self, game_state: GameState) -> None:
         for factory in game_state.player_factories:
@@ -221,7 +237,7 @@ class Scheduler:
     def _schedule_unassigned_units_goals(self, game_state: GameState) -> None:
         for factory in game_state.player_factories:
             for unit in factory.unscheduled_units:
-                if self._is_out_of_time():
+                if self._is_out_of_time_main_scheduling():
                     return
 
                 goal = unit.generate_dummy_goal(self.schedule_info)
@@ -236,7 +252,7 @@ class Scheduler:
         scores = dict()
 
         for factory in game_state.player_factories:
-            if factory.has_unit_available:
+            if factory.has_unit_available and factory not in self.factories_unavailable:
                 factory_signal = self._calculate_signal_factory(factory, game_state)
                 for (factory, strategy), signal in factory_signal.items():
                     scores[(factory, strategy)] = signal
@@ -312,16 +328,3 @@ class Scheduler:
         for connected_unit in [supplies, supplied_by]:
             if connected_unit:
                 self._unschedule_unit_goal(connected_unit, game_state)
-
-    def _get_schedule_info_without_unit_scheduled_actions(self, unit: Unit) -> ScheduleInfo:
-        if not unit.is_scheduled:
-            return self.schedule_info
-
-        game_state = self.schedule_info.game_state
-        constraints = copy(self.constraints)
-        power_tracker = copy(self.power_tracker)
-        constraints.remove_negative_constraints(unit.private_action_plan.get_time_coordinates(game_state))
-        power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
-        schedule_info = replace(self.schedule_info, constraints=constraints, power_tracker=power_tracker)
-
-        return schedule_info

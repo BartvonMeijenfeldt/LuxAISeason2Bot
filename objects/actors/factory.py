@@ -3,11 +3,10 @@ from __future__ import annotations
 import numpy as np
 
 
-from typing import Tuple, TYPE_CHECKING, Optional, Iterable, Set, Generator, List
+from typing import Tuple, TYPE_CHECKING, Optional, Iterable, Set, List
 from itertools import product
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from collections import Counter
-from copy import copy
 from enum import Enum, auto
 from math import floor
 
@@ -104,10 +103,10 @@ class Factory(Actor):
             self.positions_set = True
 
         if self in board.player_factories:
-            self._rubble_positions_to_clear_for_ore = self._get_rubble_positions_to_clear_for_pathing(
+            self._rubble_positions_to_clear_for_ore = self._get_positions_to_clear_for_resource_pathing(
                 board, self.ore_positions_distance_sorted[:5]
             )
-            self._rubble_positions_to_clear_for_ice = self._get_rubble_positions_to_clear_for_pathing(
+            self._rubble_positions_to_clear_for_ice = self._get_positions_to_clear_for_resource_pathing(
                 board, self.ice_positions_distance_sorted[:5]
             )
 
@@ -254,10 +253,18 @@ class Factory(Actor):
         is_empty_mask = board.are_empty_postions(neighboring_positions)
         return neighboring_positions[is_empty_mask]
 
-    def _get_rubble_positions_to_clear_for_pathing(self, board: Board, positions: np.ndarray) -> Set[Tuple]:
-        for ore_pos in positions[:5]:
-            closest_factory_pos = get_closest_pos_between_pos_and_positions(ore_pos, self.positions)
-            positions = get_positions_on_optimal_path_between_pos_and_pos(closest_factory_pos, ore_pos, board)
+    def _get_positions_to_clear_for_resource_pathing(self, board: Board, positions: np.ndarray) -> Set[Tuple]:
+        for i, pos in enumerate(positions[:5]):
+            closest_factory_pos = get_closest_pos_between_pos_and_positions(pos, self.positions)
+
+            if (
+                i
+                and Coordinate(*pos).distance_to(Coordinate(*closest_factory_pos))
+                > CONFIG.MAX_DISTANCE_FOR_RESOURCE_CLEARING
+            ):
+                continue
+
+            positions = get_positions_on_optimal_path_between_pos_and_pos(closest_factory_pos, pos, board)
             rubble_mask = board.are_rubble_positions(positions)
             rubble_positions = positions[rubble_mask]
             if rubble_positions.shape[0]:
@@ -374,12 +381,12 @@ class Factory(Actor):
         return FactoryNoGoal(self)
 
     @property
-    def light_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.units if unit.is_light)
+    def light_units(self) -> list[Unit]:
+        return [unit for unit in self.units if unit.is_light]
 
     @property
-    def heavy_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.units if unit.is_heavy)
+    def heavy_units(self) -> list[Unit]:
+        return [unit for unit in self.units if unit.is_heavy]
 
     @property
     def nr_light_units(self) -> int:
@@ -592,15 +599,15 @@ class Factory(Actor):
         return any(True for _ in self.heavy_units_unsupplied_collecting_next_to_factory_free_supply_c)
 
     @property
-    def heavy_units_unsupplied_collecting_next_to_factory_free_supply_c(self) -> Generator[Unit, None, None]:
-        return (
+    def heavy_units_unsupplied_collecting_next_to_factory_free_supply_c(self) -> List[Unit]:
+        return [
             heavy
             for heavy in self.heavy_units
             if isinstance(heavy.goal, CollectGoal)
             and self.min_distance_to_c(heavy.goal.dig_c) == 1
             and not heavy.supplied_by
             and not any(self.min_distance_to_c(c) == 1 for c in self.coordinates_in_supply_c_goals)
-        )
+        ]
 
     @property
     def coordinates_in_supply_c_goals(self) -> list[Coordinate]:
@@ -623,41 +630,41 @@ class Factory(Actor):
         return any(True for _ in self.light_available_units)
 
     @property
-    def available_units(self) -> Generator[Unit, None, None]:
+    def available_units(self) -> List[Unit]:
         # TODO some checks to see if there is enough power or some other mechanic to set units as unavailable
-        return (
+        return [
             unit
             for unit in self.units
             if unit.can_update_action_queue and not unit.private_action_plan and unit.can_be_assigned
-        )
+        ]
 
     @property
-    def heavy_available_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.available_units if unit.is_heavy)
+    def heavy_available_units(self) -> List[Unit]:
+        return [unit for unit in self.available_units if unit.is_heavy]
 
     @property
-    def light_available_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.available_units if unit.is_light)
+    def light_available_units(self) -> List[Unit]:
+        return [unit for unit in self.available_units if unit.is_light]
 
     @property
-    def attack_scheduled_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.scheduled_units if isinstance(unit.goal, DestroyLichenGoal))
+    def attack_scheduled_units(self) -> List[Unit]:
+        return [unit for unit in self.scheduled_units if isinstance(unit.goal, DestroyLichenGoal)]
 
     @property
-    def scheduled_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.units if unit.is_scheduled)
+    def scheduled_units(self) -> List[Unit]:
+        return [unit for unit in self.units if unit.is_scheduled]
 
     @property
-    def unscheduled_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.units if not unit.is_scheduled)
+    def unscheduled_units(self) -> List[Unit]:
+        return [unit for unit in self.units if not unit.is_scheduled]
 
     @property
-    def units_with_ice(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.units if unit.ice)
+    def units_with_ice(self) -> List[Unit]:
+        return [unit for unit in self.units if unit.ice]
 
     @property
-    def units_collecting_ice(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.units if isinstance(unit.goal, CollectIceGoal))
+    def units_collecting_ice(self) -> List[Unit]:
+        return [unit for unit in self.units if isinstance(unit.goal, CollectIceGoal)]
 
     @property
     def has_unassigned_units(self) -> bool:
@@ -668,11 +675,11 @@ class Factory(Actor):
         strategies: Iterable[Strategy],
         schedule_info: ScheduleInfo,
     ) -> List[UnitGoal]:
-        if self.sorted_threaths_invaders:
-            try:
-                return [self._schedule_hunt_invaders(schedule_info)]
-            except NoValidGoalFoundError:
-                pass
+        # if self.sorted_threaths_invaders:
+        #     try:
+        #         return [self._schedule_hunt_invaders(schedule_info)]
+        #     except NoValidGoalFoundError:
+        #         pass
 
         if self.has_heavy_unsupplied_collecting_next_to_factory_free_supply_c and self.has_light_unit_available:
             try:
@@ -681,14 +688,14 @@ class Factory(Actor):
                 pass
 
         for strategy in strategies:
-            nr_retries = 3
+            nr_retries = 10
             for _ in range(nr_retries):
                 try:
                     return [self._schedule_unit_on_strategy(strategy, schedule_info)]
                 except NoValidGoalFoundError:
                     continue
 
-        return [self._schedule_first_unit_by_own_preference(schedule_info)]
+        raise NoValidGoalFoundError
 
     def _schedule_hunt_invaders(self, schedule_info: ScheduleInfo) -> UnitGoal:
         while self.sorted_threaths_invaders:
@@ -733,17 +740,6 @@ class Factory(Actor):
         else:
             raise ValueError("Strategy is not a known strategy")
 
-        return goal
-
-    def _schedule_first_unit_by_own_preference(self, schedule_info: ScheduleInfo) -> UnitGoal:
-        game_state = schedule_info.game_state
-
-        unit = next(self.available_units)
-        all_goals = unit.generate_goals(game_state, self)
-        best_goal = max(all_goals, key=lambda g: g.get_best_value_per_step(game_state))
-        dummy_goals = unit._get_dummy_goals(game_state)
-        goals = [best_goal] + dummy_goals
-        goal = unit.get_best_goal(goals, schedule_info)
         return goal
 
     def schedule_strategy_increase_lichen(self, schedule_info: ScheduleInfo) -> UnitGoal:
@@ -792,9 +788,9 @@ class Factory(Actor):
 
         unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(schedule_info.game_state))
         if isinstance(goal, DigGoal):
-            schedule_info = self._get_schedule_info_without_units_on_dig_c(goal.dig_c, schedule_info)
+            schedule_info = schedule_info.copy_without_units_on_dig_c(goal.dig_c)
 
-        schedule_info = self._get_schedule_info_without_unit_scheduled_actions(schedule_info, unit)
+        schedule_info = schedule_info.copy_without_unit_scheduled_actions(unit)
 
         goal = unit.get_best_version_goal(goal, schedule_info)
         return goal
@@ -823,7 +819,7 @@ class Factory(Actor):
         game_state = schedule_info.game_state
 
         supplying_unit, receiving_unit, receiving_c = self._assign_supplying_unit_and_receiving_unit(game_state)
-        schedule_info = self._get_schedule_info_without_unit_scheduled_actions(schedule_info, receiving_unit)
+        schedule_info = schedule_info.copy_without_unit_scheduled_actions(receiving_unit)
 
         goal_receiving_unit = self._reschedule_receiving_collect_goal(
             schedule_info=schedule_info,
@@ -1020,10 +1016,10 @@ class Factory(Actor):
         dig_pos_set = {c.xy for c in game_state.opp_lichen_tiles}
         valid_pos = dig_pos_set - game_state.positions_in_dig_goals
 
-        if CONFIG.FIRST_STEP_HEAVY_ALLOWED_TO_DESTROY_LICHEN < game_state.real_env_steps:
-            units = self.light_available_units
-        else:
+        if game_state.real_env_steps >= CONFIG.FIRST_STEP_HEAVY_ALLOWED_TO_DESTROY_LICHEN:
             units = self.available_units
+        else:
+            units = self.light_available_units
 
         potential_assignments = [
             (unit, goal)
@@ -1047,6 +1043,9 @@ class Factory(Actor):
                 continue
 
         for unit in self.units_with_ice:
+            if isinstance(unit.goal, TransferIceGoal):
+                continue
+
             try:
                 return unit.generate_transfer_ice_goal(schedule_info, self)
             except Exception:
@@ -1087,42 +1086,7 @@ class Factory(Actor):
         nr_steps_to_reduce = step_ice_incoming - nr_steps_to_go
         ice_to_transfer = goal.quantity_ice_to_transfer(schedule_info.game_state)
         new_quantity = ice_to_transfer - nr_steps_to_reduce * unit.resources_gained_per_dig
-        schedule_info_without_unit = self._get_schedule_info_without_unit_scheduled_actions(schedule_info, unit)
+        schedule_info_without_unit = schedule_info.copy_without_unit_scheduled_actions(unit)
         return unit.generate_collect_ice_goal(
             schedule_info_without_unit, goal.dig_c, goal.is_supplied, self, new_quantity
         )
-
-    def _get_schedule_info_without_unit_scheduled_actions(
-        self, schedule_info: ScheduleInfo, unit: Unit
-    ) -> ScheduleInfo:
-        if not unit.is_scheduled:
-            return schedule_info
-
-        game_state = schedule_info.game_state
-        constraints = copy(schedule_info.constraints)
-        power_tracker = copy(schedule_info.power_tracker)
-
-        constraints.remove_negative_constraints(unit.private_action_plan.get_time_coordinates(game_state))
-        power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
-        schedule_info = replace(schedule_info, constraints=constraints, power_tracker=power_tracker)
-
-        return schedule_info
-
-    def _get_schedule_info_without_units_on_dig_c(self, c: Coordinate, schedule_info: ScheduleInfo) -> ScheduleInfo:
-        game_state = schedule_info.game_state
-        constraints = copy(schedule_info.constraints)
-        power_tracker = copy(schedule_info.power_tracker)
-
-        for unit in game_state.units:
-            if (
-                unit.is_scheduled
-                and isinstance(unit.goal, DigGoal)
-                and unit.goal.dig_c == c
-                and unit.private_action_plan
-            ):
-                constraints.remove_negative_constraints(unit.private_action_plan.get_time_coordinates(game_state))
-                power_tracker.remove_power_requests(unit.private_action_plan.get_power_requests(game_state))
-
-        schedule_info = replace(schedule_info, constraints=constraints, power_tracker=power_tracker)
-
-        return schedule_info
