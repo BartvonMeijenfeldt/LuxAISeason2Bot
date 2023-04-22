@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import List, Sequence, Optional, TYPE_CHECKING, Iterable
+from typing import List, Optional, TYPE_CHECKING, Iterable
 from functools import lru_cache
 from math import ceil
 
@@ -20,7 +20,6 @@ from logic.constraints import Constraints
 from objects.direction import Direction, NON_STATIONARY_DIRECTIONS
 from logic.goals.unit_goal import (
     UnitGoal,
-    DigGoal,
     CollectIceGoal,
     ClearRubbleGoal,
     CollectOreGoal,
@@ -144,6 +143,10 @@ class Unit(Actor):
 
         return last_step_plan.actions == current_plan.actions
 
+    def generate_non_conflicting_goal(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        dummy_goals = self._get_dummy_goals(schedule_info.game_state)
+        return self.get_best_goal(dummy_goals, schedule_info)
+
     @property
     def first_action_of_queue_and_private_action_plan_same(self) -> bool:
         if not self.action_queue or not self.private_action_plan:
@@ -152,21 +155,6 @@ class Unit(Actor):
         first_action_of_queue = self.action_queue[0]
         first_action_of_plan = self.private_action_plan.primitive_actions[0]
         return first_action_of_queue.next_step_equal(first_action_of_plan)
-
-    def generate_goals(self, game_state: GameState, factory: Factory) -> list[UnitGoal]:
-        goals = self._generate_goals(game_state, factory)
-        goals = self._filter_goals(goals, game_state)
-        return goals
-
-    def _generate_goals(self, game_state: GameState, factory: Factory) -> List[UnitGoal]:
-        self._init_goals()
-        self._add_base_goals(game_state, factory)
-        self._add_dummy_goals()
-
-        return self.goals
-
-    def _init_goals(self) -> None:
-        self.goals = []
 
     def next_step_walks_into_tile_where_it_might_be_captured(self, game_state: GameState) -> bool:
         return (self.is_light and self.next_step_walks_into_opponent_heavy(game_state)) or (
@@ -289,13 +277,12 @@ class Unit(Actor):
             try:
                 action_plan = goal.generate_action_plan(schedule_info)
             except Exception:
-                if not goal.key.startswith("No_Goal_"):
-                    self.infeasible_assignments.add(goal.assignment_key)
-
+                self._if_non_dummy_goal_add_to_infeasible_assignments(goal)
                 continue
 
             value = goal.get_value_per_step_of_action_plan(action_plan, game_state)
             if value < 0 and not goal.is_dummy_goal:
+                self._if_non_dummy_goal_add_to_infeasible_assignments(goal)
                 continue
 
             priority = -1 * value
@@ -305,6 +292,10 @@ class Unit(Actor):
                 return goal
 
         raise NoValidGoalFoundError
+
+    def _if_non_dummy_goal_add_to_infeasible_assignments(self, goal: UnitGoal) -> None:
+        if not goal.key.startswith("No_Goal_"):
+            self.infeasible_assignments.add(goal.assignment_key)
 
     def _get_constraints_with_danger_tcs(self, constraints: Constraints, game_state: GameState) -> Constraints:
         constraints_with_danger = copy(constraints)
@@ -336,28 +327,6 @@ class Unit(Actor):
         ]
 
         return rubble_goals
-
-    def _add_rubble_goals(self, factory: Factory, game_state: GameState) -> None:
-        rubble_positions = factory.get_rubble_positions_to_clear(game_state)
-        rubble_goals = [
-            ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=Coordinate(*rubble_pos))
-            for rubble_pos in rubble_positions
-            for pickup_power in [False, True]
-        ]
-
-        self.goals.extend(rubble_goals)
-
-    def _add_base_goals(self, game_state: GameState, factory: Factory) -> None:
-        if self.is_light or game_state.real_env_steps > CONFIG.FIRST_STEP_HEAVY_ALLOWED_TO_DIG_RUBBLE:
-            self._add_rubble_goals(factory, game_state)
-        self._add_ice_goals(game_state, factory)
-
-        if game_state.real_env_steps <= CONFIG.LAST_STEP_SCHEDULE_ORE_MINING:
-            self._add_ore_goals(game_state, factory)
-
-        self._add_relevant_transfer_goals(game_state)
-        if game_state.real_env_steps >= CONFIG.START_STEP_DESTROYING_LICHEN:
-            self._add_destroy_lichen_goals(game_state, n=10)
 
     def generate_dummy_goal(self, schedule_info: ScheduleInfo) -> UnitGoal:
         dummy_goals = self._get_dummy_goals(schedule_info.game_state)
@@ -470,53 +439,17 @@ class Unit(Actor):
 
         return ice_goals
 
-    def _add_ice_goals(self, game_state: GameState, factory: Factory) -> None:
-        ice_positions = game_state.board.minable_ice_positions_set - game_state.positions_in_dig_goals
-
-        ice_goals = [
-            CollectIceGoal(
-                unit=self, pickup_power=pickup_power, dig_c=Coordinate(*ice_pos), factory=factory, is_supplied=False
-            )
-            for ice_pos in ice_positions
-            for pickup_power in [False, True]
-        ]
-
-        self.goals.extend(ice_goals)
-
-    def _add_ore_goals(self, game_state: GameState, factory: Factory) -> None:
-        ore_positions = game_state.board.minable_ore_positions_set - game_state.positions_in_dig_goals
-
-        ore_goals = [
-            CollectOreGoal(
-                unit=self, pickup_power=pickup_power, dig_c=Coordinate(*ore_pos), factory=factory, is_supplied=False
-            )
-            for ore_pos in ore_positions
-            for pickup_power in [False, True]
-        ]
-
-        self.goals.extend(ore_goals)
-
-    def _add_destroy_lichen_goals(self, game_state: GameState, n: int) -> None:
-        closest_lichen_tiles = game_state.get_n_closest_opp_lichen_tiles(c=self.tc, n=n)
-        destroy_lichen_goals = [
-            DestroyLichenGoal(unit=self, pickup_power=pickup_power, dig_c=lichen_tile)
-            for lichen_tile in closest_lichen_tiles
-            for pickup_power in [False, True]
-        ]
-        self.goals.extend(destroy_lichen_goals)
-
     def _get_destroy_lichen_goals(self, c: Coordinate, game_state: GameState) -> List[DestroyLichenGoal]:
         return [
             DestroyLichenGoal(self, pickup_power, c)
             for pickup_power in [False, True]
-            if self._is_feasible_dig_c(c, game_state)
+            if self._is_feasible_dig_c(c, game_state) and self.tc.distance_to(c) < CONFIG.MAX_DISTANCE_DESTROY_LICHEN
         ]
 
     def generate_camp_resource_goals(self, schedule_info: ScheduleInfo, resource_c: Coordinate) -> CampResourceGoal:
         camp_resource_goals = self._get_camp_resource_goals(resource_c)
         goal = self.get_best_goal(camp_resource_goals, schedule_info)
         return goal  # type: ignore
-        ...
 
     def _get_camp_resource_goals(self, resource_c: Coordinate) -> List[CampResourceGoal]:
         return [CampResourceGoal(self, resource_c, pickup_power) for pickup_power in [False, True]]
@@ -525,7 +458,6 @@ class Unit(Actor):
         hunt_goals = self._get_hunt_unit_goals(opp)
         goal = self.get_best_goal(hunt_goals, schedule_info)
         return goal  # type: ignore
-        ...
 
     def _get_hunt_unit_goals(self, opp: Unit) -> List[HuntGoal]:
         return [
@@ -536,35 +468,6 @@ class Unit(Actor):
 
     def _is_feasible_dig_c(self, c: Coordinate, game_state: GameState) -> bool:
         return not (self.is_light and game_state.get_dis_to_closest_opp_heavy(c) <= 1)
-
-    def _add_dummy_goals(self) -> None:
-        dummy_goals = [UnitNoGoal(self), EvadeConstraintsGoal(self)]
-        self.goals.extend(dummy_goals)
-
-    def _add_relevant_transfer_goals(self, game_state: GameState) -> None:
-        if self.cargo.ice:
-            self._add_transfer_ice_goal(game_state)
-        if self.cargo.ore:
-            self._add_transfer_ore_goal(game_state)
-
-    def _add_transfer_ice_goal(self, game_state: GameState, return_to_current_closest_factory: bool = True) -> None:
-        factory = game_state.get_closest_player_factory(c=self.tc) if return_to_current_closest_factory else None
-        goal = TransferIceGoal(self, factory)
-        self.goals.append(goal)
-
-    def _add_transfer_ore_goal(self, game_state: GameState, return_to_current_closest_factory: bool = True) -> None:
-        factory = game_state.get_closest_player_factory(c=self.tc) if return_to_current_closest_factory else None
-        goal = TransferOreGoal(self, factory)
-        self.goals.append(goal)
-
-    def _filter_goals(self, goals: Sequence[UnitGoal], game_state: GameState) -> List[UnitGoal]:
-        return [
-            goal
-            for goal in goals
-            if not (
-                self.is_light and isinstance(goal, DigGoal) and game_state.get_dis_to_closest_opp_heavy(goal.dig_c) <= 1
-            )
-        ]
 
     @lru_cache(8)
     def is_under_threath(self, game_state: GameState) -> bool:
@@ -699,3 +602,15 @@ class Unit(Actor):
 
     def is_feasible_assignment(self, goal: UnitGoal) -> bool:
         return goal.assignment_key not in self.infeasible_assignments
+
+    def can_not_move_this_step(self, game_state: GameState) -> bool:
+        if self.can_update_action_queue_and_move:
+            return False
+
+        if not self.primitive_actions_in_queue:
+            return False
+
+        if self.primitive_actions_in_queue[0].is_stationary:
+            return False
+
+        return UnitActionPlan(self, self.primitive_actions_in_queue[:1]).unit_has_enough_power(game_state)

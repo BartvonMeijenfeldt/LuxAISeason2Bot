@@ -16,6 +16,8 @@ class CONFIG:
 
     # Gameplay
     # --------------------------------------
+    MAX_DISTANCE_DESTROY_LICHEN: int = 50
+
     SEARCH_BUDGET_HEAVY: int = 300
     SEARCH_BUDGET_LIGHT: int = 150
 
@@ -26,7 +28,7 @@ class CONFIG:
     # TODO potential adaptation: start lower, and each timestep that passes increase the optimal path time to power cost
     OPTIMAL_PATH_TIME_TO_POWER_COST = 50
 
-    START_STEP_DESTROYING_LICHEN = 500
+    START_STEP_DESTROYING_LICHEN = 50
 
     RUBBLE_VALUE_CLEAR_FOR_RESOURCE: float = 10.0
     RUBBLE_VALUE_CLEAR_FOR_LICHEN_BASE: float = 10.0
@@ -65,6 +67,8 @@ class CONFIG:
 
     # Factory Scheduling
     # --------------------------------------
+    MAX_DISTANCE_FOR_RESOURCE_CLEARING: int = 15
+
     ICE_MUST_COME_IN_BEFORE_LEVEL: int = 3
     TOO_LITTLE_WATER_DISTRESS_LEVEL: int = 40
     DISTRESS_SIGNAL: int = 100
