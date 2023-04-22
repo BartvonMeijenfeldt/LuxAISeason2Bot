@@ -16,9 +16,10 @@ class CONFIG:
 
     # Gameplay
     # --------------------------------------
-
     SEARCH_BUDGET_HEAVY: int = 300
     SEARCH_BUDGET_LIGHT: int = 150
+
+    MIN_OWNERSHIP_REQUIRED_FOR_MINING: float = 0.34
 
     LIGHT_TIME_TO_POWER_COST = 5
     HEAVY_TIME_TO_POWER_COST = 10
@@ -35,7 +36,7 @@ class CONFIG:
 
     # Supply Power
     LOW_ECO_FACTORY_THRESHOLD: int = 4000
-    MINIMUM_POWER_RECEIVING_UNIT_LOW_ECO: int = 120
+    MINIMUM_POWER_RECEIVING_UNIT_LOW_ECO: int = 180
 
     # 1 ice -> 0.25 water -> 5 power (best case, alternating water)
     ICE_TO_POWER: float = 5

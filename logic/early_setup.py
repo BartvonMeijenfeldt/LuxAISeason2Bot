@@ -75,10 +75,20 @@ def _get_factory_pos_connects_to_island_pos(
     for island_positions in islands_positions_list:
         connected_tiles_mask = _get_is_connected_mask(factory_positions, island_positions)
         island_tiles_mask = _get_island_tiles_mask(island_positions)
-        booleans_to_add = (connected_tiles_mask[..., None, None] & island_tiles_mask[None, None, ...]).max(axis=2)
+        booleans_to_add = _get_booleans_to_add(connected_tiles_mask, island_tiles_mask)
         factory_pos_connected_to_rubble_pos += booleans_to_add
 
     return factory_pos_connected_to_rubble_pos.astype(bool)
+
+
+def _get_booleans_to_add(connected_tiles_mask: np.ndarray, island_tiles_mask: np.ndarray) -> np.ndarray:
+    booleans_to_add = np.zeros((EnvConfig.map_size,) * 4, dtype=bool)
+    for i in range(island_tiles_mask.shape[0]):
+        connected_tiles_mask_i = connected_tiles_mask[..., i]
+        tile_i_boolean = island_tiles_mask[i]
+        booleans_to_add[connected_tiles_mask_i, tile_i_boolean] += True
+
+    return booleans_to_add
 
 
 def _get_is_connected_mask(factory_positions: np.ndarray, island_positions: np.ndarray) -> np.ndarray:

@@ -82,6 +82,7 @@ class Factory(Actor):
 
     def _set_unit_state_variables(self) -> None:
         self.is_scheduled = False
+        self.distress_signal_can_not_be_handled = False
         self.positions = np.array([[self.x + x, self.y + y] for x, y in product(range(-1, 2), range(-1, 2))])
 
     def update_state(self, center_tc: TimeCoordinate, power: int, cargo: Cargo) -> None:
@@ -142,6 +143,29 @@ class Factory(Actor):
         self.nr_connected_positions = len(self.connected_positions)
         self.nr_connected_positions_non_lichen_connected = self.nr_connected_positions - self.nr_connected_lichen_tiles
         self.max_nr_tiles_to_water = len(self.connected_lichen_positions) + len(self.can_spread_to_positions)
+
+    #     if board.player_factories and board.opp_factories:
+    #         self.internal_normalized_resource_ownership = self._get_internal_resource_ownership(board)
+
+    # def _get_internal_resource_ownership(self, board: Board) -> dict[tuple, float]:
+    #     resource_positions = board.resource_positions
+    #     if len(board.player_factories) == 1:
+    #         normalized_ownership = np.ones(resource_positions.shape[0], dtype=float)
+    #     else:
+    #         sum_distances = sum(
+    #             [
+    #                 get_min_distances_between_positions(resource_positions, fact.positions)
+    #                 for fact in board.player_factories
+    #             ]
+    #         )
+
+    #         self_distances = get_min_distances_between_positions(resource_positions, self.positions)
+    #         normalized_ownership = (sum_distances - self_distances) / sum_distances
+    #         normalized_ownership = (
+    #             normalized_ownership / (len(board.player_factories) - 1) * len(board.player_factories)
+    #         )
+
+    #     return {tuple(pos): percent for pos, percent in zip(resource_positions, normalized_ownership)}
 
     def _set_positions_once(self, board: Board) -> None:
         self.ice_positions_distance_sorted = self._get_positions_distance_sorted(board.ice_positions)
@@ -881,7 +905,7 @@ class Factory(Actor):
 
     def _schedule_heavy_on_ore(self, schedule_info: ScheduleInfo) -> UnitGoal:
         game_state = schedule_info.game_state
-        valid_ore_positions_set = game_state.board.ore_positions_set - game_state.positions_in_heavy_dig_goals
+        valid_ore_positions_set = game_state.board.minable_ore_positions_set - game_state.positions_in_heavy_dig_goals
         goal = self._schedule_unit_on_ore_pos(valid_ore_positions_set, self.heavy_available_units, schedule_info)
         return goal
 
@@ -901,7 +925,7 @@ class Factory(Actor):
 
     def _schedule_light_on_ore(self, schedule_info: ScheduleInfo) -> UnitGoal:
         game_state = schedule_info.game_state
-        valid_ore_positions_set = game_state.board.ore_positions_set - game_state.positions_in_dig_goals
+        valid_ore_positions_set = game_state.board.minable_ore_positions_set - game_state.positions_in_dig_goals
         return self._schedule_unit_on_ore_pos(valid_ore_positions_set, self.light_available_units, schedule_info)
 
     def _schedule_unit_on_ore_pos(
@@ -928,7 +952,7 @@ class Factory(Actor):
 
     def _schedule_heavy_on_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
         game_state = schedule_info.game_state
-        valid_ice_positions_set = game_state.board.ice_positions_set - game_state.positions_in_heavy_dig_goals
+        valid_ice_positions_set = game_state.board.minable_ice_positions_set - game_state.positions_in_heavy_dig_goals
         return self._schedule_unit_on_ice_pos(valid_ice_positions_set, self.heavy_available_units, schedule_info)
 
     def _schedule_light_on_ice_task(self, schedule_info: ScheduleInfo) -> UnitGoal:
@@ -943,7 +967,7 @@ class Factory(Actor):
 
     def _schedule_light_on_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
         game_state = schedule_info.game_state
-        valid_ice_positions_set = game_state.board.ice_positions_set - game_state.positions_in_dig_goals
+        valid_ice_positions_set = game_state.board.minable_ice_positions_set - game_state.positions_in_dig_goals
         return self._schedule_unit_on_ice_pos(valid_ice_positions_set, self.light_available_units, schedule_info)
 
     def _schedule_unit_on_ice_pos(
@@ -1007,6 +1031,9 @@ class Factory(Actor):
         return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
 
     def schedule_strategy_immediately_return_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        if self.distress_signal_can_not_be_handled:
+            raise NoValidGoalFoundError
+
         nr_steps_to_go = self.water - CONFIG.ICE_MUST_COME_IN_BEFORE_LEVEL
 
         for unit in self.units_collecting_ice:
@@ -1022,25 +1049,27 @@ class Factory(Actor):
                 continue
 
         try:
-            self._schedule_any_heavy_on_ice(schedule_info)
+            return self._schedule_any_heavy_on_ice(schedule_info)
         except Exception:
             pass
 
         try:
-            self._schedule_any_light_on_ice(schedule_info)
+            return self._schedule_any_light_on_ice(schedule_info)
         except Exception:
             pass
+
+        self.distress_signal_can_not_be_handled = True
 
         raise NoValidGoalFoundError
 
     def _schedule_any_heavy_on_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
         game_state = schedule_info.game_state
-        valid_ice_positions_set = game_state.board.ice_positions_set - game_state.positions_in_heavy_dig_goals
+        valid_ice_positions_set = game_state.board.minable_ice_positions_set - game_state.positions_in_heavy_dig_goals
         return self._schedule_unit_on_ice_pos(valid_ice_positions_set, self.heavy_units, schedule_info)
 
     def _schedule_any_light_on_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
         game_state = schedule_info.game_state
-        valid_ice_positions_set = game_state.board.ice_positions_set - game_state.positions_in_dig_goals
+        valid_ice_positions_set = game_state.board.minable_ice_positions_set - game_state.positions_in_dig_goals
         return self._schedule_unit_on_ice_pos(valid_ice_positions_set, self.light_units, schedule_info)
 
     def _attempt_get_shortened_collect_ice_goal(
