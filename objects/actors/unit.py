@@ -143,10 +143,6 @@ class Unit(Actor):
 
         return last_step_plan.actions == current_plan.actions
 
-    def generate_non_conflicting_goal(self, schedule_info: ScheduleInfo) -> UnitGoal:
-        dummy_goals = self._get_dummy_goals(schedule_info.game_state)
-        return self.get_best_goal(dummy_goals, schedule_info)
-
     @property
     def first_action_of_queue_and_private_action_plan_same(self) -> bool:
         if not self.action_queue or not self.private_action_plan:
@@ -281,7 +277,7 @@ class Unit(Actor):
                 continue
 
             value = goal.get_value_per_step_of_action_plan(action_plan, game_state)
-            if value < 0 and not goal.is_dummy_goal:
+            if value <= 0 and not goal.is_dummy_goal:
                 self._if_non_dummy_goal_add_to_infeasible_assignments(goal)
                 continue
 
@@ -294,7 +290,7 @@ class Unit(Actor):
         raise NoValidGoalFoundError
 
     def _if_non_dummy_goal_add_to_infeasible_assignments(self, goal: UnitGoal) -> None:
-        if not goal.key.startswith("No_Goal_"):
+        if not goal.is_dummy_goal:
             self.infeasible_assignments.add(goal.assignment_key)
 
     def _get_constraints_with_danger_tcs(self, constraints: Constraints, game_state: GameState) -> Constraints:
@@ -443,7 +439,9 @@ class Unit(Actor):
         return [
             DestroyLichenGoal(self, pickup_power, c)
             for pickup_power in [False, True]
-            if self._is_feasible_dig_c(c, game_state) and self.tc.distance_to(c) < CONFIG.MAX_DISTANCE_DESTROY_LICHEN
+            if self._is_feasible_dig_c(c, game_state)
+            and self.tc.distance_to(c) < CONFIG.MAX_DISTANCE_DESTROY_LICHEN
+            and game_state.get_dis_to_closest_opp_heavy(c) > 1
         ]
 
     def generate_camp_resource_goals(self, schedule_info: ScheduleInfo, resource_c: Coordinate) -> CampResourceGoal:

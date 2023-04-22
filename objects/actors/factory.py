@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 
-from typing import Tuple, TYPE_CHECKING, Optional, Iterable, Set, Generator, List
+from typing import Tuple, TYPE_CHECKING, Optional, Iterable, Set, List
 from itertools import product
 from dataclasses import dataclass, field
 from collections import Counter
@@ -381,12 +381,12 @@ class Factory(Actor):
         return FactoryNoGoal(self)
 
     @property
-    def light_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.units if unit.is_light)
+    def light_units(self) -> list[Unit]:
+        return [unit for unit in self.units if unit.is_light]
 
     @property
-    def heavy_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.units if unit.is_heavy)
+    def heavy_units(self) -> list[Unit]:
+        return [unit for unit in self.units if unit.is_heavy]
 
     @property
     def nr_light_units(self) -> int:
@@ -599,15 +599,15 @@ class Factory(Actor):
         return any(True for _ in self.heavy_units_unsupplied_collecting_next_to_factory_free_supply_c)
 
     @property
-    def heavy_units_unsupplied_collecting_next_to_factory_free_supply_c(self) -> Generator[Unit, None, None]:
-        return (
+    def heavy_units_unsupplied_collecting_next_to_factory_free_supply_c(self) -> List[Unit]:
+        return [
             heavy
             for heavy in self.heavy_units
             if isinstance(heavy.goal, CollectGoal)
             and self.min_distance_to_c(heavy.goal.dig_c) == 1
             and not heavy.supplied_by
             and not any(self.min_distance_to_c(c) == 1 for c in self.coordinates_in_supply_c_goals)
-        )
+        ]
 
     @property
     def coordinates_in_supply_c_goals(self) -> list[Coordinate]:
@@ -630,41 +630,41 @@ class Factory(Actor):
         return any(True for _ in self.light_available_units)
 
     @property
-    def available_units(self) -> Generator[Unit, None, None]:
+    def available_units(self) -> List[Unit]:
         # TODO some checks to see if there is enough power or some other mechanic to set units as unavailable
-        return (
+        return [
             unit
             for unit in self.units
             if unit.can_update_action_queue and not unit.private_action_plan and unit.can_be_assigned
-        )
+        ]
 
     @property
-    def heavy_available_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.available_units if unit.is_heavy)
+    def heavy_available_units(self) -> List[Unit]:
+        return [unit for unit in self.available_units if unit.is_heavy]
 
     @property
-    def light_available_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.available_units if unit.is_light)
+    def light_available_units(self) -> List[Unit]:
+        return [unit for unit in self.available_units if unit.is_light]
 
     @property
-    def attack_scheduled_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.scheduled_units if isinstance(unit.goal, DestroyLichenGoal))
+    def attack_scheduled_units(self) -> List[Unit]:
+        return [unit for unit in self.scheduled_units if isinstance(unit.goal, DestroyLichenGoal)]
 
     @property
-    def scheduled_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.units if unit.is_scheduled)
+    def scheduled_units(self) -> List[Unit]:
+        return [unit for unit in self.units if unit.is_scheduled]
 
     @property
-    def unscheduled_units(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.units if not unit.is_scheduled)
+    def unscheduled_units(self) -> List[Unit]:
+        return [unit for unit in self.units if not unit.is_scheduled]
 
     @property
-    def units_with_ice(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.units if unit.ice)
+    def units_with_ice(self) -> List[Unit]:
+        return [unit for unit in self.units if unit.ice]
 
     @property
-    def units_collecting_ice(self) -> Generator[Unit, None, None]:
-        return (unit for unit in self.units if isinstance(unit.goal, CollectIceGoal))
+    def units_collecting_ice(self) -> List[Unit]:
+        return [unit for unit in self.units if isinstance(unit.goal, CollectIceGoal)]
 
     @property
     def has_unassigned_units(self) -> bool:
@@ -688,16 +688,14 @@ class Factory(Actor):
                 pass
 
         for strategy in strategies:
-            nr_retries = 1
+            nr_retries = 10
             for _ in range(nr_retries):
                 try:
                     return [self._schedule_unit_on_strategy(strategy, schedule_info)]
                 except NoValidGoalFoundError:
                     continue
 
-        # raise NoValidGoalFoundError
-
-        return [self._schedule_first_unit_by_own_preference(schedule_info)]
+        raise NoValidGoalFoundError
 
     def _schedule_hunt_invaders(self, schedule_info: ScheduleInfo) -> UnitGoal:
         while self.sorted_threaths_invaders:
@@ -743,10 +741,6 @@ class Factory(Actor):
             raise ValueError("Strategy is not a known strategy")
 
         return goal
-
-    def _schedule_first_unit_by_own_preference(self, schedule_info: ScheduleInfo) -> UnitGoal:
-        unit = next(self.available_units)
-        return unit.generate_non_conflicting_goal(schedule_info)
 
     def schedule_strategy_increase_lichen(self, schedule_info: ScheduleInfo) -> UnitGoal:
         if not self.enough_water_collection_for_next_turns():
@@ -1022,10 +1016,10 @@ class Factory(Actor):
         dig_pos_set = {c.xy for c in game_state.opp_lichen_tiles}
         valid_pos = dig_pos_set - game_state.positions_in_dig_goals
 
-        if CONFIG.FIRST_STEP_HEAVY_ALLOWED_TO_DESTROY_LICHEN < game_state.real_env_steps:
-            units = self.light_available_units
-        else:
+        if game_state.real_env_steps >= CONFIG.FIRST_STEP_HEAVY_ALLOWED_TO_DESTROY_LICHEN:
             units = self.available_units
+        else:
+            units = self.light_available_units
 
         potential_assignments = [
             (unit, goal)

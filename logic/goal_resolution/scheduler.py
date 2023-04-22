@@ -1,9 +1,9 @@
 import time
 import logging
 
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Set
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from objects.game_state import GameState
 from objects.coordinate import TimeCoordinate
@@ -18,21 +18,34 @@ from logic.goals.factory_goal import BuildLightGoal
 from logic.goals.unit_goal import UnitGoal, DigGoal, SupplyPowerGoal
 from exceptions import NoValidGoalFoundError
 from logic.goal_resolution.factory_signal import SIGNALS
+from config import CONFIG
 
 
 @dataclass
 class Scheduler:
     turn_start_time: float
     DEBUG_MODE: bool
+    factories_unavailable: Set[Factory] = field(init=False, default_factory=set)
 
-    def _is_out_of_time(self) -> bool:
+    def _is_out_of_time_main_scheduling(self) -> bool:
         if self.DEBUG_MODE:
             return False
 
-        is_out_of_time = self._get_time_taken() > 2.8
+        is_out_of_time = self._get_time_taken() > CONFIG.OUT_OF_TIME_MAIN_SCHEDULING
 
         if is_out_of_time:
-            logging.critical("RAN OUT OF TIME")
+            logging.critical("RAN OUT OF TIME MAIN SCHEDULING")
+
+        return is_out_of_time
+
+    def _is_out_of_time_scheduling_unassigned_units(self) -> bool:
+        if self.DEBUG_MODE:
+            return False
+
+        is_out_of_time = self._get_time_taken() > CONFIG.OUT_OF_TIME_UNASSIGNED_SCHEDULING
+
+        if is_out_of_time:
+            logging.critical("RAN OUT OF TIME UNASSIGNED SCHEDULING")
 
         return is_out_of_time
 
@@ -170,7 +183,7 @@ class Scheduler:
             self._reserve_tc_and_power_factories(game_state)
 
         while True:
-            if not self._exists_available_unit(game_state) or self._is_out_of_time():
+            if not self._exists_available_unit(game_state) or self._is_out_of_time_main_scheduling():
                 break
 
             scores = self._score_signal_strategies_for_factories_with_available_units(game_state)
@@ -180,13 +193,21 @@ class Scheduler:
             try:
                 goals = factory.schedule_units(strategies, self.schedule_info)
             except Exception:
+                self._set_factory_unavailable(factory)
                 continue
 
             for goal in goals:
                 self._schedule_unit_on_goal(goal, game_state)
 
+    def _set_factory_unavailable(self, factory: Factory) -> None:
+        self.factories_unavailable.add(factory)
+
     def _exists_available_unit(self, game_state: GameState) -> bool:
-        return any(factory.has_unit_available for factory in game_state.player_factories)
+        return any(
+            factory.has_unit_available
+            for factory in game_state.player_factories
+            if factory not in self.factories_unavailable
+        )
 
     def _schedule_factory_goals(self, game_state: GameState) -> None:
         for factory in game_state.player_factories:
@@ -216,7 +237,7 @@ class Scheduler:
     def _schedule_unassigned_units_goals(self, game_state: GameState) -> None:
         for factory in game_state.player_factories:
             for unit in factory.unscheduled_units:
-                if self._is_out_of_time():
+                if self._is_out_of_time_main_scheduling():
                     return
 
                 goal = unit.generate_dummy_goal(self.schedule_info)
@@ -231,7 +252,7 @@ class Scheduler:
         scores = dict()
 
         for factory in game_state.player_factories:
-            if factory.has_unit_available:
+            if factory.has_unit_available and factory not in self.factories_unavailable:
                 factory_signal = self._calculate_signal_factory(factory, game_state)
                 for (factory, strategy), signal in factory_signal.items():
                     scores[(factory, strategy)] = signal

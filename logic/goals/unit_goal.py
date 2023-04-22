@@ -1286,10 +1286,10 @@ class DestroyLichenGoal(DigGoal):
         #         max_valid_digs_actions, game_state, constraints
         #     )
 
-        if len(max_valid_digs_actions) == 0:
-            raise InvalidGoalError
-
         self.action_plan.extend(max_valid_digs_actions)
+
+        if self.action_plan.nr_digs == 0:
+            raise InvalidGoalError
 
     def _get_max_useful_digs(self, game_state: GameState) -> int:
         return self._get_nr_max_digs_to_destroy_lichen(game_state)
@@ -1342,9 +1342,6 @@ class DestroyLichenGoal(DigGoal):
             return 10_000
 
         benefit = CONFIG.DESTROY_LICHEN_BASE_VALUE + lichen_removed * CONFIG.DESTROY_LICHEN_VALUE_PER_LICHEN
-
-        if game_state.real_env_steps > CONFIG.START_FOCUSSING_ON_DESTROYING_LICHEN:
-            benefit = benefit * CONFIG.FOCUS_ON_DESTROY_LICHEN_VALUE_MULTIPLIER
 
         return benefit
 
