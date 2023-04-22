@@ -29,7 +29,7 @@ class Scheduler:
         if self.DEBUG_MODE:
             return False
 
-        is_out_of_time = self._get_time_taken() > 2.5
+        is_out_of_time = self._get_time_taken() > 2.8
 
         if is_out_of_time:
             logging.critical("RAN OUT OF TIME")

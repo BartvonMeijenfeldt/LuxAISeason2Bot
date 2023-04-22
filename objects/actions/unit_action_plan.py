@@ -180,12 +180,12 @@ class UnitActionPlan(ActionPlan):
 
         return total_power
 
-    def can_add_action(self, action: UnitAction, game_state: GameState) -> bool:
-        return self.can_add_actions([action], game_state)
+    def can_add_action(self, action: UnitAction, game_state: GameState, min_power_end: int = 0) -> bool:
+        return self.can_add_actions([action], game_state, min_power_end=min_power_end)
 
-    def can_add_actions(self, actions: List[UnitAction], game_state: GameState) -> bool:
+    def can_add_actions(self, actions: List[UnitAction], game_state: GameState, min_power_end: int = 0) -> bool:
         new_action_plan = self + actions
-        return new_action_plan.unit_has_enough_power(game_state)
+        return new_action_plan.unit_has_enough_power(game_state, min_power_end=min_power_end)
 
     def actor_can_carry_out_plan(self, game_state: GameState) -> bool:
         return self.unit_has_enough_power(game_state=game_state)
@@ -213,7 +213,7 @@ class UnitActionPlan(ActionPlan):
     def _init_simulator(self) -> ActionPlanSimulator:
         return ActionPlanSimulator(action_plan=self, unit=self.actor)
 
-    def unit_has_enough_power(self, game_state: GameState) -> bool:
+    def unit_has_enough_power(self, game_state: GameState, min_power_end: int = 0) -> bool:
         if self.is_empty():
             return True
 
@@ -224,7 +224,7 @@ class UnitActionPlan(ActionPlan):
         except ValueError:
             return False
 
-        return True
+        return simulator.cur_power >= min_power_end
 
     def to_lux_output(self):
         return [action.to_lux_output() for action in self.actions[: EnvConfig.UNIT_ACTION_QUEUE_SIZE]]

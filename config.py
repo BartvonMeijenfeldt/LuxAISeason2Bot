@@ -17,6 +17,9 @@ class CONFIG:
     # Gameplay
     # --------------------------------------
 
+    SEARCH_BUDGET_HEAVY: int = 300
+    SEARCH_BUDGET_LIGHT: int = 150
+
     LIGHT_TIME_TO_POWER_COST = 5
     HEAVY_TIME_TO_POWER_COST = 10
     # TODO potential adaptation: start lower, and each timestep that passes increase the optimal path time to power cost
@@ -29,6 +32,10 @@ class CONFIG:
     RUBBLE_VALUE_CLEAR_FOR_LICHEN_DISTANCE_PENALTY: float = 1.0
     RUBBLE_CLEAR_FOR_LICHEN_MAX_DISTANCE: int = 3
     RUBBLE_CLEAR_FOR_LICHEN_BONUS_CLEARING: int = 50
+
+    # Supply Power
+    LOW_ECO_FACTORY_THRESHOLD: int = 4000
+    MINIMUM_POWER_RECEIVING_UNIT_LOW_ECO: int = 120
 
     # 1 ice -> 0.25 water -> 5 power (best case, alternating water)
     ICE_TO_POWER: float = 5
@@ -52,20 +59,29 @@ class CONFIG:
 
     TURN_1_NR_DIGS_HEAVY: int = 37
     LAST_STEP_SCHEDULE_ORE_MINING: int = 900
-    FIRST_STEP_HEAVY_ALLOWED_TO_DIG_RUBBLE: int = 300
+    FIRST_STEP_HEAVY_ALLOWED_TO_DIG_RUBBLE: int = 1000
     FIRST_STEP_HEAVY_ALLOWED_TO_DESTROY_LICHEN: int = 300
 
     # Factory Scheduling
     # --------------------------------------
+    ICE_MUST_COME_IN_BEFORE_LEVEL: int = 3
+    TOO_LITTLE_WATER_DISTRESS_LEVEL: int = 40
+    DISTRESS_SIGNAL: int = 100
+
     WATER_COLLECTION_VERSUS_USAGE_MIN_TARGET: float = 1.2
+
+    # Too Little Lichen
+    MAX_SIGNAL_TOO_LITTE_LICHEN: int = 3
+    MIN_TILES_GROWTH_TARGET: int = 100
 
     # Power Usage
     EXPECTED_POWER_CONSUMPTION_HEAVY_PER_TURN: float = 40
     EXPECTED_POWER_CONSUMPTION_LIGHT_PER_TURN: float = 3.5
 
     # PowerUnitSignal
-    POWER_UNIT_RATIO_NR_STEPS: int = 50
+    POWER_UNIT_RATIO_NR_STEPS: int = 100
 
     # UnitImportanceSignal
     START_UNIT_IMPORTANCE_SIGNAL: float = 2.0
     LAST_TURN_UNIT_IMPORTANCE: int = 900
+    UNIT_IMPORTANCE_MIN_LEVEL_POWER_UNIT: float = 0.8
