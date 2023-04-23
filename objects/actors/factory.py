@@ -29,6 +29,7 @@ from logic.goals.unit_goal import (
     DestroyLichenGoal,
     CampResourceGoal,
     TransferIceGoal,
+    TransferOreGoal,
 )
 from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal, FactoryGoal
 from distances import (
@@ -713,6 +714,22 @@ class Factory(Actor):
         return [unit for unit in self.units if unit.is_heavy and unit.main_cargo == Resource.ORE]
 
     @property
+    def heavies_not_having_ice_goal(self) -> List[Unit]:
+        return [
+            unit
+            for unit in self.units
+            if unit.is_heavy and not (isinstance(unit.goal, CollectIceGoal) or isinstance(unit.goal, TransferIceGoal))
+        ]
+
+    @property
+    def lights_not_having_ice_goal(self) -> List[Unit]:
+        return [
+            unit
+            for unit in self.units
+            if unit.is_light and not (isinstance(unit.goal, CollectIceGoal) or isinstance(unit.goal, TransferIceGoal))
+        ]
+
+    @property
     def units_collecting_ice(self) -> List[Unit]:
         return [unit for unit in self.units if isinstance(unit.goal, CollectIceGoal)]
 
@@ -1109,6 +1126,9 @@ class Factory(Actor):
             pass
 
         for unit in self.heavies_with_main_ore:
+            if isinstance(unit.goal, TransferOreGoal):
+                continue
+
             try:
                 return unit.generate_transfer_ore_goal(schedule_info, self)
             except Exception:
@@ -1121,12 +1141,12 @@ class Factory(Actor):
     def _schedule_any_heavy_on_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
         game_state = schedule_info.game_state
         valid_ice_positions_set = game_state.board.minable_ice_positions_set - game_state.positions_in_heavy_dig_goals
-        return self._schedule_unit_on_ice_pos(valid_ice_positions_set, self.heavy_units, schedule_info)
+        return self._schedule_unit_on_ice_pos(valid_ice_positions_set, self.heavies_not_having_ice_goal, schedule_info)
 
     def _schedule_any_light_on_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
         game_state = schedule_info.game_state
         valid_ice_positions_set = game_state.board.minable_ice_positions_set - game_state.positions_in_dig_goals
-        return self._schedule_unit_on_ice_pos(valid_ice_positions_set, self.light_units, schedule_info)
+        return self._schedule_unit_on_ice_pos(valid_ice_positions_set, self.lights_not_having_ice_goal, schedule_info)
 
     def _attempt_get_shortened_collect_ice_goal(
         self, schedule_info: ScheduleInfo, unit: Unit, nr_steps_to_go: int
