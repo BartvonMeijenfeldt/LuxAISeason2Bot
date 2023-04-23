@@ -1,9 +1,5 @@
-import time
-import logging
-
-from typing import Dict, Tuple, List, Set
+from typing import Dict, Tuple, List
 from collections import defaultdict
-from dataclasses import dataclass, field
 
 from objects.game_state import GameState
 from objects.coordinate import TimeCoordinate
@@ -18,39 +14,13 @@ from logic.goals.factory_goal import BuildLightGoal
 from logic.goals.unit_goal import UnitGoal, DigGoal, SupplyPowerGoal
 from exceptions import NoValidGoalFoundError
 from logic.goal_resolution.factory_signal import SIGNALS
+from logic.goal_resolution.time_tracker import TimeTracker
 from config import CONFIG
 
 
-@dataclass
 class Scheduler:
-    turn_start_time: float
-    DEBUG_MODE: bool
-    factories_unavailable: Set[Factory] = field(init=False, default_factory=set)
-
-    def _is_out_of_time_main_scheduling(self) -> bool:
-        if self.DEBUG_MODE:
-            return False
-
-        is_out_of_time = self._get_time_taken() > CONFIG.OUT_OF_TIME_MAIN_SCHEDULING
-
-        if is_out_of_time:
-            logging.critical("RAN OUT OF TIME MAIN SCHEDULING")
-
-        return is_out_of_time
-
-    def _is_out_of_time_scheduling_unassigned_units(self) -> bool:
-        if self.DEBUG_MODE:
-            return False
-
-        is_out_of_time = self._get_time_taken() > CONFIG.OUT_OF_TIME_UNASSIGNED_SCHEDULING
-
-        if is_out_of_time:
-            logging.critical("RAN OUT OF TIME UNASSIGNED SCHEDULING")
-
-        return is_out_of_time
-
-    def _get_time_taken(self) -> float:
-        return time.time() - self.turn_start_time
+    def __init__(self, turn_start_time: float, DEBUG_MODE: bool):
+        self.time_tracker = TimeTracker(turn_start_time, DEBUG_MODE=DEBUG_MODE)
 
     def schedule_goals(self, game_state: GameState) -> None:
         self._init_constraints_and_power_tracker(game_state)
@@ -179,40 +149,38 @@ class Scheduler:
 
     def _schedule_new_goals(self, game_state: GameState) -> None:
         self._schedule_factory_goals(game_state)
-        if game_state.real_env_steps < 6:
-            self._reserve_tc_and_power_factories(game_state)
 
         while True:
-            if not self._exists_available_unit(game_state) or self._is_out_of_time_main_scheduling():
+            if not self._exists_available_unit(game_state) or self.time_tracker.is_out_of_time_main_scheduling():
                 break
 
-            scores = self._score_signal_strategies_for_factories_with_available_units(game_state)
-            factory = self._get_highest_priority_factory(scores)
-            strategies = self._get_priority_sorted_strategies_factory(factory, scores)
+            factory_strategies = self._get_priority_sorted_strategies_factory(game_state)
 
-            try:
-                goals = factory.schedule_units(strategies, self.schedule_info)
-            except Exception:
-                self._set_factory_unavailable(factory)
-                continue
+            for factory, strategy in factory_strategies:
+                try:
+                    goals = factory.schedule_units(strategy, self.schedule_info)
+                except Exception:
+                    continue
 
-            for goal in goals:
-                self._schedule_unit_on_goal(goal, game_state)
+                for goal in goals:
+                    self._schedule_unit_on_goal(goal, game_state)
 
-    def _set_factory_unavailable(self, factory: Factory) -> None:
-        self.factories_unavailable.add(factory)
+                break
 
     def _exists_available_unit(self, game_state: GameState) -> bool:
         return any(
             factory.has_unit_available
             for factory in game_state.player_factories
-            if factory not in self.factories_unavailable
+            if factory.nr_schedule_failures_this_step <= CONFIG.MAX_SCHEDULING_FAILURES_ALLOWED_FACTORY
         )
 
     def _schedule_factory_goals(self, game_state: GameState) -> None:
         for factory in game_state.player_factories:
             action_plan = factory.schedule_goal(self.schedule_info)
             self._update_constraints_and_power_tracker(game_state, action_plan)
+
+        if game_state.real_env_steps < 6:
+            self._reserve_tc_and_power_factories(game_state)
 
     def _reserve_tc_and_power_factories(self, game_state: GameState) -> None:
         # Hacky method to ensure that there will be enough power available to build the first units and make sure
@@ -237,14 +205,16 @@ class Scheduler:
     def _schedule_unassigned_units_goals(self, game_state: GameState) -> None:
         for factory in game_state.player_factories:
             for unit in factory.unscheduled_units:
-                if self._is_out_of_time_main_scheduling():
+                if self.time_tracker.is_out_of_time_scheduling_unassigned_units():
                     return
 
                 goal = unit.generate_dummy_goal(self.schedule_info)
                 self._schedule_unit_on_goal(goal, game_state)
 
-    def _get_highest_priority_factory(self, scores: Dict[Tuple[Factory, Strategy], float]) -> Factory:
-        return max(scores, key=scores.get)[0]  # type: ignore
+    def _get_priority_sorted_strategies_factory(self, game_state: GameState) -> List[Tuple[Factory, Strategy]]:
+        scores = self._score_signal_strategies_for_factories_with_available_units(game_state)
+        sorted_factory_strategies = sorted(scores, key=lambda x: -1 * scores[x])  # type: ignore
+        return sorted_factory_strategies
 
     def _score_signal_strategies_for_factories_with_available_units(
         self, game_state: GameState
@@ -252,19 +222,15 @@ class Scheduler:
         scores = dict()
 
         for factory in game_state.player_factories:
-            if factory.has_unit_available and factory not in self.factories_unavailable:
+            if (
+                factory.has_unit_available
+                and factory.nr_schedule_failures_this_step <= CONFIG.MAX_SCHEDULING_FAILURES_ALLOWED_FACTORY
+            ):
                 factory_signal = self._calculate_signal_factory(factory, game_state)
                 for (factory, strategy), signal in factory_signal.items():
                     scores[(factory, strategy)] = signal
 
         return scores
-
-    def _get_priority_sorted_strategies_factory(
-        self, factory, signals: Dict[Tuple[Factory, Strategy], float]
-    ) -> List[Strategy]:
-        strategies_factory = [strat for (fact, strat), signal in signals.items() if fact == factory and signal > 0]
-        strategies_factory.sort(key=lambda s: -signals[factory, s])
-        return strategies_factory
 
     def _calculate_signal_factory(
         self, factory: Factory, game_state: GameState

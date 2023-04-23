@@ -82,6 +82,7 @@ class Factory(Actor):
     def _set_unit_state_variables(self) -> None:
         self.is_scheduled = False
         self.distress_signal_can_not_be_handled = False
+        self.nr_schedule_failures_this_step = 0
         self.positions = np.array([[self.x + x, self.y + y] for x, y in product(range(-1, 2), range(-1, 2))])
 
     def update_state(self, center_tc: TimeCoordinate, power: int, cargo: Cargo) -> None:
@@ -670,11 +671,7 @@ class Factory(Actor):
     def has_unassigned_units(self) -> bool:
         return any(not unit.private_action_plan for unit in self.units)
 
-    def schedule_units(
-        self,
-        strategies: Iterable[Strategy],
-        schedule_info: ScheduleInfo,
-    ) -> List[UnitGoal]:
+    def schedule_units(self, strategy: Strategy, schedule_info: ScheduleInfo) -> List[UnitGoal]:
         # if self.sorted_threaths_invaders:
         #     try:
         #         return [self._schedule_hunt_invaders(schedule_info)]
@@ -687,13 +684,12 @@ class Factory(Actor):
             except NoValidGoalFoundError:
                 pass
 
-        for strategy in strategies:
-            nr_retries = 10
-            for _ in range(nr_retries):
-                try:
-                    return [self._schedule_unit_on_strategy(strategy, schedule_info)]
-                except NoValidGoalFoundError:
-                    continue
+        try:
+            return [self._schedule_unit_on_strategy(strategy, schedule_info)]
+        except NoValidGoalFoundError:
+            pass
+
+        self.nr_schedule_failures_this_step += 1
 
         raise NoValidGoalFoundError
 
@@ -724,7 +720,6 @@ class Factory(Actor):
         return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
 
     def _schedule_unit_on_strategy(self, strategy: Strategy, schedule_info: ScheduleInfo) -> UnitGoal:
-
         if strategy == Strategy.INCREASE_LICHEN_TILES:
             goal = self.schedule_strategy_increase_lichen_tiles(schedule_info)
         elif strategy == Strategy.INCREASE_LICHEN:

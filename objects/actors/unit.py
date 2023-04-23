@@ -204,7 +204,6 @@ class Unit(Actor):
         next_c = self.tc + next_action.unit_direction
         return game_state.is_opponent_heavy_on_tile(next_c)
 
-    # Dummy Goal added in case we can not reach factory, should add partial fleeing to solve this problem
     def generate_transfer_or_dummy_goal(self, schedule_info: ScheduleInfo) -> UnitGoal:
         game_state = schedule_info.game_state
 
@@ -214,11 +213,7 @@ class Unit(Actor):
         goal = self.get_best_goal(goals, schedule_info)
         return goal
 
-    def _get_flee_goal(self, game_state: GameState) -> FleeGoal:
-        # TODO, this should be getting all threatening opponents and the flee goal should be adapted to
-        # take multiple opponents into account
-        # neighboring_opponents = self._get_neighboring_opponents(game_state)
-        # randomly_picked_neighboring_opponent = neighboring_opponents[0]
+    def _get_flee_goal(self) -> FleeGoal:
         flee_goal = FleeGoal(unit=self)
         return flee_goal
 
@@ -234,7 +229,6 @@ class Unit(Actor):
         return goals
 
     def generate_transfer_ice_goal(self, schedule_info: ScheduleInfo, factory: Factory) -> UnitGoal:
-
         goal = TransferIceGoal(self, factory)
         return self.get_best_goal([goal], schedule_info)
 
@@ -332,7 +326,7 @@ class Unit(Actor):
     def _get_dummy_goals(self, game_state: GameState) -> list[UnitGoal]:
         dummy_goals = [UnitNoGoal(self), EvadeConstraintsGoal(self)]
         if self.is_under_threath(game_state):
-            flee_goal = self._get_flee_goal(game_state)
+            flee_goal = self._get_flee_goal()
             dummy_goals.append(flee_goal)
 
         return dummy_goals

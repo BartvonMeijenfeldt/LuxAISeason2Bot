@@ -65,6 +65,7 @@ class CONFIG:
 
     # Factory Scheduling
     # --------------------------------------
+    MAX_SCHEDULING_FAILURES_ALLOWED_FACTORY: int = 30
     MAX_DISTANCE_FOR_RESOURCE_CLEARING: int = 15
 
     ICE_MUST_COME_IN_BEFORE_LEVEL: int = 3
@@ -94,5 +95,5 @@ class CONFIG:
     ATTACK_EN_MASSE_SIGNAL: float = 2.5
 
     # Schedule
-    OUT_OF_TIME_MAIN_SCHEDULING: float = 2.6
+    OUT_OF_TIME_MAIN_SCHEDULING: float = 2.5
     OUT_OF_TIME_UNASSIGNED_SCHEDULING: float = 2.8
