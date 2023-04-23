@@ -103,7 +103,7 @@ class Factory(Actor):
             self._set_positions_once(board)
             self.positions_set = True
 
-        if self in board.player_factories:
+        if self in board.player_factories and board.opp_factories:
             self._rubble_positions_to_clear_for_ore = self._get_positions_to_clear_for_resource_pathing(
                 board, self.ore_positions_distance_sorted[:5]
             )
@@ -256,6 +256,9 @@ class Factory(Actor):
 
     def _get_positions_to_clear_for_resource_pathing(self, board: Board, positions: np.ndarray) -> Set[Tuple]:
         for i, pos in enumerate(positions[:5]):
+            if hasattr(board, "minable_positions_set") and tuple(pos) not in board.minable_positions_set:
+                continue
+
             closest_factory_pos = get_closest_pos_between_pos_and_positions(pos, self.positions)
 
             if (
@@ -265,6 +268,8 @@ class Factory(Actor):
             ):
                 continue
 
+            # TODO, make sure the path prefers to stay away from the opponents factory so as to not
+            # Clear a path for him as well
             positions = get_positions_on_optimal_path_between_pos_and_pos(closest_factory_pos, pos, board)
             rubble_mask = board.are_rubble_positions(positions)
             rubble_positions = positions[rubble_mask]

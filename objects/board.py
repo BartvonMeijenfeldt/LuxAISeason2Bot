@@ -131,6 +131,7 @@ class Board:
             self.resource_ownership = self._get_resource_ownership()
             self.minable_ice_positions_set = self._get_minable_positions(self.ice_positions_set)
             self.minable_ore_positions_set = self._get_minable_positions(self.ore_positions_set)
+            self.minable_positions_set = self.minable_ice_positions_set | self.minable_ore_positions_set
 
     def _get_minable_positions(self, resource_positoins: Iterable[tuple]) -> set[tuple]:
         min_ownership_required = CONFIG.MIN_OWNERSHIP_REQUIRED_FOR_MINING
