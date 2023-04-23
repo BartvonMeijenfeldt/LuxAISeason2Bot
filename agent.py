@@ -65,7 +65,8 @@ class Agent:
         self.start_time = time.time()
 
     def _schedule_goals(self, game_state: GameState) -> None:
-        Scheduler(self.start_time, self.DEBUG_MODE).schedule_goals(game_state)
+        scheduler = Scheduler(self.start_time, self.DEBUG_MODE, game_state)
+        scheduler.schedule_goals()
 
     def _get_time_taken(self) -> float:
         return time.time() - self.start_time
