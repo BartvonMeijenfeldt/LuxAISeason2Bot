@@ -32,7 +32,7 @@ class PowerTracker:
 
     @staticmethod
     def _get_init_power_available_factory(factory: Factory, n: int) -> np.ndarray:
-        # TODO add the expected effect of Lichen
+        # TODO add the effect of expected Lichen
         expected_increase_power = np.arange(n) * factory.expected_power_gain
         return expected_increase_power + factory.power
 

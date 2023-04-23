@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+from typing import Optional
+from operator import itemgetter
 
-from objects.resource import Resource
+from objects.resource import Resource, NON_POWER_RESOURCES
 
 
 @dataclass
@@ -11,16 +13,25 @@ class Cargo:
     metal: int = 0
 
     def get_resource(self, resource: Resource) -> int:
-        if resource.name == "ICE":
+        if resource == Resource.ICE:
             return self.ice
-        elif resource.name == "ORE":
+        elif resource == Resource.ORE:
             return self.ore
-        elif resource.name == "WATER":
+        elif resource == Resource.WATER:
             return self.water
-        elif resource.name == "METAL":
+        elif resource == Resource.METAL:
             return self.metal
         else:
             raise ValueError("Unexpexcted resoruce")
+
+    @property
+    def main_resource(self) -> Optional[Resource]:
+        resources_and_quantities = [(resource, self.get_resource(resource)) for resource in NON_POWER_RESOURCES]
+        max_resource_and_quantity = max(resources_and_quantities, key=itemgetter(1))
+        if max_resource_and_quantity[1]:
+            return max_resource_and_quantity[0]
+
+        return None
 
     @property
     def total(self) -> int:

@@ -195,7 +195,6 @@ class DigTimeCoordinate(DigCoordinate, TimeCoordinate):
 @dataclass(eq=True, frozen=True)
 class PowerTimeCoordinate(TimeCoordinate):
     p: int
-    # TODO consider adding game state and maybe unit_cfg to add_action
     unit_cfg: UnitConfig
     game_state: GameState
 
@@ -226,8 +225,7 @@ class PowerTimeCoordinate(TimeCoordinate):
             p = self.p + action.get_power_change(self.unit_cfg, self, self.game_state.board)
         except IndexError:
             return -1
-        # TODO consider adding raising error if it's negative here
-        # Off by one?
+
         if is_day(self.t):
             p += self.unit_cfg.CHARGE
 

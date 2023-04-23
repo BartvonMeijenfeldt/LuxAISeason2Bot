@@ -22,10 +22,12 @@ from logic.goals.unit_goal import (
     UnitGoal,
     CollectIceGoal,
     ClearRubbleGoal,
+    CollectGoal,
     CollectOreGoal,
     DestroyLichenGoal,
     UnitNoGoal,
     FleeGoal,
+    TransferGoal,
     TransferIceGoal,
     TransferOreGoal,
     EvadeConstraintsGoal,
@@ -92,6 +94,7 @@ class Unit(Actor):
         self.update_action_queue_power_cost = self.unit_cfg.ACTION_QUEUE_POWER_COST
         self.cargo_space = self.unit_cfg.CARGO_SPACE
         self.nr_digs_empty_to_full_cargo = ceil(self.cargo_space / self.resources_gained_per_dig)
+        self.main_cargo_threshold = self._get_main_cargo_threshold()
 
     def _set_unit_state_variables(self) -> None:
         self.is_scheduled = False
@@ -107,6 +110,21 @@ class Unit(Actor):
         self.agent_id = f"player_{self.team_id}"
         self.primitive_actions_in_queue = get_primitive_actions_from_list(self.action_queue)
         self.nr_primitive_actions_in_queue = len(self.primitive_actions_in_queue)
+        self.main_cargo = self._get_main_cargo()
+
+    def _get_main_cargo_threshold(self) -> int:
+        return CONFIG.MAIN_CARGO_THRESHOLD_LIGHT if self.is_light else CONFIG.MAIN_CARGO_THRESHOLD_HEAVY
+
+    def _get_main_cargo(self) -> Optional[Resource]:
+        if not self.cargo.main_resource:
+            return None
+
+        quantity = self.get_quantity_resource(self.cargo.main_resource)
+
+        if quantity < self.main_cargo_threshold:
+            return None
+
+        return self.cargo.main_resource
 
     def has_too_little_power_for_first_action_in_queue(self, game_state: GameState) -> bool:
         if not self.primitive_actions_in_queue:
@@ -200,18 +218,8 @@ class Unit(Actor):
             return False
 
         next_action = self.action_queue[0]
-        #  TODO put this in proper function or something
         next_c = self.tc + next_action.unit_direction
         return game_state.is_opponent_heavy_on_tile(next_c)
-
-    def generate_transfer_or_dummy_goal(self, schedule_info: ScheduleInfo) -> UnitGoal:
-        game_state = schedule_info.game_state
-
-        transfer_goals = self._get_relevant_transfer_goals(game_state)
-        dummy_goals = self._get_dummy_goals(game_state)
-        goals = transfer_goals + dummy_goals
-        goal = self.get_best_goal(goals, schedule_info)
-        return goal
 
     def _get_flee_goal(self) -> FleeGoal:
         flee_goal = FleeGoal(unit=self)
@@ -220,25 +228,33 @@ class Unit(Actor):
     def _get_relevant_transfer_goals(self, game_state: GameState) -> List[UnitGoal]:
         goals = []
         if self.cargo.ice:
-            ice_goal = self._get_transfer_ice_goal(game_state)
+            ice_goal = self._get_transfer_ice_goal()
             goals.append(ice_goal)
         if self.cargo.ore:
-            ore_goal = self._get_transfer_ore_goal(game_state)
+            ore_goal = self._get_transfer_ore_goal()
             goals.append(ore_goal)
 
-        return goals
+        return self._filter_out_invalid_goals(goals, game_state)
 
     def generate_transfer_ice_goal(self, schedule_info: ScheduleInfo, factory: Factory) -> UnitGoal:
         goal = TransferIceGoal(self, factory)
+        if not self._is_valid_goal(goal, schedule_info.game_state):
+            raise NoValidGoalFoundError
+
         return self.get_best_goal([goal], schedule_info)
 
-    def _get_transfer_ice_goal(self, game_state: GameState, return_to_current_closest_factory: bool = True) -> UnitGoal:
-        factory = game_state.get_closest_player_factory(c=self.tc) if return_to_current_closest_factory else None
+    def generate_transfer_ore_goal(self, schedule_info: ScheduleInfo, factory: Factory) -> UnitGoal:
+        goal = TransferOreGoal(self, factory)
+        if not self._is_valid_goal(goal, schedule_info.game_state):
+            raise NoValidGoalFoundError
+
+        return self.get_best_goal([goal], schedule_info)
+
+    def _get_transfer_ice_goal(self, factory: Optional[Factory] = None) -> UnitGoal:
         goal = TransferIceGoal(self, factory)
         return goal
 
-    def _get_transfer_ore_goal(self, game_state: GameState, return_to_current_closest_factory: bool = True) -> UnitGoal:
-        factory = game_state.get_closest_player_factory(c=self.tc) if return_to_current_closest_factory else None
+    def _get_transfer_ore_goal(self, factory: Optional[Factory] = None) -> UnitGoal:
         goal = TransferOreGoal(self, factory)
         return goal
 
@@ -311,16 +327,16 @@ class Unit(Actor):
 
         return goals_priority_queue
 
-    def _get_clear_rubble_goals(self, c: Coordinate) -> list[ClearRubbleGoal]:
-        rubble_goals = [
-            ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=c) for pickup_power in [False, True]
-        ]
+    def get_clear_rubble_goals(self, game_state: GameState, c: Coordinate) -> list[ClearRubbleGoal]:
+        goals = [ClearRubbleGoal(unit=self, pickup_power=pickup_power, dig_c=c) for pickup_power in [False, True]]
 
-        return rubble_goals
+        return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
 
-    def generate_dummy_goal(self, schedule_info: ScheduleInfo) -> UnitGoal:
+    def generate_transfer_or_dummy_goal(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        transfer_goals = self._get_relevant_transfer_goals(schedule_info.game_state)
         dummy_goals = self._get_dummy_goals(schedule_info.game_state)
-        goal = self.get_best_goal(dummy_goals, schedule_info)
+        goals = transfer_goals + dummy_goals
+        goal = self.get_best_goal(goals, schedule_info)
         return goal
 
     def _get_dummy_goals(self, game_state: GameState) -> list[UnitGoal]:
@@ -329,10 +345,13 @@ class Unit(Actor):
             flee_goal = self._get_flee_goal()
             dummy_goals.append(flee_goal)
 
-        return dummy_goals
+        return self._filter_out_invalid_goals(dummy_goals, game_state)
 
     def generate_no_goal_goal(self, schedule_info: ScheduleInfo) -> UnitNoGoal:
         no_goal_goal = UnitNoGoal(self)
+        if not self._is_valid_goal(no_goal_goal, schedule_info.game_state):
+            raise NoValidGoalFoundError
+
         goal = self.get_best_goal([no_goal_goal], schedule_info)
         return goal  # type: ignore
 
@@ -344,7 +363,7 @@ class Unit(Actor):
         factory: Factory,
         quantity: Optional[int] = None,
     ) -> CollectOreGoal:
-        ore_goals = self._get_collect_ore_goals(c, schedule_info.game_state, factory, is_supplied, quantity)
+        ore_goals = self.get_collect_ore_goals(c, schedule_info.game_state, factory, is_supplied, quantity)
         goal = self.get_best_goal(ore_goals, schedule_info)
         return goal  # type: ignore
 
@@ -356,20 +375,21 @@ class Unit(Actor):
         receiving_c: Coordinate,
     ) -> SupplyPowerGoal:
         supply_c = schedule_info.game_state.get_closest_player_factory_c(c=receiving_c)
-        supply_goals = self._get_supply_power_goals(
-            receiving_unit, receiving_action_plan, receiving_c=receiving_c, supply_c=supply_c
+        supply_goals = self.get_supply_power_goals(
+            schedule_info.game_state, receiving_unit, receiving_action_plan, receiving_c=receiving_c, supply_c=supply_c
         )
         goal = self.get_best_goal(supply_goals, schedule_info)
         return goal  # type: ignore
 
-    def _get_supply_power_goals(
+    def get_supply_power_goals(
         self,
+        game_state: GameState,
         receiving_unit: Unit,
         receiving_action_plan: UnitActionPlan,
         receiving_c: Coordinate,
         supply_c: Coordinate,
     ) -> List[SupplyPowerGoal]:
-        return [
+        goals = [
             SupplyPowerGoal(
                 self,
                 receiving_unit=receiving_unit,
@@ -381,7 +401,9 @@ class Unit(Actor):
             for pickup_power in [True, False]
         ]
 
-    def _get_collect_ore_goals(
+        return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
+
+    def get_collect_ore_goals(
         self, c: Coordinate, game_state: GameState, factory: Factory, is_supplied: bool, quantity: Optional[int] = None
     ) -> list[CollectOreGoal]:
         ore_goals = [
@@ -394,10 +416,9 @@ class Unit(Actor):
                 quantity=quantity,
             )
             for pickup_power in [False, True]
-            if self._is_feasible_dig_c(c, game_state)
         ]
 
-        return ore_goals
+        return self._filter_out_invalid_goals(ore_goals, game_state)  # type: ignore
 
     def generate_collect_ice_goal(
         self,
@@ -407,11 +428,11 @@ class Unit(Actor):
         factory: Factory,
         quantity: Optional[int] = None,
     ) -> CollectIceGoal:
-        ice_goals = self._get_collect_ice_goals(c, schedule_info.game_state, factory, is_supplied, quantity)
+        ice_goals = self.get_collect_ice_goals(c, schedule_info.game_state, factory, is_supplied, quantity)
         goal = self.get_best_goal(ice_goals, schedule_info)
         return goal  # type: ignore
 
-    def _get_collect_ice_goals(
+    def get_collect_ice_goals(
         self, c: Coordinate, game_state: GameState, factory: Factory, is_supplied: bool, quantity: Optional[int] = None
     ) -> list[CollectIceGoal]:
         ice_goals = [
@@ -424,42 +445,36 @@ class Unit(Actor):
                 quantity=quantity,
             )
             for pickup_power in [False, True]
-            if self._is_feasible_dig_c(c, game_state)
         ]
 
-        return ice_goals
+        return self._filter_out_invalid_goals(ice_goals, game_state)  # type: ignore
 
-    def _get_destroy_lichen_goals(self, c: Coordinate, game_state: GameState) -> List[DestroyLichenGoal]:
-        return [
-            DestroyLichenGoal(self, pickup_power, c)
-            for pickup_power in [False, True]
-            if self._is_feasible_dig_c(c, game_state)
-            and self.tc.distance_to(c) < CONFIG.MAX_DISTANCE_DESTROY_LICHEN
-            and game_state.get_dis_to_closest_opp_heavy(c) > 1
-        ]
+    def get_destroy_lichen_goals(self, c: Coordinate, game_state: GameState) -> List[DestroyLichenGoal]:
+        goals = [DestroyLichenGoal(self, pickup_power, c) for pickup_power in [False, True]]
+
+        return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
 
     def generate_camp_resource_goals(self, schedule_info: ScheduleInfo, resource_c: Coordinate) -> CampResourceGoal:
-        camp_resource_goals = self._get_camp_resource_goals(resource_c)
+        camp_resource_goals = self.get_camp_resource_goals(schedule_info.game_state, resource_c)
         goal = self.get_best_goal(camp_resource_goals, schedule_info)
         return goal  # type: ignore
 
-    def _get_camp_resource_goals(self, resource_c: Coordinate) -> List[CampResourceGoal]:
-        return [CampResourceGoal(self, resource_c, pickup_power) for pickup_power in [False, True]]
+    def get_camp_resource_goals(self, game_state: GameState, resource_c: Coordinate) -> List[CampResourceGoal]:
+        goals = [CampResourceGoal(self, resource_c, pickup_power) for pickup_power in [False, True]]
+        return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
 
     def generate_hunt_unit_goals(self, schedule_info: ScheduleInfo, opp: Unit) -> HuntGoal:
-        hunt_goals = self._get_hunt_unit_goals(opp)
+        hunt_goals = self.get_hunt_unit_goals(schedule_info.game_state, opp)
         goal = self.get_best_goal(hunt_goals, schedule_info)
         return goal  # type: ignore
 
-    def _get_hunt_unit_goals(self, opp: Unit) -> List[HuntGoal]:
-        return [
+    def get_hunt_unit_goals(self, game_state: GameState, opp: Unit) -> List[HuntGoal]:
+        goals = [
             HuntGoal(self, opp, pickup_power)
             for pickup_power in [False, True]
             if pickup_power or self.power > opp.power
         ]
-
-    def _is_feasible_dig_c(self, c: Coordinate, game_state: GameState) -> bool:
-        return not (self.is_light and game_state.get_dis_to_closest_opp_heavy(c) <= 1)
+        return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
 
     @lru_cache(8)
     def is_under_threath(self, game_state: GameState) -> bool:
@@ -481,7 +496,7 @@ class Unit(Actor):
     def is_on_factory(self, game_state: GameState) -> bool:
         return game_state.is_player_factory_tile(self.tc)
 
-    def get_quantity_resource_in_cargo(self, resource: Resource) -> int:
+    def get_quantity_resource(self, resource: Resource) -> int:
         return self.cargo.get_resource(resource)
 
     def get_nr_digs_to_fill_cargo(self) -> int:
@@ -584,7 +599,7 @@ class Unit(Actor):
         return self.get_tcs_action_queue(game_state)[n]
 
     def get_nr_digs_to_quantity_resource(self, resource: Resource, q: int) -> int:
-        resource_in_cargo = self.get_quantity_resource_in_cargo(resource)
+        resource_in_cargo = self.get_quantity_resource(resource)
         if resource_in_cargo >= q:
             return 0
 
@@ -606,3 +621,37 @@ class Unit(Actor):
             return False
 
         return UnitActionPlan(self, self.primitive_actions_in_queue[:1]).unit_has_enough_power(game_state)
+
+    def _filter_out_invalid_goals(self, goals: Iterable[UnitGoal], game_state: GameState) -> List[UnitGoal]:
+        return [goal for goal in goals if self._is_valid_goal(goal, game_state)]
+
+    def _is_valid_goal(self, goal: UnitGoal, game_state: GameState) -> bool:
+        if not self._is_valid_goal_given_cargo(goal):
+            return False
+
+        if isinstance(goal, CollectGoal):
+            return self._is_valid_collect_goal(goal, game_state)
+
+        if isinstance(goal, DestroyLichenGoal):
+            return self._is_valid_destroy_lichen_goal(goal, game_state)
+
+        return True
+
+    def _is_valid_collect_goal(self, goal: CollectGoal, game_state: GameState) -> bool:
+        return not (self.is_light and game_state.get_dis_to_closest_opp_heavy(goal.dig_c) <= 1)
+
+    def _is_valid_destroy_lichen_goal(self, goal: DestroyLichenGoal, game_state: GameState) -> bool:
+        return (
+            self._is_feasible_dig_c(goal.dig_c, game_state)
+            and self.tc.distance_to(goal.dig_c) < CONFIG.MAX_DISTANCE_DESTROY_LICHEN
+            and game_state.get_dis_to_closest_opp_heavy(goal.dig_c) > 1
+        )
+
+    def _is_feasible_dig_c(self, c: Coordinate, game_state: GameState) -> bool:
+        return not (self.is_light and game_state.get_dis_to_closest_opp_heavy(c) <= 1)
+
+    def _is_valid_goal_given_cargo(self, goal: UnitGoal) -> bool:
+        if not self.main_cargo or goal.is_dummy_goal:
+            return True
+
+        return (isinstance(goal, CollectGoal) or isinstance(goal, TransferGoal)) and goal.resource == self.main_cargo
