@@ -163,7 +163,7 @@ class TilesToClearGraph(GoalGraph):
         action_power_cost = self.get_power_cost(action=action, to_c=to_c)
         return action_power_cost + self.time_to_power_cost
 
-    # TODO, consider is_valid_action node to exclude resource tiles
+    # TODO, consider is_valid_action node to exclude resource tiles Or at least a big extra cost
 
     def potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
         return self._potential_actions

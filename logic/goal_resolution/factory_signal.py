@@ -28,7 +28,7 @@ class AlmostOutOfWaterSignal(FactorySignal):
 
         water_supply_factory = factory.water + factory.ice * EnvConfig.ICE_WATER_RATIO
         if water_supply_factory < CONFIG.TOO_LITTLE_WATER_DISTRESS_LEVEL:
-            water_supply_and_incoming = factory.get_incoming_ice_before_no_water() * EnvConfig.ICE_WATER_RATIO
+            water_supply_and_incoming = factory.get_incoming_ice_before_no_water(game_state) * EnvConfig.ICE_WATER_RATIO
             if water_supply_and_incoming < CONFIG.TOO_LITTLE_WATER_DISTRESS_LEVEL:
                 return CONFIG.DISTRESS_SIGNAL
 
@@ -61,7 +61,6 @@ class IceCollectionSignal(FactorySignal):
 
 class PowerUnitSignal(FactorySignal):
     def compute_signal(self, factory: Factory, game_state: GameState) -> float:
-        # TODO go to multiplier and remove this:
         if game_state.real_env_steps <= 2:
             return 0.0
 
@@ -100,7 +99,7 @@ class AttackOpponentSignal(FactorySignal):
     def compute_signal(self, factory: Factory, game_state: GameState) -> float:
         if game_state.real_env_steps >= CONFIG.ATTACK_EN_MASSE_START_STEP:
             return CONFIG.ATTACK_EN_MASSE_SIGNAL
-        # TODO should be 1.0 if used a multiplier
+
         return 0.8
 
 

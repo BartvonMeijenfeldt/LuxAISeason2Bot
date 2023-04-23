@@ -218,18 +218,8 @@ class Unit(Actor):
             return False
 
         next_action = self.action_queue[0]
-        #  TODO put this in proper function or something
         next_c = self.tc + next_action.unit_direction
         return game_state.is_opponent_heavy_on_tile(next_c)
-
-    def generate_transfer_or_dummy_goal(self, schedule_info: ScheduleInfo) -> UnitGoal:
-        game_state = schedule_info.game_state
-
-        transfer_goals = self._get_relevant_transfer_goals(schedule_info.game_state)
-        dummy_goals = self._get_dummy_goals(game_state)
-        goals = transfer_goals + dummy_goals
-        goal = self.get_best_goal(goals, schedule_info)
-        return goal
 
     def _get_flee_goal(self) -> FleeGoal:
         flee_goal = FleeGoal(unit=self)
@@ -248,6 +238,13 @@ class Unit(Actor):
 
     def generate_transfer_ice_goal(self, schedule_info: ScheduleInfo, factory: Factory) -> UnitGoal:
         goal = TransferIceGoal(self, factory)
+        if not self._is_valid_goal(goal, schedule_info.game_state):
+            raise NoValidGoalFoundError
+
+        return self.get_best_goal([goal], schedule_info)
+
+    def generate_transfer_ore_goal(self, schedule_info: ScheduleInfo, factory: Factory) -> UnitGoal:
+        goal = TransferOreGoal(self, factory)
         if not self._is_valid_goal(goal, schedule_info.game_state):
             raise NoValidGoalFoundError
 
@@ -335,9 +332,11 @@ class Unit(Actor):
 
         return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
 
-    def generate_dummy_goal(self, schedule_info: ScheduleInfo) -> UnitGoal:
+    def generate_transfer_or_dummy_goal(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        transfer_goals = self._get_relevant_transfer_goals(schedule_info.game_state)
         dummy_goals = self._get_dummy_goals(schedule_info.game_state)
-        goal = self.get_best_goal(dummy_goals, schedule_info)
+        goals = transfer_goals + dummy_goals
+        goal = self.get_best_goal(goals, schedule_info)
         return goal
 
     def _get_dummy_goals(self, game_state: GameState) -> list[UnitGoal]:

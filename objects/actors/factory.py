@@ -528,18 +528,16 @@ class Factory(Actor):
         power_generation = EnvConfig.FACTORY_CHARGE + expected_lichen_size * EnvConfig.POWER_PER_CONNECTED_LICHEN_TILE
         return power_generation
 
-    def get_incoming_ice_before_no_water(self) -> int:
+    def get_incoming_ice_before_no_water(self, game_state: GameState) -> int:
         incoming_ice = 0
         for unit in self.scheduled_units:
             if not isinstance(unit.goal, CollectIceGoal) or isinstance(unit.goal, TransferIceGoal):
                 continue
 
             for action in unit.private_action_plan.primitive_actions[: self.water]:
-                if not isinstance(action, TransferAction):
-                    continue
-
-                if action.resource == Resource.ICE:
-                    incoming_ice += action.amount
+                if isinstance(action, TransferAction):
+                    incoming_ice += unit.goal.quantity_ice_to_transfer(game_state)
+                    break
 
         return incoming_ice
 
@@ -559,6 +557,7 @@ class Factory(Actor):
 
     def get_expected_power_consumption(self) -> float:
         metal_in_factory = self.metal + self.ore / EnvConfig.ORE_METAL_RATIO
+        # TODO should this be times some amount of steps to make sure we realized more metal consumption is incoming
         metal_collection = self.get_metal_collection_per_step()
         metal_expected = metal_in_factory + metal_collection
 
@@ -708,6 +707,10 @@ class Factory(Actor):
     @property
     def units_with_ice(self) -> List[Unit]:
         return [unit for unit in self.units if unit.ice]
+
+    @property
+    def heavies_with_main_ore(self) -> List[Unit]:
+        return [unit for unit in self.units if unit.is_heavy and unit.main_cargo == Resource.ORE]
 
     @property
     def units_collecting_ice(self) -> List[Unit]:
@@ -1105,7 +1108,11 @@ class Factory(Actor):
         except Exception:
             pass
 
-        # Set heavy with ore to transfergoal
+        for unit in self.heavies_with_main_ore:
+            try:
+                return unit.generate_transfer_ore_goal(schedule_info, self)
+            except Exception:
+                continue
 
         self.distress_signal_can_not_be_handled = True
 
@@ -1132,6 +1139,9 @@ class Factory(Actor):
         nr_steps_to_reduce = step_ice_incoming - nr_steps_to_go
         ice_to_transfer = goal.quantity_ice_to_transfer(schedule_info.game_state)
         new_quantity = ice_to_transfer - nr_steps_to_reduce * unit.resources_gained_per_dig
+        if new_quantity <= 0:
+            raise NoValidGoalFoundError
+
         schedule_info_without_unit = schedule_info.copy_without_unit_scheduled_actions(unit)
         return unit.generate_collect_ice_goal(
             schedule_info_without_unit, goal.dig_c, goal.is_supplied, self, new_quantity

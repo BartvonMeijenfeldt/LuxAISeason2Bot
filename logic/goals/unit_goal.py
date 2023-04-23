@@ -747,7 +747,6 @@ class SupplyPowerGoal(UnitGoal):
         return f"supply_power_to_{self.receiving_unit}"
 
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
-        # TODO adapt every 2 steps to reserve some extra power pickup
         return False
 
     @property
@@ -1026,7 +1025,10 @@ class CollectIceGoal(CollectGoal):
         return get_benefit_ice(game_state)
 
     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
-        return self._get_resources_collected_by_n_digs(self.action_plan.nr_digs, game_state)
+        resources_collected = self._get_resources_collected_by_n_digs(self.action_plan.nr_digs, game_state)
+        ice_in_cargo = self.unit.ice
+        ice_to_transfer = resources_collected + ice_in_cargo
+        return ice_to_transfer
 
     def quantity_ore_to_transfer(self, game_state: GameState) -> int:
         return 0
@@ -1083,7 +1085,10 @@ class CollectOreGoal(CollectGoal):
         return 0
 
     def quantity_ore_to_transfer(self, game_state: GameState) -> int:
-        return self._get_resources_collected_by_n_digs(self.action_plan.nr_digs, game_state)
+        resources_collected = self._get_resources_collected_by_n_digs(self.action_plan.nr_digs, game_state)
+        ore_in_cargo = self.unit.ore
+        ore_to_transfer = resources_collected + ore_in_cargo
+        return ore_to_transfer
 
 
 @dataclass

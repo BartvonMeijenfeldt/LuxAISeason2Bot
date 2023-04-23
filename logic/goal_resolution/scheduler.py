@@ -229,7 +229,7 @@ class Scheduler:
                 if self.time_tracker.is_out_of_time_scheduling_unassigned_units():
                     return
 
-                goal = unit.generate_dummy_goal(self.schedule_info)
+                goal = unit.generate_transfer_or_dummy_goal(self.schedule_info)
                 self._schedule_unit_on_goal(goal)
 
     def _get_priority_sorted_strategies_factory(self, game_state: GameState) -> List[Tuple[Factory, Strategy]]:
