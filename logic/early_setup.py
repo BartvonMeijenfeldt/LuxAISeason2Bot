@@ -60,7 +60,6 @@ def get_factory_pos_connects_to_empty_pos(rubble: np.ndarray) -> np.ndarray:
     factory_positions = _get_potential_factory_positions()
     islands = get_islands(rubble == 0)
 
-    # TODO optimize this function, takes almost 3 seconds
     factory_pos_connects_to_empty_pos = _get_factory_pos_connects_to_island_pos(islands, factory_positions)
     return factory_pos_connects_to_empty_pos
 
