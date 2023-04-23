@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, Sequence
 
 from dataclasses import dataclass
+from lux.config import EnvConfig
 
 if TYPE_CHECKING:
     from objects.board import Board
@@ -10,7 +11,6 @@ if TYPE_CHECKING:
     from objects.actors.unit import Unit
     from lux.team import Team
     from objects.coordinate import Coordinate, CoordinateList
-    from lux.config import EnvConfig
 
 
 @dataclass
@@ -91,7 +91,7 @@ class GameState:
 
     @property
     def steps_left(self) -> int:
-        return 1000 - self.real_env_steps
+        return EnvConfig.max_episode_length - self.real_env_steps - 1
 
     @property
     def ice_coordinates(self) -> CoordinateList:

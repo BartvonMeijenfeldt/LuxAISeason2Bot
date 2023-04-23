@@ -75,7 +75,7 @@ class Factory(Actor):
         self.id = int(self.unit_id[8:])
         self.x = self.center_tc.x
         self.y = self.center_tc.y
-
+        self.positions = np.array([[self.x + x, self.y + y] for x, y in product(range(-1, 2), range(-1, 2))])
         self.private_action_plan = FactoryActionPlan(self, [])
         self._set_unit_state_variables()
 
@@ -83,7 +83,21 @@ class Factory(Actor):
         self.is_scheduled = False
         self.distress_signal_can_not_be_handled = False
         self.nr_schedule_failures_this_step = 0
-        self.positions = np.array([[self.x + x, self.y + y] for x, y in product(range(-1, 2), range(-1, 2))])
+        self._set_resource_state_variables()
+
+    def _set_resource_state_variables(self) -> None:
+        self.water = self.cargo.water
+        self.ice = self.cargo.ice
+        self.ore = self.cargo.ore
+        self.metal = self.cargo.metal
+        self.water_after_processing = self._get_water_after_processing()
+        self.water_including_processed_ice = self._get_water_including_processed_ice()
+
+    def _get_water_after_processing(self) -> int:
+        return self.water + floor(min(self.ice, EnvConfig.FACTORY_PROCESSING_RATE_WATER) / EnvConfig.ICE_WATER_RATIO)
+
+    def _get_water_including_processed_ice(self) -> int:
+        return self.water + floor(self.ice / EnvConfig.ICE_WATER_RATIO)
 
     def update_state(self, center_tc: TimeCoordinate, power: int, cargo: Cargo) -> None:
         self.center_tc = center_tc
@@ -139,10 +153,14 @@ class Factory(Actor):
         )
 
         self.nr_connected_lichen_tiles = len(self.connected_lichen_positions)
+        self.nr_connected_lichen_tiles_after_not_watering = self._get_nr_connected_lichen_after_not_watering(board)
         self.nr_can_spread_positions = len(self.can_spread_positions)
         self.nr_connected_positions = len(self.connected_positions)
         self.nr_connected_positions_non_lichen_connected = self.nr_connected_positions - self.nr_connected_lichen_tiles
         self.max_nr_tiles_to_water = len(self.connected_lichen_positions) + len(self.can_spread_to_positions)
+
+    def _get_nr_connected_lichen_after_not_watering(self, board: Board) -> int:
+        return sum(1 for lichen_pos in self.lichen_positions_set if board.get_lichen_at_pos(lichen_pos) > 1)
 
     #     if board.player_factories and board.opp_factories:
     #         self.internal_normalized_resource_ownership = self._get_internal_resource_ownership(board)
@@ -353,38 +371,81 @@ class Factory(Actor):
         rel_positions = np.append(self.positions, self.connected_positions, axis=0)
         return get_min_distance_between_positions(rel_positions, positions)
 
-    # TODO Can build should be put into the constraints
-    def schedule_goal(self, schedule_info: ScheduleInfo, can_build: bool = True) -> FactoryActionPlan:
-        goal = self.get_goal(schedule_info.game_state, can_build)
+    def schedule_build_or_no_goal(self, schedule_info: ScheduleInfo) -> FactoryActionPlan:
+        goal = self.get_build_or_no_goal(schedule_info.game_state)
+        return self._generate_and_schedule_action_plan(goal, schedule_info)
+
+    def _generate_and_schedule_action_plan(self, goal: FactoryGoal, schedule_info: ScheduleInfo) -> FactoryActionPlan:
         action_plan = goal.generate_action_plan(schedule_info)
         self.goal = goal
         self.private_action_plan = action_plan
         return action_plan
 
-    def get_goal(self, game_state: GameState, can_build: bool = True) -> FactoryGoal:
-        water_cost = self.water_cost
-        safety_level = 50 if game_state.real_env_steps < 70 else 70
-        if can_build and self.can_build_heavy:
+    def get_build_or_no_goal(self, game_state: GameState) -> FactoryGoal:
+        if game_state.real_env_steps > CONFIG.LAST_STEP_UNIT_BUILDING:
+            return FactoryNoGoal(self)
+
+        if self.can_build_heavy:
             return BuildHeavyGoal(self)
 
-        elif (
-            can_build
-            and self.can_build_light
-            and (
-                self.nr_light_units < 15
-                or (self.nr_light_units < 20 and self.nr_heavy_units > 1)
-                or (self.nr_light_units < 30 and self.nr_heavy_units > 2)
-            )
+        elif self.can_build_light and (
+            self.nr_light_units < 15
+            or (self.nr_light_units < 20 and self.nr_heavy_units > 1)
+            or (self.nr_light_units < 30 and self.nr_heavy_units > 2)
         ):
             return BuildLightGoal(self)
 
-        elif self.cargo.water - water_cost > safety_level and (water_cost < 5 or self.water > 150):
-            return WaterGoal(self)
-
-        elif game_state.env_steps > 750 and self.can_water() and self.cargo.water - water_cost > game_state.steps_left:
-            return WaterGoal(self)
-
         return FactoryNoGoal(self)
+
+    def schedule_water_or_no_goal(self, schedule_info: ScheduleInfo) -> FactoryActionPlan:
+        goal = self.get_water_or_no_goal(schedule_info.game_state)
+        return self._generate_and_schedule_action_plan(goal, schedule_info)
+
+    def get_water_or_no_goal(self, game_state: GameState) -> FactoryGoal:
+        return WaterGoal(self) if self.wants_to_add_water_goal(game_state) else FactoryNoGoal(self)
+
+    def wants_to_add_water_goal(self, game_state: GameState) -> bool:
+        if self.water_after_processing - self.water_cost < EnvConfig.FACTORY_WATER_CONSUMPTION:
+            return False
+
+        min_ratio_always_water = min(game_state.steps_left, CONFIG.MIN_RATIO_WATER_WATER_COST_ALWAYS_GROW_LICHEN)
+        if self.water_after_processing / self.water_cost > min_ratio_always_water:
+            return True
+
+        water_available = self.water_after_processing - self.water_safety_level - self.water_cost
+        if water_available <= 0:
+            return False
+
+        # lichen_size_after_water = self.max_nr_tiles_to_water
+        # current_lichen_size = self.nr_connected_lichen_tiles
+        target_lichen_size = self.get_lichen_size_target_for_current_water_collection()
+        target_lichen_size = target_lichen_size * CONFIG.WATER_LICHEN_SIZE_FRACTION
+
+        if self.watering_grows_lichen:
+            return self.max_nr_tiles_to_water <= target_lichen_size
+
+        if self.not_watering_shrinks_lichen and self.nr_connected_lichen_tiles_after_not_watering < target_lichen_size:
+            return True
+
+        return water_available / self.water_cost > CONFIG.MIN_RATIO_WATER_WATER_COST_MAINTAIN_LICHEN
+
+    @property
+    def water_safety_level(self) -> int:
+        safety_level = floor(CONFIG.MIN_WATER_SAFETY_LEVEL + CONFIG.WATER_SAFETY_SLOPE_PER_STEP * self.center_tc.t)
+        safety_level = min(CONFIG.MAX_WATER_SAFETY_LEVEL, safety_level)
+        return safety_level
+
+    @property
+    def watering_grows_lichen(self) -> bool:
+        return self.max_nr_tiles_to_water > self.nr_connected_lichen_tiles
+
+    @property
+    def not_watering_shrinks_lichen(self) -> bool:
+        return self.nr_connected_lichen_tiles_after_not_watering < self.nr_connected_lichen_tiles
+
+    @property
+    def water_cost(self):
+        return WaterAction.get_water_cost(self)
 
     @property
     def light_units(self) -> list[Unit]:
@@ -426,10 +487,6 @@ class Factory(Actor):
     def can_build_light(self) -> bool:
         return self.power >= LIGHT_CONFIG.POWER_COST and self.cargo.metal >= LIGHT_CONFIG.METAL_COST
 
-    @property
-    def water_cost(self) -> int:
-        return WaterAction.get_water_cost(self)
-
     def can_water(self):
         return self.cargo.water >= self.water_cost
 
@@ -456,22 +513,6 @@ class Factory(Actor):
     @property
     def coordinates(self) -> CoordinateList:
         return CoordinateList([Coordinate(x, y) for x in self.pos_x_range for y in self.pos_y_range])
-
-    @property
-    def water(self) -> int:
-        return self.cargo.water
-
-    @property
-    def ice(self) -> int:
-        return self.cargo.ice
-
-    @property
-    def ore(self) -> int:
-        return self.cargo.ore
-
-    @property
-    def metal(self) -> int:
-        return self.cargo.metal
 
     def __repr__(self) -> str:
         return f"Factory[id={self.unit_id}, center={self.center_tc.xy}]"

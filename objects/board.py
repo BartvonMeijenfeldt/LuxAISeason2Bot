@@ -433,3 +433,6 @@ class Board:
 
     def is_resource_c(self, c: Coordinate) -> bool:
         return c.xy in self.resource_positions_set
+
+    def get_lichen_at_pos(self, pos: tuple) -> int:
+        return self.lichen[pos]

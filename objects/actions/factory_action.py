@@ -79,7 +79,8 @@ class WaterAction(FactoryAction):
     def get_water_cost(factory: Factory) -> int:
         # Might be less if you water at the same time as another factory
         max_nr_tiles_to_water = factory.max_nr_tiles_to_water
-        return np.ceil(max_nr_tiles_to_water / EnvConfig.LICHEN_WATERING_COST_FACTOR)
+        water_cost = np.ceil(max_nr_tiles_to_water / EnvConfig.LICHEN_WATERING_COST_FACTOR)
+        return max(1, water_cost)
 
     @staticmethod
     def to_lux_output() -> int:

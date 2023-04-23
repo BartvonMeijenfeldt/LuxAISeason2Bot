@@ -24,7 +24,7 @@ class CONFIG:
     MIN_OWNERSHIP_REQUIRED_FOR_MINING: float = 0.34
 
     LIGHT_TIME_TO_POWER_COST = 5
-    HEAVY_TIME_TO_POWER_COST = 10
+    HEAVY_TIME_TO_POWER_COST = 30
     # TODO potential adaptation: start lower, and each timestep that passes increase the optimal path time to power cost
     OPTIMAL_PATH_TIME_TO_POWER_COST = 50
 
@@ -97,3 +97,15 @@ class CONFIG:
     # Schedule
     OUT_OF_TIME_MAIN_SCHEDULING: float = 2.5
     OUT_OF_TIME_UNASSIGNED_SCHEDULING: float = 2.8
+
+    # Watering
+    MIN_RATIO_WATER_WATER_COST_ALWAYS_GROW_LICHEN: float = 25.0
+    MIN_RATIO_WATER_WATER_COST_MAINTAIN_LICHEN: float = 10.0
+    WATER_LICHEN_SIZE_FRACTION: float = 0.90
+
+    MIN_WATER_SAFETY_LEVEL: int = 50
+    WATER_SAFETY_SLOPE_PER_STEP: float = 0.02
+    MAX_WATER_SAFETY_LEVEL: int = 100
+
+    # Units Building
+    LAST_STEP_UNIT_BUILDING: int = 994
