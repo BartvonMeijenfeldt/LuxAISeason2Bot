@@ -36,7 +36,7 @@ class Scheduler:
 
         self._schedule_new_goals()
         self._schedule_unassigned_units_goals()
-        self._schedule_watering_or_no_goal_factories_with_collding_build_goal()
+        self._schedule_watering_or_no_goal_factories_with_colliding_build_goal()
 
     def _init_constraints_and_power_tracker(self, game_state: GameState) -> None:
         self.constraints = Constraints()
@@ -171,9 +171,7 @@ class Scheduler:
             if not self._exists_available_unit(game_state) or self.time_tracker.is_out_of_time_main_scheduling():
                 break
 
-            factory_strategies = self._get_priority_sorted_strategies_factory(game_state)
-
-            for factory, strategy in factory_strategies:
+            for factory, strategy in self._get_priority_sorted_strategies_factory(game_state):
                 try:
                     goals = factory.schedule_units(strategy, self.schedule_info)
                 except Exception:
@@ -266,7 +264,7 @@ class Scheduler:
 
         return dict(scores)
 
-    def _schedule_watering_or_no_goal_factories_with_collding_build_goal(self) -> None:
+    def _schedule_watering_or_no_goal_factories_with_colliding_build_goal(self) -> None:
         next_tc_units = set()
         for unit in self.schedule_info.game_state.player_units:
             next_tc = unit.private_action_plan.next_tc

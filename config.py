@@ -42,7 +42,7 @@ class CONFIG:
 
     # 1 ice -> 0.25 water -> 5 power (best case, alternating water)
     ICE_TO_POWER: float = 5
-    # Randomly set
+    # Slightly tweaked
     ORE_TO_POWER: float = 10
     BENEFIT_ORE_REDUCTION_PER_T: float = 0.01
 
@@ -109,3 +109,8 @@ class CONFIG:
 
     # Units Building
     LAST_STEP_UNIT_BUILDING: int = 994
+
+    # Units
+    # --------------------------------------
+    MAIN_CARGO_THRESHOLD_LIGHT = 20
+    MAIN_CARGO_THRESHOLD_HEAVY = 400

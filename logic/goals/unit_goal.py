@@ -661,7 +661,7 @@ class CollectGoal(DigGoal):
     def _get_benefit_n_digs(self, n_digs: int, game_state: GameState) -> float:
         # TODO split between resources digged and rubble removed
         nr_resources_digged = n_digs * self.unit.resources_gained_per_dig
-        nr_resources_unit = self.unit.get_quantity_resource_in_cargo(self.resource)
+        nr_resources_unit = self.unit.get_quantity_resource(self.resource)
         nr_resources_to_return = nr_resources_digged + nr_resources_unit
 
         benefit_resource = self.get_benefit_resource(game_state)
@@ -937,12 +937,12 @@ class SupplyPowerGoal(UnitGoal):
 
 
 @dataclass
-class TransferResourceGoal(UnitGoal):
+class TransferGoal(UnitGoal):
     factory: Optional[Factory] = field(default=None)
     resource: Resource = field(init=False)
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
-        return self.unit.get_quantity_resource_in_cargo(self.resource) == 0
+        return self.unit.get_quantity_resource(self.resource) == 0
 
     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         return False
@@ -981,7 +981,7 @@ class TransferResourceGoal(UnitGoal):
         return graph
 
     def _get_max_power_benefit(self, game_state: GameState) -> float:
-        nr_resources_unit = self.unit.get_quantity_resource_in_cargo(self.resource)
+        nr_resources_unit = self.unit.get_quantity_resource(self.resource)
         benefit_resource = self.get_benefit_resource(game_state)
         return benefit_resource * nr_resources_unit
 
@@ -1033,7 +1033,7 @@ class CollectIceGoal(CollectGoal):
 
 
 @dataclass
-class TransferIceGoal(TransferResourceGoal):
+class TransferIceGoal(TransferGoal):
     resource = Resource.ICE
 
     def __repr__(self) -> str:
@@ -1087,7 +1087,7 @@ class CollectOreGoal(CollectGoal):
 
 
 @dataclass
-class TransferOreGoal(TransferResourceGoal):
+class TransferOreGoal(TransferGoal):
     resource = Resource.ORE
 
     def __repr__(self) -> str:

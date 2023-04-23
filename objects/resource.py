@@ -7,3 +7,6 @@ class Resource(Enum):
     WATER = 2
     METAL = 3
     POWER = 4
+
+
+NON_POWER_RESOURCES = [resource for resource in Resource if resource != Resource.POWER]

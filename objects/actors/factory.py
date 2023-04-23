@@ -762,7 +762,9 @@ class Factory(Actor):
         self, invader: Unit, units: Iterable[Unit], schedule_info: ScheduleInfo
     ) -> UnitGoal:
 
-        potential_assignments = [(unit, goal) for unit in units for goal in unit._get_hunt_unit_goals(invader)]
+        potential_assignments = [
+            (unit, goal) for unit in units for goal in unit.get_hunt_unit_goals(schedule_info.game_state, invader)
+        ]
         return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
 
     def _schedule_unit_on_strategy(self, strategy: Strategy, schedule_info: ScheduleInfo) -> UnitGoal:
@@ -811,7 +813,7 @@ class Factory(Actor):
             (unit, goal)
             for unit in units
             for pos in rubble_positions
-            for goal in unit._get_clear_rubble_goals(Coordinate(*pos))
+            for goal in unit.get_clear_rubble_goals(schedule_info.game_state, Coordinate(*pos))
         ]
 
         return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
@@ -887,7 +889,8 @@ class Factory(Actor):
             (supply_unit, goal)
             for supply_unit in self.light_available_units
             for receiving_unit in self.heavy_units_unsupplied_collecting_next_to_factory_free_supply_c
-            for goal in supply_unit._get_supply_power_goals(
+            for goal in supply_unit.get_supply_power_goals(
+                game_state,
                 receiving_unit,
                 receiving_unit.private_action_plan,
                 receiving_unit.goal.dig_c,  # type: ignore
@@ -977,7 +980,7 @@ class Factory(Actor):
             (unit, goal)
             for unit in units
             for pos in ore_positions
-            for goal in unit._get_collect_ore_goals(
+            for goal in unit.get_collect_ore_goals(
                 Coordinate(*pos), schedule_info.game_state, factory=self, is_supplied=False
             )
         ]
@@ -1019,7 +1022,7 @@ class Factory(Actor):
             (unit, goal)
             for unit in units
             for pos in ice_positions
-            for goal in unit._get_collect_ice_goals(
+            for goal in unit.get_collect_ice_goals(
                 Coordinate(*pos), schedule_info.game_state, factory=self, is_supplied=False
             )
         ]
@@ -1041,7 +1044,7 @@ class Factory(Actor):
             (unit, goal)
             for pos in valid_postions
             for unit in units
-            for goal in unit._get_camp_resource_goals(Coordinate(*pos))
+            for goal in unit.get_camp_resource_goals(schedule_info.game_state, Coordinate(*pos))
         ]
 
         if not potential_assignments:
@@ -1066,7 +1069,7 @@ class Factory(Actor):
             (unit, goal)
             for pos in valid_pos
             for unit in units
-            for goal in unit._get_destroy_lichen_goals(Coordinate(*pos), game_state)
+            for goal in unit.get_destroy_lichen_goals(Coordinate(*pos), game_state)
         ]
 
         return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
@@ -1101,6 +1104,8 @@ class Factory(Actor):
             return self._schedule_any_light_on_ice(schedule_info)
         except Exception:
             pass
+
+        # Set heavy with ore to transfergoal
 
         self.distress_signal_can_not_be_handled = True
 
