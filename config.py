@@ -65,7 +65,7 @@ class CONFIG:
 
     # Factory Scheduling
     # --------------------------------------
-    MAX_SCHEDULING_FAILURES_ALLOWED_FACTORY: int = 30
+    MAX_SCHEDULING_FAILURES_ALLOWED_FACTORY: int = 100
     MAX_DISTANCE_FOR_RESOURCE_CLEARING: int = 15
 
     ICE_MUST_COME_IN_BEFORE_LEVEL: int = 3

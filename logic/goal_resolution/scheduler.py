@@ -213,6 +213,7 @@ class Scheduler:
 
     def _get_priority_sorted_strategies_factory(self, game_state: GameState) -> List[Tuple[Factory, Strategy]]:
         scores = self._score_signal_strategies_for_factories_with_available_units(game_state)
+        scores = {k: v for k, v in scores.items() if v > 0}
         sorted_factory_strategies = sorted(scores, key=lambda x: -1 * scores[x])  # type: ignore
         return sorted_factory_strategies
 
