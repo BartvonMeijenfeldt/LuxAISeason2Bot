@@ -135,7 +135,13 @@ class Factory(Actor):
         self.lichen_positions = np.argwhere(board.lichen_strains == self.strain_id)
         self.lichen_positions_set = positions_to_set(self.lichen_positions)
         # TODO, sort them, and add incoming invaders as well
-        self.sorted_threaths_invaders = [unit for unit in board.opp_units if unit.tc.xy in self.lichen_positions_set]
+        self.sorted_threaths_invaders = [
+            unit
+            for unit in board.opp_units
+            if unit.tc.xy in self.lichen_positions_set or self.min_distance_to_c(unit.tc) <= 4
+        ]
+        self.sorted_threaths_invaders.sort(key=lambda unit: self.min_distance_to_c(unit.tc) - 100 * unit.is_heavy)
+
         self.nr_lichen_tiles = len(self.lichen_positions)
         self.connected_lichen_positions = self._get_connected_lichen_positions(board)
         self.spreadable_lichen_positions = self._get_spreadable_lichen_positions(board)
