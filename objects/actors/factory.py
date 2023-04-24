@@ -58,6 +58,7 @@ class Strategy(Enum):
     COLLECT_ICE = auto()
     COLLECT_ORE = auto()
     ATTACK_OPPONENT = auto()
+    CLEAR_RUBBLE_AROUND_BASE = auto()
 
 
 @dataclass(eq=False)
@@ -148,7 +149,7 @@ class Factory(Actor):
         # self.rubble_positions_values_for_lichen = self._get_rubble_positions_to_clear_for_lichen(board)
         self.rubble_positions_next_to_can_spread_pos = self._get_rubble_positions_next_to_can_spread_pos(board)
         self.rubble_positions_next_to_can_not_spread_lichen = self._get_rubble_next_to_can_not_spread_lichen(board)
-        self.closest_rubble_positions_within_3_distance_set = self._get_rubble_within_3_distance_to_base(board)
+        self.closest_rubble_positions_within_4_distance_set = self._get_rubble_within_4_distance_to_base(board)
         self.rubble_positions_next_to_connected_or_self = self._get_rubble_next_to_connected_or_self(board)
         self.rubble_positions_next_to_connected_or_self_set = positions_to_set(
             self.rubble_positions_next_to_connected_or_self
@@ -350,12 +351,12 @@ class Factory(Actor):
         rubble_positions = board.rubble_positions[valid_distance_mask]
         return rubble_positions
 
-    def _get_rubble_within_3_distance_to_base(self, board: Board) -> Set[Tuple]:
+    def _get_rubble_within_4_distance_to_base(self, board: Board) -> Set[Tuple]:
         if not board.rubble_positions.shape[0]:
             return set()
 
         distances = get_min_distances_between_positions(board.rubble_positions, self.positions)
-        if min(distances) > 3:
+        if min(distances) > 4:
             return set()
 
         valid_distance_mask = distances == distances.min()
@@ -429,11 +430,19 @@ class Factory(Actor):
         if self.water_after_processing - self.water_cost < EnvConfig.FACTORY_WATER_CONSUMPTION:
             return False
 
-        min_ratio_always_water = min(game_state.steps_left, CONFIG.MIN_RATIO_WATER_WATER_COST_ALWAYS_GROW_LICHEN)
-        if game_state.real_env_steps > 200 and self.water_after_processing / self.water_cost > min_ratio_always_water:
+        # min_ratio_always_water = min(game_state.steps_left, CONFIG.MIN_RATIO_WATER_WATER_COST_ALWAYS_GROW_LICHEN)
+        # if game_state.real_env_steps > 200 and self.water_after_processing / self.water_cost > min_ratio_always_water:
+        #     return True
+        if self.water_after_processing / self.water_cost > game_state.steps_left:
             return True
 
         water_available = self.water_after_processing - self.water_safety_level - self.water_cost
+        if (
+            game_state.real_env_steps > 200
+            and water_available / self.water_cost > CONFIG.MIN_RATIO_WATER_WATER_COST_ALWAYS_GROW_LICHEN
+        ):
+            return True
+
         if water_available <= 0:
             return False
 
@@ -823,6 +832,8 @@ class Factory(Actor):
             goal = self.schedule_strategy_attack_opponent(schedule_info)
         elif strategy == Strategy.IMMEDIATELY_RETURN_ICE:
             goal = self.schedule_strategy_immediately_return_ice(schedule_info)
+        elif strategy == Strategy.CLEAR_RUBBLE_AROUND_BASE:
+            goal = self.schedule_strategy_clear_rubble_around_base(schedule_info)
         else:
             raise ValueError("Strategy is not a known strategy")
 
@@ -838,6 +849,20 @@ class Factory(Actor):
         game_state = schedule_info.game_state
 
         rubble_positions = self._get_suitable_dig_positions_for_lichen(game_state)
+        if not rubble_positions:
+            raise NoValidGoalFoundError
+
+        if game_state.real_env_steps < CONFIG.FIRST_STEP_HEAVY_ALLOWED_TO_DIG_RUBBLE:
+            units = self.light_available_units
+        else:
+            units = self.available_units
+
+        return self._schedule_unit_on_rubble_pos(rubble_positions, units, schedule_info)
+
+    def schedule_strategy_clear_rubble_around_base(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        game_state = schedule_info.game_state
+
+        rubble_positions = self._get_suitable_dig_positions_for_clearing_base(game_state)
         if not rubble_positions:
             raise NoValidGoalFoundError
 
@@ -893,7 +918,10 @@ class Factory(Actor):
         if valid_rubble_positions:
             return valid_rubble_positions
 
-        valid_rubble_positions = self.closest_rubble_positions_within_3_distance_set - game_state.positions_in_dig_goals
+        return set()
+
+    def _get_suitable_dig_positions_for_clearing_base(self, game_state: GameState) -> Set[Tuple]:
+        valid_rubble_positions = self.closest_rubble_positions_within_4_distance_set - game_state.positions_in_dig_goals
         return valid_rubble_positions
 
     def enough_water_collection_for_next_turns(self) -> bool:

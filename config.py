@@ -41,10 +41,11 @@ class CONFIG:
     MINIMUM_POWER_RECEIVING_UNIT_LOW_ECO: int = 180
 
     # 1 ice -> 0.25 water -> 5 power (best case, alternating water)
+    MIN_SIGNAL_ICE: float = 0.2
     ICE_TO_POWER: float = 5
-    # Slightly tweaked
-    ORE_TO_POWER: float = 10
-    BENEFIT_ORE_REDUCTION_PER_T: float = 0.01
+    # Based on power generation untill end of game
+    ORE_TO_POWER: float = 12
+    BENEFIT_ORE_REDUCTION_PER_T: float = 0.012
 
     BENEFIT_FLEEING: float = 0
     COST_POTENTIALLY_LOSING_UNIT: float = 10_000
@@ -60,7 +61,7 @@ class CONFIG:
 
     TURN_1_NR_DIGS_HEAVY: int = 37
     LAST_STEP_SCHEDULE_ORE_MINING: int = 900
-    FIRST_STEP_HEAVY_ALLOWED_TO_DIG_RUBBLE: int = 1000
+    FIRST_STEP_HEAVY_ALLOWED_TO_DIG_RUBBLE: int = 900
     FIRST_STEP_HEAVY_ALLOWED_TO_DESTROY_LICHEN: int = 300
 
     # Factory Scheduling
@@ -87,12 +88,16 @@ class CONFIG:
 
     # UnitImportanceSignal
     START_UNIT_IMPORTANCE_SIGNAL: float = 2.0
-    LAST_TURN_UNIT_IMPORTANCE: int = 900
-    UNIT_IMPORTANCE_MIN_LEVEL_POWER_UNIT: float = 0.8
+    LAST_TURN_UNIT_IMPORTANCE: int = 750
+    UNIT_IMPORTANCE_MIN_LEVEL_POWER_UNIT: float = 1.0
 
     # Start attack en masse
     ATTACK_EN_MASSE_START_STEP: int = 850
     ATTACK_EN_MASSE_SIGNAL: float = 2.5
+
+    # Clear Rubble Around Base
+    CLEAR_RUBBLE_MAX_SIGNAL: float = 0.6
+    SLOPE_CLEAR_RUBBLE_SIGNAL: float = 0.001
 
     # Schedule
     OUT_OF_TIME_MAIN_SCHEDULING: float = 2.5

@@ -135,7 +135,6 @@ class FleeGraph(Graph):
         return base_danger_cost + constraints_danger_cost
 
 
-@dataclass
 class FleeTowardsAnyFactoryGraph(FleeGraph):
     def node_completes_goal(self, node: Coordinate) -> bool:
         return self.board.get_min_distance_to_any_player_factory(node) == 0
@@ -145,6 +144,23 @@ class FleeTowardsAnyFactoryGraph(FleeGraph):
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
         min_distance_cost = min_nr_steps * min_cost_per_step
         return min_distance_cost
+
+
+@dataclass
+class FleeDistanceGraph(FleeGraph):
+    start_c: Coordinate
+    distance: int
+    _potential_actions = [MoveAction(direction) for direction in Direction if direction != Direction.CENTER]
+
+    def node_completes_goal(self, node: Coordinate) -> bool:
+        return node.distance_to(self.start_c) >= self.distance
+
+    def heuristic(self, node: Coordinate) -> float:
+        min_nr_steps = self.distance - node.distance_to(self.start_c)
+        min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
+        min_distance_cost = min_nr_steps * min_cost_per_step
+        return min_distance_cost
+        return 0
 
 
 @dataclass

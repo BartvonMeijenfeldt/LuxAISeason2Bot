@@ -53,8 +53,7 @@ class IceCollectionSignal(FactorySignal):
         water_collection_usage_ratio = water_collection_per_step / water_cost_per_step
         ratio_collection_vs_target = water_collection_usage_ratio / CONFIG.WATER_COLLECTION_VERSUS_USAGE_MIN_TARGET
 
-        # Signal always at least 1, because we are expected to get our power back due to the lichen
-        signal = max(1.0, 2 - ratio_collection_vs_target)
+        signal = max(CONFIG.MIN_SIGNAL_ICE, 2 - ratio_collection_vs_target)
 
         return signal
 
@@ -100,7 +99,19 @@ class AttackOpponentSignal(FactorySignal):
         if game_state.real_env_steps >= CONFIG.ATTACK_EN_MASSE_START_STEP:
             return CONFIG.ATTACK_EN_MASSE_SIGNAL
 
-        return 0.8
+        return 0.4
+
+
+class ClearRubbleSignal(FactorySignal):
+    strategy = Strategy.CLEAR_RUBBLE_AROUND_BASE
+
+    def compute_signal(self, factory: Factory, game_state: GameState) -> float:
+        if not factory.closest_rubble_positions_within_4_distance_set:
+            return 0.0
+
+        signal = min(CONFIG.CLEAR_RUBBLE_MAX_SIGNAL, game_state.real_env_steps * CONFIG.SLOPE_CLEAR_RUBBLE_SIGNAL)
+
+        return signal
 
 
 SIGNALS: List[FactorySignal] = [
@@ -109,4 +120,5 @@ SIGNALS: List[FactorySignal] = [
     IceCollectionSignal(),
     CollectOreSignal(),
     AttackOpponentSignal(),
+    ClearRubbleSignal(),
 ]
