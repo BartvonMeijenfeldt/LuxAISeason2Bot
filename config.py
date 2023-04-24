@@ -7,12 +7,15 @@ class CONFIG:
     PENALTY_DISTANCE_CLOSEST_ICE: int = 10_000
 
     # ORE
-    BASE_SCORE_ORE: int = 20
-    BONUS_CLOSEST_NEIGHBOR_ORE: int = 80
+    BASE_SCORE_ORE: int = 50
+    BONUS_CLOSEST_NEIGHBOR_ORE: int = 350
 
     # RUBBLE
     VALUE_CONNECTED_TILE: float = 2
     BEST_N_RUBBLE_TILES: int = 50
+
+    # At Border
+    BORDER_PENALTY: int = 15
 
     # Gameplay
     # --------------------------------------

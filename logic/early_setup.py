@@ -14,7 +14,8 @@ def get_factory_spawn_loc(board: Board, valid_spawns: np.ndarray) -> tuple:
     rubble_score = get_rubble_score(board)
     ice_score = get_ice_score(board)
     ore_score = get_ore_score(board)
-    scores = get_scores(rubble_score, ice_score, ore_score, valid_spawns=valid_spawns)
+    border_score = get_closeness_to_border_score(board)
+    scores = get_scores(rubble_score, ice_score, ore_score, border_score, valid_spawns=valid_spawns)
     spawn_loc = get_coordinate_biggest(scores)
     return spawn_loc
 
@@ -176,10 +177,28 @@ def get_ore_score(board: Board) -> np.ndarray:
     return base_scores + closest_neighbor_score
 
 
+def get_closeness_to_border_score(board: Board) -> np.ndarray:
+    scores_x = np.ones_like(board.rubble) * 6
+    scores_x[1:-1] = 4
+    scores_x[2:-2] = 3
+    scores_x[3:-3] = 1
+    scores_x[4:-4] = 0
+
+    scores_y = scores_x.transpose()
+    scores = scores_x + scores_y
+    scores = scores * -1 * CONFIG.BORDER_PENALTY
+
+    return scores
+
+
 def get_scores(
-    rubble_score: np.ndarray, ice_score: np.ndarray, ore_score: np.ndarray, valid_spawns: np.ndarray
+    rubble_score: np.ndarray,
+    ice_score: np.ndarray,
+    ore_score: np.ndarray,
+    border_scores: np.ndarray,
+    valid_spawns: np.ndarray,
 ) -> np.ndarray:
-    score = rubble_score + ice_score + ore_score
+    score = rubble_score + ice_score + ore_score + border_scores
     score = set_invalid_spawns_minus_inf(score, valid_spawns)
     return score
 
