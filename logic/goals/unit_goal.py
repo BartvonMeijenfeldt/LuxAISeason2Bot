@@ -1538,7 +1538,11 @@ class CampResourceGoal(UnitGoal):
 class DefendTileGoal(UnitGoal):
     tile_c: Coordinate
     opp: Unit
+    factory: Factory
     pickup_power: bool
+
+    def __post_init__(self) -> None:
+        self.min_power_required = self.unit.update_action_queue_power_cost + 3 * self.unit.move_power_cost
 
     def __repr__(self) -> str:
         return f"defend_{self.tile_c}_from_{self.opp}"
@@ -1556,6 +1560,9 @@ class DefendTileGoal(UnitGoal):
         return f"{self.key}_{self.pickup_power}"
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
+        if not self.action_plan.unit_has_enough_power(game_state, self.min_power_required):
+            return True
+
         return (
             self.opp not in game_state.opp_units
             or game_state.is_opponent_factory_tile(self.opp.tc)
@@ -1570,33 +1577,28 @@ class DefendTileGoal(UnitGoal):
         if self.pickup_power:
             self._add_power_pickup_actions(schedule_info, self.tile_c, later_pickup=False)
 
-        # Prefer to have more power than opponent
+        cur_power = self.action_plan.get_final_p(game_state)
+        if cur_power < self.opp.power:
+            raise InvalidGoalError
+
         if self.unit.tc.distance_to(self.opp.tc) > 1:
-            # Randomize to not make it to easy for opponents to capture me
-            if self.cur_tc.t % 2 == 1:
-                self._add_actions_move_near_to_opp(
-                    distance=1, reckless=True, game_state=game_state, constraints=constraints
-                )
-            else:
-                self._add_actions_move_near_to_opp(
-                    distance=1, reckless=False, game_state=game_state, constraints=constraints
-                )
+            self._add_actions_move_next_to_opp(game_state=game_state, constraints=constraints)
 
         self._add_repetitive_move_actions(game_state=game_state, constraints=constraints)
         return self.action_plan
 
-    def _add_actions_move_near_to_opp(
-        self, distance: int, reckless: bool, game_state: GameState, constraints: Constraints
-    ) -> None:
+    def _add_actions_move_next_to_opp(self, game_state: GameState, constraints: Constraints) -> None:
         actions_move_next_to = self._get_move_near_actions(
             start_tc=self.cur_tc,
             goal=self.opp.tc,
-            reckless=reckless,
+            reckless=False,
             constraints=constraints,
-            distance=distance,
+            distance=1,
             board=game_state.board,
         )
-        if not self.action_plan.can_add_actions(actions_move_next_to, game_state):
+        if not self.action_plan.can_add_actions(
+            actions_move_next_to, game_state, min_power_end=self.min_power_required
+        ):
             raise NoSolutionError
 
         self.action_plan.extend(actions_move_next_to)
@@ -1615,15 +1617,21 @@ class DefendTileGoal(UnitGoal):
                     board=game_state.board,
                 )
 
-            if not self.action_plan.can_add_actions(actions, game_state):
+            if not self.action_plan.can_add_actions(actions, game_state, min_power_end=self.min_power_required):
                 break
 
             self.action_plan.extend(actions)
 
     def get_power_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        if self.factory.has_connected_safe_or_defended_ice_coordinate(game_state):
+            return 0
+
         return 10_000
 
     def _get_max_power_benefit(self, game_state: GameState) -> float:
+        if self.factory.has_connected_safe_or_defended_ice_coordinate(game_state):
+            return 0
+
         return 10_000
 
     def _get_min_power_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
