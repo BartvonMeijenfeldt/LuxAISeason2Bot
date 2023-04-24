@@ -1763,6 +1763,9 @@ class DefendLichenTileGoal(UnitGoal):
         if game_state.steps_left == 1:
             return 0
 
+        if self.unit.tc.distance_to(self.opp.tc) // 2 > game_state.steps_left:
+            return 0
+
         return 10_000 + self.bonus_value
 
     def _get_max_power_benefit(self, game_state: GameState) -> float:
