@@ -148,17 +148,25 @@ class Factory(Actor):
         # self.rubble_positions_values_for_lichen = self._get_rubble_positions_to_clear_for_lichen(board)
         self.rubble_positions_next_to_can_spread_pos = self._get_rubble_positions_next_to_can_spread_pos(board)
         self.rubble_positions_next_to_can_not_spread_lichen = self._get_rubble_next_to_can_not_spread_lichen(board)
+        self.closest_rubble_positions_within_3_distance_set = self._get_rubble_within_3_distance_to_base(board)
         self.rubble_positions_next_to_connected_or_self = self._get_rubble_next_to_connected_or_self(board)
         self.rubble_positions_next_to_connected_or_self_set = positions_to_set(
             self.rubble_positions_next_to_connected_or_self
         )
 
         self.nr_connected_lichen_tiles = len(self.connected_lichen_positions)
+        self.min_lichen_in_connected_lichens = self._get_min_lichen_in_connected_lichens(board)
         self.nr_connected_lichen_tiles_after_not_watering = self._get_nr_connected_lichen_after_not_watering(board)
         self.nr_can_spread_positions = len(self.can_spread_positions)
         self.nr_connected_positions = len(self.connected_positions)
         self.nr_connected_positions_non_lichen_connected = self.nr_connected_positions - self.nr_connected_lichen_tiles
         self.max_nr_tiles_to_water = len(self.connected_lichen_positions) + len(self.can_spread_to_positions)
+
+    def _get_min_lichen_in_connected_lichens(self, board: Board) -> int:
+        if not self.lichen_positions_set:
+            return 0
+
+        return min(board.get_lichen_at_pos(lichen_pos) for lichen_pos in self.lichen_positions_set)
 
     def _get_nr_connected_lichen_after_not_watering(self, board: Board) -> int:
         return sum(1 for lichen_pos in self.lichen_positions_set if board.get_lichen_at_pos(lichen_pos) > 1)
@@ -342,6 +350,18 @@ class Factory(Actor):
         rubble_positions = board.rubble_positions[valid_distance_mask]
         return rubble_positions
 
+    def _get_rubble_within_3_distance_to_base(self, board: Board) -> Set[Tuple]:
+        if not board.rubble_positions.shape[0]:
+            return set()
+
+        distances = get_min_distances_between_positions(board.rubble_positions, self.positions)
+        if min(distances) > 3:
+            return set()
+
+        valid_distance_mask = distances == distances.min()
+        rubble_positions = board.rubble_positions[valid_distance_mask]
+        return positions_to_set(rubble_positions)
+
     def _get_rubble_next_to_connected_or_self(self, board: Board) -> np.ndarray:
         if not board.rubble_positions.shape[0]:
             return init_empty_positions()
@@ -410,7 +430,7 @@ class Factory(Actor):
             return False
 
         min_ratio_always_water = min(game_state.steps_left, CONFIG.MIN_RATIO_WATER_WATER_COST_ALWAYS_GROW_LICHEN)
-        if self.water_after_processing / self.water_cost > min_ratio_always_water:
+        if game_state.real_env_steps > 200 and self.water_after_processing / self.water_cost > min_ratio_always_water:
             return True
 
         water_available = self.water_after_processing - self.water_safety_level - self.water_cost
@@ -428,7 +448,10 @@ class Factory(Actor):
         if self.not_watering_shrinks_lichen and self.nr_connected_lichen_tiles_after_not_watering < target_lichen_size:
             return True
 
-        return water_available / self.water_cost > CONFIG.MIN_RATIO_WATER_WATER_COST_MAINTAIN_LICHEN
+        return (
+            self.min_lichen_in_connected_lichens < EnvConfig.MIN_LICHEN_TO_SPREAD
+            and water_available / self.water_cost > CONFIG.MIN_RATIO_WATER_WATER_COST_MAINTAIN_LICHEN
+        )
 
     @property
     def water_safety_level(self) -> int:
@@ -870,7 +893,8 @@ class Factory(Actor):
         if valid_rubble_positions:
             return valid_rubble_positions
 
-        return set()
+        valid_rubble_positions = self.closest_rubble_positions_within_3_distance_set - game_state.positions_in_dig_goals
+        return valid_rubble_positions
 
     def enough_water_collection_for_next_turns(self) -> bool:
         water_collection = self.get_water_collection_per_step()

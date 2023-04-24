@@ -15,7 +15,7 @@ from objects.actors.unit import Unit
 from logic.early_setup import get_factory_spawn_loc
 from logic.goal_resolution.power_tracker import PowerTracker
 
-logging.basicConfig(level=logging.WARN)
+from datetime import datetime
 
 
 if TYPE_CHECKING:
@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 
 class Agent:
     def __init__(self, player: str, env_cfg: EnvConfig, debug_mode: bool = False) -> None:
+        datetime_now = datetime.now().strftime("%Y%m_%d_%H_%M_%S")
+        logging.basicConfig(level=logging.INFO, filename=f"data/{datetime_now}_{player}.log")
         self.player = player
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         np.random.seed(0)

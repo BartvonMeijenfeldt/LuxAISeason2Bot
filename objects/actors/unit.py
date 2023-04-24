@@ -95,6 +95,7 @@ class Unit(Actor):
         self.cargo_space = self.unit_cfg.CARGO_SPACE
         self.nr_digs_empty_to_full_cargo = ceil(self.cargo_space / self.resources_gained_per_dig)
         self.main_cargo_threshold = self._get_main_cargo_threshold()
+        self.min_value_per_step = self._get_min_value_per_step()
 
     def _set_unit_state_variables(self) -> None:
         self.is_scheduled = False
@@ -114,6 +115,9 @@ class Unit(Actor):
 
     def _get_main_cargo_threshold(self) -> int:
         return CONFIG.MAIN_CARGO_THRESHOLD_LIGHT if self.is_light else CONFIG.MAIN_CARGO_THRESHOLD_HEAVY
+
+    def _get_min_value_per_step(self) -> float:
+        return CONFIG.MIN_VALUE_PER_STEP_LIGHT if self.is_light else CONFIG.MIN_VALUE_PER_STEP_HEAVY
 
     def _get_main_cargo(self) -> Optional[Resource]:
         if not self.cargo.main_resource:
@@ -287,7 +291,7 @@ class Unit(Actor):
                 continue
 
             value = goal.get_value_per_step_of_action_plan(action_plan, game_state)
-            if value <= 0 and not goal.is_dummy_goal:
+            if value <= self.min_value_per_step and not goal.is_dummy_goal:
                 self._if_non_dummy_goal_add_to_infeasible_assignments(goal)
                 continue
 
