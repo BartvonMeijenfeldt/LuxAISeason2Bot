@@ -538,6 +538,10 @@ class DigGoal(UnitGoal):
         ...
 
     def get_power_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        first_dig = next(t for t, a in enumerate(action_plan.primitive_actions) if isinstance(a, DigAction))
+        if first_dig >= game_state.steps_left:
+            return 0
+
         return self._get_benefit_n_digs(action_plan.nr_digs, game_state)
 
     def _get_min_cost_and_steps_max_nr_digs(
@@ -678,6 +682,13 @@ class CollectGoal(DigGoal):
         nr_digs_required_to_clear_rubble = self._get_nr_digs_to_clear_rubble(game_state.board)
         nr_digs_for_collecting_resources = max(n_digs - nr_digs_required_to_clear_rubble, 0)
         return nr_digs_for_collecting_resources * self.unit.resources_gained_per_dig
+
+    def get_power_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        first_transfer_t = next(t for t, a in enumerate(action_plan.primitive_actions) if isinstance(a, TransferAction))
+        if first_transfer_t >= game_state.steps_left:
+            return 0
+
+        return super().get_power_benefit_action_plan(action_plan, game_state)
 
     def _get_benefit_n_digs(self, n_digs: int, game_state: GameState) -> float:
         # TODO split between resources digged and rubble removed
@@ -1006,6 +1017,10 @@ class TransferGoal(UnitGoal):
         return benefit_resource * nr_resources_unit
 
     def get_power_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        first_transfer_t = next(t for t, a in enumerate(action_plan.primitive_actions) if isinstance(a, TransferAction))
+        if first_transfer_t >= game_state.steps_left:
+            return 0
+
         return self._get_max_power_benefit(game_state)
 
     @abstractmethod
@@ -1623,6 +1638,9 @@ class DefendTileGoal(UnitGoal):
             self.action_plan.extend(actions)
 
     def get_power_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        if game_state.steps_left == 1:
+            return 0
+
         if self.factory.has_connected_safe_or_defended_ice_coordinate(game_state):
             return 0
 
@@ -1985,6 +2003,9 @@ class FleeGoal(UnitGoal):
         self.action_plan.extend(move_actions)
 
     def get_power_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        if game_state.steps_left == 1:
+            return 0.0
+
         return CONFIG.BENEFIT_FLEEING
 
     def __repr__(self) -> str:
