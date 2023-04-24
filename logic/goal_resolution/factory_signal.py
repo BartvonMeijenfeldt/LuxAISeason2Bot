@@ -114,6 +114,19 @@ class ClearRubbleSignal(FactorySignal):
         return signal
 
 
+class DefendSignal(FactorySignal):
+    strategy = Strategy.DEFEND_LICHEN_TILE
+
+    def compute_signal(self, factory: Factory, game_state: GameState) -> float:
+        if game_state.real_env_steps < 915:
+            return 0.0
+
+        signal = (
+            CONFIG.ATTACK_EN_MASSE_SIGNAL - 0.5 if game_state.real_env_steps % 2 == 0 else CONFIG.ATTACK_EN_MASSE_SIGNAL
+        )
+        return signal
+
+
 SIGNALS: List[FactorySignal] = [
     AlmostOutOfWaterSignal(),
     TooLittleLichenTilesSignal(),
@@ -121,4 +134,5 @@ SIGNALS: List[FactorySignal] = [
     CollectOreSignal(),
     AttackOpponentSignal(),
     ClearRubbleSignal(),
+    DefendSignal(),
 ]

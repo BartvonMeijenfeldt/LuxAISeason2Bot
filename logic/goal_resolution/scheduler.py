@@ -181,16 +181,6 @@ class Scheduler:
                 for goal in goals:
                     self._schedule_unit_on_goal(goal)
 
-                if game_state.real_env_steps >= 910:
-                    try:
-                        goal = factory.schedule_defend_lichen_tile(self.schedule_info)
-                    except Exception:
-                        continue
-
-                    self._schedule_unit_on_goal(goal)
-
-                break
-
     def _exists_available_unit(self, game_state: GameState) -> bool:
         return any(
             factory.has_unit_available

@@ -59,6 +59,7 @@ class Strategy(Enum):
     COLLECT_ORE = auto()
     ATTACK_OPPONENT = auto()
     CLEAR_RUBBLE_AROUND_BASE = auto()
+    DEFEND_LICHEN_TILE = auto()
 
 
 @dataclass(eq=False)
@@ -785,12 +786,6 @@ class Factory(Actor):
         return any(not unit.private_action_plan for unit in self.units)
 
     def schedule_units(self, strategy: Strategy, schedule_info: ScheduleInfo) -> List[UnitGoal]:
-        # if self.sorted_threaths_invaders:
-        #     try:
-        #         return [self._schedule_hunt_invaders(schedule_info)]
-        #     except NoValidGoalFoundError:
-        #         pass
-
         if self.has_heavy_unsupplied_collecting_next_to_factory_free_supply_c and self.has_light_unit_available:
             try:
                 return self._schedule_supply_goal_and_reschedule_receiving_unit(schedule_info)
@@ -854,6 +849,8 @@ class Factory(Actor):
             goal = self.schedule_strategy_immediately_return_ice(schedule_info)
         elif strategy == Strategy.CLEAR_RUBBLE_AROUND_BASE:
             goal = self.schedule_strategy_clear_rubble_around_base(schedule_info)
+        elif strategy == Strategy.DEFEND_LICHEN_TILE:
+            goal = self.schedule_defend_lichen_tile(schedule_info)
         else:
             raise ValueError("Strategy is not a known strategy")
 
