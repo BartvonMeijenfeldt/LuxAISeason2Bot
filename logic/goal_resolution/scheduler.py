@@ -183,6 +183,10 @@ class Scheduler:
 
                 break
 
+            if game_state.real_env_steps >= 920:
+                for factory in game_state.player_factories:
+                    factory.schedule_defend_lichen_tile(self.schedule_info)
+
     def _exists_available_unit(self, game_state: GameState) -> bool:
         return any(
             factory.has_unit_available
