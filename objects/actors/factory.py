@@ -423,6 +423,8 @@ class Factory(Actor):
             or (self.nr_light_units < 30 and self.nr_heavy_units > 2)
         ):
             return BuildLightGoal(self)
+        elif self.can_build_light and game_state.real_env_steps > 900:
+            return BuildLightGoal(self)
 
         return FactoryNoGoal(self)
 
