@@ -123,7 +123,7 @@ class DefendSignal(FactorySignal):
             return 0.0
 
         # Make sure we alternate the defense and offense signal such that we alternate scheduling defense and offense
-        signal = CONFIG.ATTACK_EN_MASSE_SIGNAL - 0.5 if self.prioritize else CONFIG.ATTACK_EN_MASSE_SIGNAL
+        signal = CONFIG.ATTACK_EN_MASSE_SIGNAL - 0.5 if self.prioritize else CONFIG.ATTACK_EN_MASSE_SIGNAL + 0.5
 
         self.prioritize = not self.prioritize
         return signal
