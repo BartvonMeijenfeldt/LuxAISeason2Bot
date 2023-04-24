@@ -759,33 +759,33 @@ class Factory(Actor):
 
         raise NoValidGoalFoundError
 
-    def _schedule_hunt_invaders(self, schedule_info: ScheduleInfo) -> UnitGoal:
-        while self.sorted_threaths_invaders:
-            invader = self.sorted_threaths_invaders.pop()
-            if invader in schedule_info.game_state.hunted_opp_units:
-                continue
+    # def _schedule_hunt_invaders(self, schedule_info: ScheduleInfo) -> UnitGoal:
+    #     while self.sorted_threaths_invaders:
+    #         invader = self.sorted_threaths_invaders.pop()
+    #         if invader in schedule_info.game_state.hunted_opp_units:
+    #             continue
 
-            try:
-                return self._schedule_hunt_invader(invader, schedule_info)
-            except NoValidGoalFoundError:
-                continue
+    #         try:
+    #             return self._schedule_hunt_invader(invader, schedule_info)
+    #         except NoValidGoalFoundError:
+    #             continue
 
-        raise NoValidGoalFoundError
+    #     raise NoValidGoalFoundError
 
-    def _schedule_hunt_invader(self, invader: Unit, schedule_info: ScheduleInfo) -> UnitGoal:
-        if invader.is_light:
-            return self._schedule_hunt_invader_with_units(invader, self.light_available_units, schedule_info)
-        else:
-            return self._schedule_hunt_invader_with_units(invader, self.heavy_available_units, schedule_info)
+    # def _schedule_hunt_invader(self, invader: Unit, schedule_info: ScheduleInfo) -> UnitGoal:
+    #     if invader.is_light:
+    #         return self._schedule_hunt_invader_with_units(invader, self.light_available_units, schedule_info)
+    #     else:
+    #         return self._schedule_hunt_invader_with_units(invader, self.heavy_available_units, schedule_info)
 
-    def _schedule_hunt_invader_with_units(
-        self, invader: Unit, units: Iterable[Unit], schedule_info: ScheduleInfo
-    ) -> UnitGoal:
+    # def _schedule_hunt_invader_with_units(
+    #     self, invader: Unit, units: Iterable[Unit], schedule_info: ScheduleInfo
+    # ) -> UnitGoal:
 
-        potential_assignments = [
-            (unit, goal) for unit in units for goal in unit.get_hunt_unit_goals(schedule_info.game_state, invader)
-        ]
-        return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
+    #     potential_assignments = [
+    #         (unit, goal) for unit in units for goal in unit.get_hunt_unit_goals(schedule_info.game_state, invader)
+    #     ]
+    #     return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
 
     def _schedule_unit_on_strategy(self, strategy: Strategy, schedule_info: ScheduleInfo) -> UnitGoal:
         if strategy == Strategy.INCREASE_LICHEN_TILES:
@@ -1010,6 +1010,10 @@ class Factory(Actor):
     def schedule_strategy_collect_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
         # Collect Ice / Clear Path to Ice / Supply Power to heavy on Ice
         if self.has_heavy_unit_available:
+            # If has ice next to base but it is being camped
+            # Defend your tile
+            # Else:
+            # Also, mining next to base is invalid and completed if it is being camped
             return self._schedule_heavy_on_ice(schedule_info)
         else:
             return self._schedule_light_on_ice_task(schedule_info)
@@ -1042,9 +1046,7 @@ class Factory(Actor):
             (unit, goal)
             for unit in units
             for pos in ice_positions
-            for goal in unit.get_collect_ice_goals(
-                Coordinate(*pos), schedule_info.game_state, factory=self, is_supplied=False
-            )
+            for goal in unit.get_ice_goals(Coordinate(*pos), schedule_info.game_state, factory=self, is_supplied=False)
         ]
 
         return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore

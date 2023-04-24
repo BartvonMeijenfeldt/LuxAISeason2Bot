@@ -114,3 +114,5 @@ class CONFIG:
     # --------------------------------------
     MAIN_CARGO_THRESHOLD_LIGHT = 20
     MAIN_CARGO_THRESHOLD_HEAVY = 400
+
+    MAX_DISTANCE_COLLECTING: int = 25
