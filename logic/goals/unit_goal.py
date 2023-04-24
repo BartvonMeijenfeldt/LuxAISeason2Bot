@@ -18,6 +18,7 @@ from search.search import (
     MoveNextToTimeGraph,
     DigAtGraph,
     FleeTowardsAnyFactoryGraph,
+    FleeDistanceGraph,
     PickupPowerGraph,
     Graph,
     MoveRecklessNearCoordinateGraph,
@@ -295,6 +296,26 @@ class UnitGoal(Goal):
             time_to_power_cost=self.unit.time_to_power_cost,
             unit_cfg=self.unit.unit_cfg,
             constraints=constraints,
+        )
+
+        return graph
+
+    def _get_flee_distance_actions(
+        self, start_tc: TimeCoordinate, distance: int, constraints: Constraints, board: Board
+    ) -> list[UnitAction]:
+        graph = self._get_flee_distance_graph(distance, board=board, constraints=constraints)
+        actions = self._search_graph(graph=graph, start=start_tc)
+        return actions
+
+    def _get_flee_distance_graph(self, distance: int, board: Board, constraints: Constraints) -> FleeDistanceGraph:
+        graph = FleeDistanceGraph(
+            board,
+            self.unit.time_to_power_cost,
+            self.unit.unit_cfg,
+            self.unit.unit_type,
+            constraints,
+            self.cur_tc,
+            distance,
         )
 
         return graph
@@ -1920,9 +1941,29 @@ class FleeGoal(UnitGoal):
         constraints = schedule_info.constraints
 
         self._init_action_plan()
-        self._add_flee_towards_factory_actions(game_state, constraints)
+        try:
+            self._add_flee_towards_factory_actions(game_state, constraints)
+        except Exception:
+            self._add_actions_move_some_steps(game_state, constraints)
 
         return self.action_plan
+
+    def _add_actions_move_some_steps(self, game_state: GameState, constraints: Constraints) -> None:
+        STANDARD_FLEE_DISTANCE = 5
+        actions_move_next_to = self._get_flee_distance_actions(
+            start_tc=self.cur_tc,
+            distance=STANDARD_FLEE_DISTANCE,
+            constraints=constraints,
+            board=game_state.board,
+        )
+        while actions_move_next_to:
+            if self.action_plan.can_add_actions(actions_move_next_to, game_state):
+                self.action_plan.extend(actions_move_next_to)
+                return
+
+            actions_move_next_to = actions_move_next_to[:-1]
+
+        raise NoSolutionError
 
     def _add_flee_towards_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
         move_actions = self._get_flee_to_any_factory_actions(
