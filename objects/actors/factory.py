@@ -198,12 +198,19 @@ class Factory(Actor):
     def _set_positions_once(self, board: Board) -> None:
         self.ice_positions_distance_sorted = self._get_positions_distance_sorted(board.ice_positions)
         self.ore_positions_distance_sorted = self._get_positions_distance_sorted(board.ore_positions)
+        self.connected_ice_coordinates = self._get_connected_ice_coordinates(board)
 
     def _get_positions_distance_sorted(self, positions: np.ndarray) -> np.ndarray:
         distances = get_min_distances_between_positions(positions, self.positions)
         sorted_indexes = np.argsort(distances)
         sorted_distance_positions = positions[sorted_indexes]
         return sorted_distance_positions
+
+    def _get_connected_ice_coordinates(self, board: Board) -> list[Coordinate]:
+        distances = get_min_distances_between_positions(board.ice_positions, self.positions)
+        connected_mask = distances == 1
+        connected_ice_positions = board.ice_positions[connected_mask]
+        return [Coordinate(*pos) for pos in connected_ice_positions]
 
     @property
     def maintain_lichen_water_cost(self) -> float:
@@ -1060,12 +1067,7 @@ class Factory(Actor):
         return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
 
     def schedule_strategy_collect_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
-        # Collect Ice / Clear Path to Ice / Supply Power to heavy on Ice
         if self.has_heavy_unit_available:
-            # If has ice next to base but it is being camped
-            # Defend your tile
-            # Else:
-            # Also, mining next to base is invalid and completed if it is being camped
             return self._schedule_heavy_on_ice(schedule_info)
         else:
             return self._schedule_light_on_ice_task(schedule_info)
@@ -1219,4 +1221,11 @@ class Factory(Actor):
         schedule_info_without_unit = schedule_info.copy_without_unit_scheduled_actions(unit)
         return unit.generate_collect_ice_goal(
             schedule_info_without_unit, goal.dig_c, goal.is_supplied, self, new_quantity
+        )
+
+    def has_connected_safe_or_defended_ice_coordinate(self, game_state: GameState) -> bool:
+        return any(
+            True
+            for ice_c in self.connected_ice_coordinates
+            if game_state.get_min_distance_to_any_player_factory(ice_c) > 1 or game_state.c_is_undefended(ice_c)
         )

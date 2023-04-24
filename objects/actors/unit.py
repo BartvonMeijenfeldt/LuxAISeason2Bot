@@ -463,7 +463,7 @@ class Unit(Actor):
             and game_state.c_is_undefended(c)
         ):
             heavy_opp = next(u for u in game_state.get_neighboring_opponents(c) if u.is_heavy)
-            goals = [DefendTileGoal(self, c, heavy_opp, pickup_power) for pickup_power in [False, True]]
+            goals = [DefendTileGoal(self, c, heavy_opp, factory, pickup_power) for pickup_power in [False, True]]
 
         else:
             goals = [
@@ -658,6 +658,12 @@ class Unit(Actor):
 
     def _is_valid_goal(self, goal: UnitGoal, game_state: GameState) -> bool:
         if isinstance(self.goal, DefendTileGoal) and not isinstance(goal, DefendTileGoal):
+            return False
+
+        if (
+            isinstance(self.goal, DefendTileGoal)
+            and self.goal.tile_c.distance_to(self.tc) > CONFIG.MAX_DISTANCE_COLLECTING
+        ):
             return False
 
         if not self._is_valid_goal_given_cargo(goal):
