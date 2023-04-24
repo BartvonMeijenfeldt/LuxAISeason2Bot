@@ -801,14 +801,15 @@ class Factory(Actor):
         raise NoValidGoalFoundError
 
     def schedule_defend_lichen_tile(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        # TODO, sort the threaths by distance to the factory
         while self.sorted_threaths_invaders:
             invader = self.sorted_threaths_invaders.pop()
-            if not schedule_info.game_state.c_is_defended(invader.tc):
+            if schedule_info.game_state.c_is_defended(invader.tc):
                 continue
 
             try:
                 return self.schedule_defend_lichen_tile_from_invader(invader, schedule_info)
-            except NoValidGoalFoundError:
+            except Exception:
                 continue
 
         raise NoValidGoalFoundError

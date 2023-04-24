@@ -1702,11 +1702,20 @@ class DefendLichenTileGoal(UnitGoal):
         self._init_action_plan()
         if self.pickup_power:
             self._add_power_pickup_actions(schedule_info, self.tile_c, later_pickup=False)
+            final_power = self.action_plan.get_final_p(schedule_info.game_state)
+            # Make sure we add all and not mis a few power messing up the defense
+            if final_power + self.unit.update_action_queue_power_cost >= self.unit.battery_capacity:
+                pickup_action: PickupAction = self.action_plan.primitive_actions[-1]  # type: ignore
+                pickup_action.amount += self.unit.update_action_queue_power_cost
+                pickup_action.amount = min(self.unit.battery_capacity, pickup_action.amount)
 
         cur_power = self.action_plan.get_final_p(game_state)
-        if cur_power < self.opp.power and cur_power < 2980 and game_state.real_env_steps < 950:
+        max_power_minus_queue_update = self.unit.battery_capacity - self.unit.can_update_action_queue
+        if cur_power < self.opp.power and cur_power < max_power_minus_queue_update and game_state.real_env_steps < 950:
             raise InvalidGoalError
-        if (cur_power > self.opp.power or cur_power > 2980) and game_state.real_env_steps < 980:
+        if (
+            cur_power > self.opp.power or cur_power >= max_power_minus_queue_update
+        ) and game_state.real_env_steps < 980:
             self.bonus_value = 5_000
 
         if self.unit.tc.distance_to(self.opp.tc) > 1:
