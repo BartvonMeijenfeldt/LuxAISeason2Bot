@@ -26,7 +26,7 @@ from search.search import (
     TransferPowerToUnitResourceGraph,
 )
 from lux.config import HEAVY_CONFIG
-from objects.actions.unit_action import DigAction, MoveAction, TransferAction
+from objects.actions.unit_action import DigAction, MoveAction, TransferAction, PickupAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.direction import Direction
 from objects.resource import Resource
@@ -1591,6 +1591,12 @@ class DefendTileGoal(UnitGoal):
         self._init_action_plan()
         if self.pickup_power:
             self._add_power_pickup_actions(schedule_info, self.tile_c, later_pickup=False)
+            final_power = self.action_plan.get_final_p(schedule_info.game_state)
+            # Make sure we add all and not mis a few power messing up the defense
+            if final_power + self.unit.update_action_queue_power_cost >= self.unit.battery_capacity:
+                pickup_action: PickupAction = self.action_plan.primitive_actions[-1]  # type: ignore
+                pickup_action.amount += self.unit.update_action_queue_power_cost
+                pickup_action.amount = min(self.unit.battery_capacity, pickup_action.amount)
 
         cur_power = self.action_plan.get_final_p(game_state)
         if cur_power < self.opp.power and cur_power < 2980:
