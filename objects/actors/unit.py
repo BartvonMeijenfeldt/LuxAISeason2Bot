@@ -32,7 +32,7 @@ from logic.goals.unit_goal import (
     TransferOreGoal,
     EvadeConstraintsGoal,
     SupplyPowerGoal,
-    HuntGoal,
+    DefendTileGoal,
     CampResourceGoal,
 )
 from config import CONFIG
@@ -95,6 +95,7 @@ class Unit(Actor):
         self.cargo_space = self.unit_cfg.CARGO_SPACE
         self.nr_digs_empty_to_full_cargo = ceil(self.cargo_space / self.resources_gained_per_dig)
         self.main_cargo_threshold = self._get_main_cargo_threshold()
+        self.min_value_per_step = self._get_min_value_per_step()
 
     def _set_unit_state_variables(self) -> None:
         self.is_scheduled = False
@@ -114,6 +115,9 @@ class Unit(Actor):
 
     def _get_main_cargo_threshold(self) -> int:
         return CONFIG.MAIN_CARGO_THRESHOLD_LIGHT if self.is_light else CONFIG.MAIN_CARGO_THRESHOLD_HEAVY
+
+    def _get_min_value_per_step(self) -> float:
+        return CONFIG.MIN_VALUE_PER_STEP_LIGHT if self.is_light else CONFIG.MIN_VALUE_PER_STEP_HEAVY
 
     def _get_main_cargo(self) -> Optional[Resource]:
         if not self.cargo.main_resource:
@@ -287,7 +291,7 @@ class Unit(Actor):
                 continue
 
             value = goal.get_value_per_step_of_action_plan(action_plan, game_state)
-            if value <= 0 and not goal.is_dummy_goal:
+            if value <= self.min_value_per_step and not goal.is_dummy_goal:
                 self._if_non_dummy_goal_add_to_infeasible_assignments(goal)
                 continue
 
@@ -449,6 +453,33 @@ class Unit(Actor):
 
         return self._filter_out_invalid_goals(ice_goals, game_state)  # type: ignore
 
+    def get_ice_goals(
+        self, c: Coordinate, game_state: GameState, factory: Factory, is_supplied: bool, quantity: Optional[int] = None
+    ) -> list[UnitGoal]:
+        if (
+            self.is_heavy
+            and game_state.get_min_distance_to_any_player_factory(c) == 1
+            and game_state.get_dis_to_closest_opp_heavy(c) <= 1
+            and game_state.c_is_undefended(c)
+        ):
+            heavy_opp = next(u for u in game_state.get_neighboring_opponents(c) if u.is_heavy)
+            goals = [DefendTileGoal(self, c, heavy_opp, pickup_power) for pickup_power in [False, True]]
+
+        else:
+            goals = [
+                CollectIceGoal(
+                    unit=self,
+                    pickup_power=pickup_power,
+                    dig_c=c,
+                    factory=factory,
+                    is_supplied=is_supplied,
+                    quantity=quantity,
+                )
+                for pickup_power in [False, True]
+            ]
+
+        return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
+
     def get_destroy_lichen_goals(self, c: Coordinate, game_state: GameState) -> List[DestroyLichenGoal]:
         goals = [DestroyLichenGoal(self, pickup_power, c) for pickup_power in [False, True]]
 
@@ -463,18 +494,18 @@ class Unit(Actor):
         goals = [CampResourceGoal(self, resource_c, pickup_power) for pickup_power in [False, True]]
         return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
 
-    def generate_hunt_unit_goals(self, schedule_info: ScheduleInfo, opp: Unit) -> HuntGoal:
-        hunt_goals = self.get_hunt_unit_goals(schedule_info.game_state, opp)
-        goal = self.get_best_goal(hunt_goals, schedule_info)
-        return goal  # type: ignore
+    # def generate_hunt_unit_goals(self, schedule_info: ScheduleInfo, opp: Unit) -> HuntGoal:
+    #     hunt_goals = self.get_hunt_unit_goals(schedule_info.game_state, opp)
+    #     goal = self.get_best_goal(hunt_goals, schedule_info)
+    #     return goal  # type: ignore
 
-    def get_hunt_unit_goals(self, game_state: GameState, opp: Unit) -> List[HuntGoal]:
-        goals = [
-            HuntGoal(self, opp, pickup_power)
-            for pickup_power in [False, True]
-            if pickup_power or self.power > opp.power
-        ]
-        return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
+    # def get_hunt_unit_goals(self, game_state: GameState, opp: Unit) -> List[HuntGoal]:
+    #     goals = [
+    #         HuntGoal(self, opp, pickup_power)
+    #         for pickup_power in [False, True]
+    #         if pickup_power or self.power > opp.power
+    #     ]
+    #     return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
 
     @lru_cache(8)
     def is_under_threath(self, game_state: GameState) -> bool:
@@ -626,6 +657,9 @@ class Unit(Actor):
         return [goal for goal in goals if self._is_valid_goal(goal, game_state)]
 
     def _is_valid_goal(self, goal: UnitGoal, game_state: GameState) -> bool:
+        if isinstance(self.goal, DefendTileGoal) and not isinstance(goal, DefendTileGoal):
+            return False
+
         if not self._is_valid_goal_given_cargo(goal):
             return False
 
@@ -638,7 +672,12 @@ class Unit(Actor):
         return True
 
     def _is_valid_collect_goal(self, goal: CollectGoal, game_state: GameState) -> bool:
-        return not (self.is_light and game_state.get_dis_to_closest_opp_heavy(goal.dig_c) <= 1)
+        if self.is_light and game_state.get_dis_to_closest_opp_heavy(goal.dig_c) <= 1:
+            return False
+
+        dig_c = goal.dig_c
+        distance_to_dig_c = goal.factory.min_distance_to_c(dig_c) if goal.factory else self.tc.distance_to(dig_c)
+        return distance_to_dig_c <= CONFIG.MAX_DISTANCE_COLLECTING
 
     def _is_valid_destroy_lichen_goal(self, goal: DestroyLichenGoal, game_state: GameState) -> bool:
         return (

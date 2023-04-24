@@ -1,5 +1,6 @@
 from typing import Dict, Tuple, List
 from collections import defaultdict
+import logging
 
 from objects.game_state import GameState
 from objects.coordinate import TimeCoordinate
@@ -280,6 +281,7 @@ class Scheduler:
 
     def _schedule_unit_on_goal(self, goal: UnitGoal) -> None:
         game_state = self.schedule_info.game_state
+        logging.info(f"{self.schedule_info.game_state.real_env_steps}: schedule {goal.unit} on {goal}")
 
         if isinstance(goal, DigGoal):
             self._remove_other_units_from_dig_goal(goal)

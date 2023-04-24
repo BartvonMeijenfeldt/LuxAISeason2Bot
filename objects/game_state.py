@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING, Optional, Sequence, Set
+from logic.goals.unit_goal import DefendTileGoal
 
 from dataclasses import dataclass
 from lux.config import EnvConfig
@@ -144,6 +145,17 @@ class GameState:
     def get_dis_to_closest_opp_heavy(self, c: Coordinate) -> float:
         return self.board.get_min_dis_to_opp_heavy(c=c)
 
+    def c_is_undefended(self, c: Coordinate) -> bool:
+        return c.xy not in self.defended_c
+
+    @property
+    def defended_c(self) -> Set[tuple]:
+        return {
+            unit.goal.tile_c.xy
+            for unit in self.player_units
+            if unit.is_scheduled and isinstance(unit.goal, DefendTileGoal)
+        }
+
     def is_opponent_heavy_on_tile(self, c: Coordinate) -> bool:
         return self.board.is_opponent_heavy_on_tile(c=c)
 
@@ -181,9 +193,9 @@ class GameState:
     def opp_nr_lichen_tiles(self) -> int:
         return self.board.opp_nr_lichen_tiles
 
-    @property
-    def hunted_opp_units(self) -> set[Unit]:
-        return self.board.hunted_opp_units
+    # @property
+    # def hunted_opp_units(self) -> set[Unit]:
+    #     return self.board.hunted_opp_units
 
     @property
     def positions_in_dig_goals(self) -> set[tuple]:

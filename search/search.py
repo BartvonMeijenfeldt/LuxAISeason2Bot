@@ -161,7 +161,9 @@ class TilesToClearGraph(GoalGraph):
 
     def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
         action_power_cost = self.get_power_cost(action=action, to_c=to_c)
-        return action_power_cost + self.time_to_power_cost
+        resource_cost = 100 if self.board.is_resource_c(to_c) else 0
+        total_cost = action_power_cost + self.time_to_power_cost + resource_cost
+        return total_cost
 
     # TODO, consider is_valid_action node to exclude resource tiles Or at least a big extra cost
 
