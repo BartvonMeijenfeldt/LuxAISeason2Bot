@@ -33,6 +33,7 @@ from logic.goals.unit_goal import (
     EvadeConstraintsGoal,
     SupplyPowerGoal,
     DefendTileGoal,
+    DefendLichenTileGoal,
     CampResourceGoal,
 )
 from config import CONFIG
@@ -492,6 +493,10 @@ class Unit(Actor):
 
     def get_camp_resource_goals(self, game_state: GameState, resource_c: Coordinate) -> List[CampResourceGoal]:
         goals = [CampResourceGoal(self, resource_c, pickup_power) for pickup_power in [False, True]]
+        return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
+
+    def get_defend_lichen_goals(self, game_state: GameState, opp: Unit) -> List[DefendLichenTileGoal]:
+        goals = [DefendLichenTileGoal(self, opp.tc, opp, pickup_power) for pickup_power in [False, True]]
         return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
 
     # def generate_hunt_unit_goals(self, schedule_info: ScheduleInfo, opp: Unit) -> HuntGoal:

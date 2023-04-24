@@ -181,8 +181,6 @@ class Scheduler:
                 for goal in goals:
                     self._schedule_unit_on_goal(goal)
 
-                break
-
     def _exists_available_unit(self, game_state: GameState) -> bool:
         return any(
             factory.has_unit_available

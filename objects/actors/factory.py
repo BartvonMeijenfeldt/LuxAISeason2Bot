@@ -59,6 +59,7 @@ class Strategy(Enum):
     COLLECT_ORE = auto()
     ATTACK_OPPONENT = auto()
     CLEAR_RUBBLE_AROUND_BASE = auto()
+    DEFEND_LICHEN_TILE = auto()
 
 
 @dataclass(eq=False)
@@ -135,7 +136,13 @@ class Factory(Actor):
         self.lichen_positions = np.argwhere(board.lichen_strains == self.strain_id)
         self.lichen_positions_set = positions_to_set(self.lichen_positions)
         # TODO, sort them, and add incoming invaders as well
-        self.sorted_threaths_invaders = [unit for unit in board.opp_units if unit.tc.xy in self.lichen_positions_set]
+        self.sorted_threaths_invaders = [
+            unit
+            for unit in board.opp_units
+            if unit.tc.xy in self.lichen_positions_set or self.min_distance_to_c(unit.tc) <= 4
+        ]
+        self.sorted_threaths_invaders.sort(key=lambda unit: self.min_distance_to_c(unit.tc) - 100 * unit.is_heavy)
+
         self.nr_lichen_tiles = len(self.lichen_positions)
         self.connected_lichen_positions = self._get_connected_lichen_positions(board)
         self.spreadable_lichen_positions = self._get_spreadable_lichen_positions(board)
@@ -779,12 +786,6 @@ class Factory(Actor):
         return any(not unit.private_action_plan for unit in self.units)
 
     def schedule_units(self, strategy: Strategy, schedule_info: ScheduleInfo) -> List[UnitGoal]:
-        # if self.sorted_threaths_invaders:
-        #     try:
-        #         return [self._schedule_hunt_invaders(schedule_info)]
-        #     except NoValidGoalFoundError:
-        #         pass
-
         if self.has_heavy_unsupplied_collecting_next_to_factory_free_supply_c and self.has_light_unit_available:
             try:
                 return self._schedule_supply_goal_and_reschedule_receiving_unit(schedule_info)
@@ -800,33 +801,38 @@ class Factory(Actor):
 
         raise NoValidGoalFoundError
 
-    # def _schedule_hunt_invaders(self, schedule_info: ScheduleInfo) -> UnitGoal:
-    #     while self.sorted_threaths_invaders:
-    #         invader = self.sorted_threaths_invaders.pop()
-    #         if invader in schedule_info.game_state.hunted_opp_units:
-    #             continue
+    def schedule_defend_lichen_tile(self, schedule_info: ScheduleInfo) -> UnitGoal:
+        # TODO, sort the threaths by distance to the factory
+        while self.sorted_threaths_invaders:
+            invader = self.sorted_threaths_invaders.pop()
+            if schedule_info.game_state.c_is_defended(invader.tc):
+                continue
 
-    #         try:
-    #             return self._schedule_hunt_invader(invader, schedule_info)
-    #         except NoValidGoalFoundError:
-    #             continue
+            try:
+                return self.schedule_defend_lichen_tile_from_invader(invader, schedule_info)
+            except Exception:
+                continue
 
-    #     raise NoValidGoalFoundError
+        raise NoValidGoalFoundError
 
-    # def _schedule_hunt_invader(self, invader: Unit, schedule_info: ScheduleInfo) -> UnitGoal:
-    #     if invader.is_light:
-    #         return self._schedule_hunt_invader_with_units(invader, self.light_available_units, schedule_info)
-    #     else:
-    #         return self._schedule_hunt_invader_with_units(invader, self.heavy_available_units, schedule_info)
+    def schedule_defend_lichen_tile_from_invader(self, invader: Unit, schedule_info: ScheduleInfo) -> UnitGoal:
+        if invader.is_light:
+            return self.schedule_defend_lichen_tile_from_invader_with_units(
+                invader, self.light_available_units, schedule_info
+            )
+        else:
+            return self.schedule_defend_lichen_tile_from_invader_with_units(
+                invader, self.heavy_available_units, schedule_info
+            )
 
-    # def _schedule_hunt_invader_with_units(
-    #     self, invader: Unit, units: Iterable[Unit], schedule_info: ScheduleInfo
-    # ) -> UnitGoal:
+    def schedule_defend_lichen_tile_from_invader_with_units(
+        self, invader: Unit, units: Iterable[Unit], schedule_info: ScheduleInfo
+    ) -> UnitGoal:
 
-    #     potential_assignments = [
-    #         (unit, goal) for unit in units for goal in unit.get_hunt_unit_goals(schedule_info.game_state, invader)
-    #     ]
-    #     return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
+        potential_assignments = [
+            (unit, goal) for unit in units for goal in unit.get_defend_lichen_goals(schedule_info.game_state, invader)
+        ]
+        return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
 
     def _schedule_unit_on_strategy(self, strategy: Strategy, schedule_info: ScheduleInfo) -> UnitGoal:
         if strategy == Strategy.INCREASE_LICHEN_TILES:
@@ -843,6 +849,8 @@ class Factory(Actor):
             goal = self.schedule_strategy_immediately_return_ice(schedule_info)
         elif strategy == Strategy.CLEAR_RUBBLE_AROUND_BASE:
             goal = self.schedule_strategy_clear_rubble_around_base(schedule_info)
+        elif strategy == Strategy.DEFEND_LICHEN_TILE:
+            goal = self.schedule_defend_lichen_tile(schedule_info)
         else:
             raise ValueError("Strategy is not a known strategy")
 

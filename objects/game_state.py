@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, Sequence, Set
-from logic.goals.unit_goal import DefendTileGoal
+from logic.goals.unit_goal import DefendTileGoal, DefendLichenTileGoal
 
 from dataclasses import dataclass
 from lux.config import EnvConfig
@@ -146,14 +146,18 @@ class GameState:
         return self.board.get_min_dis_to_opp_heavy(c=c)
 
     def c_is_undefended(self, c: Coordinate) -> bool:
-        return c.xy not in self.defended_c
+        return not self.c_is_defended(c)
+
+    def c_is_defended(self, c: Coordinate) -> bool:
+        return c.xy in self.defended_c
 
     @property
     def defended_c(self) -> Set[tuple]:
         return {
             unit.goal.tile_c.xy
             for unit in self.player_units
-            if unit.is_scheduled and isinstance(unit.goal, DefendTileGoal)
+            if unit.is_scheduled
+            and (isinstance(unit.goal, DefendTileGoal) or isinstance(unit.goal, DefendLichenTileGoal))
         }
 
     def is_opponent_heavy_on_tile(self, c: Coordinate) -> bool:

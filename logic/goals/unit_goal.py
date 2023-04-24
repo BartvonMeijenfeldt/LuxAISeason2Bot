@@ -1668,6 +1668,119 @@ class DefendTileGoal(UnitGoal):
         return 0
 
 
+@dataclass
+class DefendLichenTileGoal(UnitGoal):
+    tile_c: Coordinate
+    opp: Unit
+    pickup_power: bool
+    bonus_value = 0
+
+    def __post_init__(self) -> None:
+        self.min_power_required = self.unit.update_action_queue_power_cost + 3 * self.unit.move_power_cost
+
+    def __repr__(self) -> str:
+        return f"defend_lichen_{self.tile_c}_from_{self.opp}"
+
+    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
+        return False
+
+    @property
+    def key(self) -> str:
+        return str(self)
+
+    @property
+    def assignment_key(self) -> str:
+        return f"{self.key}_{self.pickup_power}"
+
+    def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
+        return self.opp not in game_state.opp_units or self.opp.tc.distance_to(self.tile_c) > 0
+
+    def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
+        game_state = schedule_info.game_state
+        constraints = schedule_info.constraints
+
+        self._init_action_plan()
+        if self.pickup_power:
+            self._add_power_pickup_actions(schedule_info, self.tile_c, later_pickup=False)
+            final_power = self.action_plan.get_final_p(schedule_info.game_state)
+            # Make sure we add all and not mis a few power messing up the defense
+            if final_power + self.unit.update_action_queue_power_cost >= self.unit.battery_capacity:
+                pickup_action: PickupAction = self.action_plan.primitive_actions[-1]  # type: ignore
+                pickup_action.amount += self.unit.update_action_queue_power_cost
+                pickup_action.amount = min(self.unit.battery_capacity, pickup_action.amount)
+
+        cur_power = self.action_plan.get_final_p(game_state)
+        max_power_minus_queue_update = self.unit.battery_capacity - self.unit.can_update_action_queue
+        if cur_power < self.opp.power and cur_power < max_power_minus_queue_update and game_state.real_env_steps < 950:
+            raise InvalidGoalError
+        if (
+            cur_power > self.opp.power or cur_power >= max_power_minus_queue_update
+        ) and game_state.real_env_steps < 980:
+            self.bonus_value = 5_000
+
+        if self.unit.tc.distance_to(self.opp.tc) > 1:
+            self._add_actions_move_next_to_opp(game_state=game_state, constraints=constraints)
+
+        self._add_repetitive_move_actions(game_state=game_state, constraints=constraints)
+        return self.action_plan
+
+    def _add_actions_move_next_to_opp(self, game_state: GameState, constraints: Constraints) -> None:
+        actions_move_next_to = self._get_move_near_actions(
+            start_tc=self.cur_tc,
+            goal=self.opp.tc,
+            reckless=False,
+            constraints=constraints,
+            distance=1,
+            board=game_state.board,
+        )
+        if not self.action_plan.can_add_actions(
+            actions_move_next_to, game_state, min_power_end=self.min_power_required
+        ):
+            raise NoSolutionError
+
+        self.action_plan.extend(actions_move_next_to)
+
+    def _add_repetitive_move_actions(self, game_state: GameState, constraints: Constraints) -> None:
+        while self.action_plan.nr_primitive_actions < 20:
+            if self.cur_tc.distance_to(self.opp.tc) == 1:
+                actions = self._get_move_to_actions(self.cur_tc, self.opp.tc, constraints, game_state.board)
+            else:
+                actions = self._get_move_near_actions(
+                    self.cur_tc,
+                    self.opp.tc,
+                    distance=1,
+                    reckless=False,
+                    constraints=constraints,
+                    board=game_state.board,
+                )
+
+            if not self.action_plan.can_add_actions(actions, game_state, min_power_end=self.min_power_required):
+                break
+
+            self.action_plan.extend(actions)
+
+    def get_power_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
+        if game_state.steps_left == 1:
+            return 0
+
+        if self.unit.tc.distance_to(self.opp.tc) // 2 > game_state.steps_left:
+            return 0
+
+        return 10_000 + self.bonus_value
+
+    def _get_max_power_benefit(self, game_state: GameState) -> float:
+        return 10_000
+
+    def _get_min_power_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+        return self._get_min_cost_and_steps_go_to_c(self.tile_c, game_state)
+
+    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        return 0
+
+
 # @dataclass
 # class HuntGoal(UnitGoal):
 #     opp: Unit
