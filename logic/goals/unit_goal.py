@@ -1593,7 +1593,7 @@ class DefendTileGoal(UnitGoal):
             self._add_power_pickup_actions(schedule_info, self.tile_c, later_pickup=False)
 
         cur_power = self.action_plan.get_final_p(game_state)
-        if cur_power < self.opp.power:
+        if cur_power < self.opp.power and cur_power < 2980:
             raise InvalidGoalError
 
         if self.unit.tc.distance_to(self.opp.tc) > 1:
