@@ -66,9 +66,9 @@ HEAVY_CONFIG = UnitConfig(
 
 @dataclass
 class EnvConfig:
-    ## various options that can be configured if needed
+    # various options that can be configured if needed
 
-    ### Variable parameters that don't affect game logic much ###
+    # Variable parameters that don't affect game logic much ###
     max_episode_length: int = 1000
     map_size: int = 48
     verbose: int = 1
@@ -77,7 +77,7 @@ class EnvConfig:
     # During online competition this is set to True
     validate_action_space: bool = True
 
-    ### Constants ###
+    # Constants
     # you can only ever transfer in/out 1000 as this is the max cargo space.
     max_transfer_amount: int = 10000
     MIN_FACTORIES: int = 2
@@ -91,7 +91,7 @@ class EnvConfig:
     INIT_WATER_METAL_PER_FACTORY: int = 150  # amount of water and metal units given to each factory
     INIT_POWER_PER_FACTORY: int = 1000
 
-    #### LICHEN ####
+    # LICHEN
     MIN_LICHEN_TO_SPREAD: int = 20
     LICHEN_LOST_WITHOUT_WATER: int = 1
     LICHEN_GAINED_WITH_WATER: int = 1
@@ -101,10 +101,10 @@ class EnvConfig:
     # cost of watering with a factory is `ceil(# of connected lichen tiles) / (this factor) + 1`
     LICHEN_WATERING_COST_FACTOR: int = 10
 
-    #### Bidding System ####
+    # Bidding System
     BIDDING_SYSTEM: bool = True
 
-    #### Factories ####
+    # Factories
     FACTORY_PROCESSING_RATE_WATER: int = 100
     ICE_WATER_RATIO: int = 4
     FACTORY_PROCESSING_RATE_METAL: int = 50
@@ -118,7 +118,7 @@ class EnvConfig:
     # game design note: with a positve water consumption, game becomes quite hard for new competitors.
     # so we set it to 0
 
-    #### Collision Mechanics ####
+    # Collision Mechanics
     POWER_LOSS_FACTOR: float = 0.5
 
     LIGHT_ROBOT: UnitConfig = field(default=LIGHT_CONFIG)

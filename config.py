@@ -28,15 +28,8 @@ class CONFIG:
 
     LIGHT_TIME_TO_POWER_COST = 5
     HEAVY_TIME_TO_POWER_COST = 30
-    # TODO potential adaptation: start lower, and each timestep that passes increase the optimal path time to power cost
     OPTIMAL_PATH_TIME_TO_POWER_COST = 50
 
-    START_STEP_DESTROYING_LICHEN = 50
-
-    RUBBLE_VALUE_CLEAR_FOR_RESOURCE: float = 10.0
-    RUBBLE_VALUE_CLEAR_FOR_LICHEN_BASE: float = 10.0
-    RUBBLE_VALUE_CLEAR_FOR_LICHEN_DISTANCE_PENALTY: float = 1.0
-    RUBBLE_CLEAR_FOR_LICHEN_MAX_DISTANCE: int = 3
     RUBBLE_CLEAR_FOR_LICHEN_BONUS_CLEARING: int = 50
 
     # Supply Power
@@ -59,8 +52,6 @@ class CONFIG:
     DESTROY_LICHEN_VALUE_PER_LICHEN: int = 1
 
     SUPPLY_POWER_VALUE: int = 10_000
-
-    HUNT_VALUE: int = 10_000
 
     TURN_1_NR_DIGS_HEAVY: int = 37
     LAST_STEP_SCHEDULE_ORE_MINING: int = 900
@@ -117,6 +108,10 @@ class CONFIG:
 
     # Units Building
     LAST_STEP_UNIT_BUILDING: int = 994
+
+    # INVADER
+    DISTANCE_TO_FACTORY_CONSIDERED_INVADER: int = 4
+    INVADER_HEAVY_PRIORITY: int = 100
 
     # Units
     # --------------------------------------

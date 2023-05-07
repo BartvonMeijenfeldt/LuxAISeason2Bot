@@ -158,9 +158,6 @@ if __name__ == "__main__":
                 raise ValueError(f"Unknown type of row: \n {row}")
 
     cli_output_name = cli_output_path.split(".")[0].split(r"/")[1]
-    collision_df = (
-        pd.DataFrame(collision_rows).explode("lost_unit").to_csv(f"data/{cli_output_name}_collisions.csv", index=False)
-    )
-    invalid_actions_df = pd.DataFrame(invalid_action_rows).to_csv(
-        f"data/{cli_output_name}_invalid_actions.csv", index=False
-    )
+
+    pd.DataFrame(collision_rows).explode("lost_unit").to_csv(f"data/{cli_output_name}_collisions.csv", index=False)
+    pd.DataFrame(invalid_action_rows).to_csv(f"data/{cli_output_name}_invalid_actions.csv", index=False)

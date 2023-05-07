@@ -32,7 +32,6 @@ class Scheduler:
         self._reschedule_goals_with_no_private_action_plan()
         self._schedule_goals_still_fine()
         self._reschedule_goals_too_little_power()
-        self._reschedule_goals_needs_adapting()
         self._reschedule_at_risk_units()
 
         self._schedule_new_goals()
@@ -89,22 +88,6 @@ class Scheduler:
 
                 self._schedule_unit_on_goal(goal)
 
-    def _reschedule_goals_needs_adapting(self) -> None:
-        game_state = self.schedule_info.game_state
-
-        for unit in game_state.player_units:
-            if not (unit.goal and unit.goal.plan_needs_adapting(unit.private_action_plan, game_state)):
-                continue
-
-            try:
-                schedule_info = self.schedule_info.copy_without_unit_scheduled_actions(unit)
-                goal = unit.get_best_version_goal(unit.goal, schedule_info)
-            except Exception:
-                self._unschedule_unit_goal(unit)
-                continue
-
-            self._schedule_unit_on_goal(goal)
-
     def _schedule_goals_still_fine(self) -> None:
         game_state = self.schedule_info.game_state
 
@@ -125,9 +108,6 @@ class Scheduler:
                 continue
 
             if not unit.private_action_plan:
-                continue
-
-            if unit.goal.plan_needs_adapting(unit.private_action_plan, game_state):
                 continue
 
             time_coordinates = unit.private_action_plan.get_time_coordinates(game_state)

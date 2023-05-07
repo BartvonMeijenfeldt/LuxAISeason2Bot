@@ -3,17 +3,14 @@ import numpy as np
 import logging
 import time
 
-from typing import TYPE_CHECKING, Dict, Any, Sequence
+from typing import TYPE_CHECKING, Dict, Any
 
 from lux.kit import obs_to_game_state
 from lux.config import EnvConfig
 from lux.utils import is_my_turn_to_place_factory
 from logic.goal_resolution.scheduler import Scheduler
 from objects.game_state import GameState
-from objects.actors.factory import Factory
-from objects.actors.unit import Unit
 from logic.early_setup import get_factory_spawn_loc
-from logic.goal_resolution.power_tracker import PowerTracker
 
 from datetime import datetime
 
@@ -79,30 +76,6 @@ class Agent:
             logging.info(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
         else:
             logging.warning(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
-
-    @staticmethod
-    def get_power_tracker(actors: Sequence[Actor]) -> PowerTracker:
-        factories = [factory for factory in actors if isinstance(factory, Factory)]
-        return PowerTracker(factories)
-
-    @staticmethod
-    def _actor_importance_key(actor: Actor) -> int:
-        if isinstance(actor, Factory):
-            return 1
-        elif isinstance(actor, Unit):
-            if actor.unit_type == "HEAVY":
-                if actor.has_actions_in_queue:
-                    return 2
-                else:
-                    return 3
-            else:
-                if actor.has_actions_in_queue:
-                    return 4
-                else:
-                    return 5
-
-        else:
-            raise ValueError(f"{actor} is not of type Unit or Factory")
 
     def get_actions(self, game_state: GameState) -> Dict[str, Any]:
         actions = {}

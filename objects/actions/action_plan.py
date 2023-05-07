@@ -26,10 +26,6 @@ class ActionPlan(metaclass=ABCMeta):
     actor: Actor
     actions: list[Action] = field(init=False)
 
-    @abstractmethod
-    def actor_can_carry_out_plan(self, game_state: GameState) -> bool:
-        ...
-
     @property
     @abstractmethod
     def next_tc(self) -> Optional[TimeCoordinate]:
@@ -50,10 +46,6 @@ class ActionPlan(metaclass=ABCMeta):
     @property
     def nr_time_steps(self) -> int:
         return len(self.actions)
-
-    @property
-    def power_requested(self) -> int:
-        return sum(action.requested_power for action in self.actions)
 
     def __iter__(self) -> Iterator[Action]:
         return iter(self.actions)

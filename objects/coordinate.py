@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from dataclasses import dataclass
 
 from objects.resource import Resource
@@ -151,9 +151,6 @@ class TimeCoordinate(Coordinate):
     def xyt(self) -> tuple[int, int, int]:
         return self.x, self.y, self.t
 
-    def to_timeless_coordinate(self) -> Coordinate:
-        return Coordinate(self.x, self.y)
-
 
 @dataclass(eq=True, frozen=True)
 class DigCoordinate(Coordinate):
@@ -187,9 +184,6 @@ class DigTimeCoordinate(DigCoordinate, TimeCoordinate):
         t = self._add_get_new_t_action(action)
         d = self._add_get_new_d_action(action)
         return DigTimeCoordinate(x, y, t, d)
-
-    def to_timeless_coordinate(self) -> DigCoordinate:
-        return DigCoordinate(self.x, self.y, self.d)
 
 
 @dataclass(eq=True, frozen=True)
@@ -310,37 +304,6 @@ class ResourceTimeCoordinate(ResourceCoordinate, TimeCoordinate):
 @dataclass
 class CoordinateList:
     coordinates: list[Coordinate]
-
-    def dis_to_tiles(self, c: Coordinate, exclude_c: Optional[CoordinateList] = None) -> list[int]:
-        if exclude_c is None:
-            return [c.distance_to(factory_c) for factory_c in self.coordinates]
-
-        return [c.distance_to(factory_c) for factory_c in self.coordinates if factory_c not in exclude_c]
-
-    def min_dis_to(self, c: Coordinate, exclude_c: Optional[CoordinateList] = None) -> int:
-        return min(self.dis_to_tiles(c, exclude_c=exclude_c))
-
-    def get_all_closest_tiles(self, c: Coordinate, exclude_c: Optional[CoordinateList] = None) -> CoordinateList:
-        min_dis = self.min_dis_to(c, exclude_c=exclude_c)
-
-        if exclude_c is None:
-            coordinates = [c_l for c_l in self.coordinates if min_dis == c_l.distance_to(c)]
-        else:
-            coordinates = [c_l for c_l in self.coordinates if min_dis == c_l.distance_to(c) and c_l not in exclude_c]
-
-        return CoordinateList(coordinates)
-
-    def get_closest_tile(self, c: Coordinate, exclude_c: Optional[CoordinateList] = None) -> Coordinate:
-        return self.get_all_closest_tiles(c=c, exclude_c=exclude_c)[0]
-
-    # TODO rewrite this function, takes huge amount of total run time
-    def get_n_closest_tiles(self, c: Coordinate, n: int) -> CoordinateList:
-        coordinates_sorted = sorted(self.coordinates, key=c.distance_to)
-        n_closest_coordinates = coordinates_sorted[:n]
-        return CoordinateList(n_closest_coordinates)
-
-    def append(self, c: Coordinate) -> None:
-        self.coordinates.append(c)
 
     def __add__(self, other: CoordinateList) -> CoordinateList:
         return CoordinateList(self.coordinates + other.coordinates)

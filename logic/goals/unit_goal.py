@@ -3,8 +3,8 @@ from typing import TYPE_CHECKING, Sequence
 
 from abc import abstractmethod
 from dataclasses import dataclass, field, replace
-from typing import Optional, Tuple
-from math import floor, ceil, inf
+from typing import Optional
+from math import ceil, inf
 from copy import copy
 from functools import lru_cache
 import numpy as np
@@ -14,8 +14,6 @@ from search.search import (
     EvadeConstraintsGraph,
     MoveToGraph,
     MoveNearCoordinateGraph,
-    MoveToTimeGraph,
-    MoveNextToTimeGraph,
     DigAtGraph,
     FleeTowardsAnyFactoryGraph,
     FleeDistanceGraph,
@@ -71,10 +69,6 @@ class UnitGoal(Goal):
 
     @abstractmethod
     def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
-        ...
-
-    @abstractmethod
-    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
         ...
 
     def get_best_case_value_per_step(self, game_state: GameState) -> float:
@@ -188,13 +182,6 @@ class UnitGoal(Goal):
         actions = self._search_graph(graph=graph, start=recharge_tc)
         return actions
 
-    def _add_move_to_actions(
-        self, start_tc: TimeCoordinate, goal: Coordinate, constraints: Constraints, board: Board
-    ) -> None:
-        goal = Coordinate(*goal.xy)
-        actions = self._get_move_to_actions(start_tc, goal, constraints, board)
-        self.action_plan.extend(actions)
-
     def _get_move_to_actions(
         self,
         start_tc: TimeCoordinate,
@@ -206,38 +193,6 @@ class UnitGoal(Goal):
         graph = self._get_move_to_graph(board=board, goal=goal, constraints=constraints)
         actions = self._search_graph(graph=graph, start=start_tc)
         return actions
-
-    def _add_move_to_time_actions(
-        self, start_tc: TimeCoordinate, goal: TimeCoordinate, constraints: Constraints, board: Board
-    ) -> None:
-        goal = TimeCoordinate(*goal.xyt)
-        actions = self._get_move_to_time_actions(start_tc, goal, constraints, board)
-        self.action_plan.extend(actions)
-
-    def _get_move_to_time_actions(
-        self,
-        start_tc: TimeCoordinate,
-        goal: TimeCoordinate,
-        constraints: Constraints,
-        board: Board,
-    ) -> list[UnitAction]:
-        goal = TimeCoordinate(*goal.xyt)
-        graph = self._get_move_to_time_graph(board=board, goal=goal, constraints=constraints)
-        actions = self._search_graph(graph=graph, start=start_tc)
-        return actions
-
-    def _get_move_to_time_graph(self, board: Board, goal: TimeCoordinate, constraints: Constraints) -> MoveToTimeGraph:
-        goal = TimeCoordinate(*goal.xyt)
-        graph = MoveToTimeGraph(
-            unit_type=self.unit.unit_type,
-            board=board,
-            time_to_power_cost=self.unit.time_to_power_cost,
-            unit_cfg=self.unit.unit_cfg,
-            goal=goal,
-            constraints=constraints,
-        )
-
-        return graph
 
     def _get_move_near_actions(
         self,
@@ -316,35 +271,6 @@ class UnitGoal(Goal):
             constraints,
             self.cur_tc,
             distance,
-        )
-
-        return graph
-
-    def _get_move_next_to_time_actions(
-        self,
-        start_tc: TimeCoordinate,
-        goal: TimeCoordinate,
-        constraints: Constraints,
-        board: Board,
-    ) -> list[UnitAction]:
-
-        goal = TimeCoordinate(*goal.xyt)
-        graph = self._get_move_next_to_time_graph(board=board, goal=goal, constraints=constraints)
-        actions = self._search_graph(graph=graph, start=start_tc)
-        return actions
-
-    def _get_move_next_to_time_graph(
-        self, board: Board, goal: TimeCoordinate, constraints: Constraints
-    ) -> MoveNextToTimeGraph:
-
-        goal = TimeCoordinate(*goal.xyt)
-        graph = MoveNextToTimeGraph(
-            unit_type=self.unit.unit_type,
-            board=board,
-            time_to_power_cost=self.unit.time_to_power_cost,
-            unit_cfg=self.unit.unit_cfg,
-            goal=goal,
-            constraints=constraints,
         )
 
         return graph
@@ -452,8 +378,6 @@ class DigGoal(UnitGoal):
     def find_max_dig_actions_can_still_reach_factory(
         self, actions: Sequence[UnitAction], game_state: GameState, constraints: Constraints
     ) -> list[UnitAction]:
-        # TODO, see if when we first start with the upper limit, if that were to improve the speed
-
         low = 0
         high = self._get_nr_digs_in_actions(actions)
 
@@ -544,9 +468,7 @@ class DigGoal(UnitGoal):
 
         return self._get_benefit_n_digs(action_plan.nr_digs, game_state)
 
-    def _get_min_cost_and_steps_max_nr_digs(
-        self, game_state: GameState, non_dig_power_used_after_pickup: int
-    ) -> tuple[float, int]:
+    def _get_min_cost_and_steps_max_nr_digs(self, game_state: GameState) -> tuple[float, int]:
         max_nr_digs = self._get_best_max_nr_digs(game_state)
         min_cost_digging = max_nr_digs * self.unit.dig_power_cost
 
@@ -568,9 +490,6 @@ class CollectGoal(DigGoal):
             return False
 
         return True
-
-    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
-        return False
 
     def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
         game_state = schedule_info.game_state
@@ -714,13 +633,6 @@ class CollectGoal(DigGoal):
 
         return min_cost, min_steps
 
-    def _get_min_cost_and_steps_max_nr_digs(self, game_state: GameState) -> Tuple[float, int]:
-        move_steps_after_pickup = self._get_min_steps_move_to_c_after_optional_power_pickup(self.dig_c, game_state)
-        min_move_steps_transfer = self._get_min_move_steps_to_factory(game_state)
-        nr_move_steps = move_steps_after_pickup + min_move_steps_transfer
-        power_used = nr_move_steps * self.unit.move_power_cost
-        return super()._get_min_cost_and_steps_max_nr_digs(game_state, non_dig_power_used_after_pickup=power_used)
-
     def _get_min_cost_and_steps_transfer_resource(self, game_state: GameState) -> tuple[float, int]:
         nr_steps_move_to_factory = self._get_min_move_steps_to_factory(game_state)
 
@@ -777,9 +689,6 @@ class SupplyPowerGoal(UnitGoal):
 
     def __repr__(self) -> str:
         return f"supply_power_to_{self.receiving_unit}"
-
-    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
-        return False
 
     @property
     def key(self) -> str:
@@ -975,9 +884,6 @@ class TransferGoal(UnitGoal):
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return self.unit.get_quantity_resource(self.resource) == 0
 
-    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
-        return False
-
     def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
         game_state = schedule_info.game_state
         constraints = schedule_info.constraints
@@ -1166,9 +1072,6 @@ class ClearRubbleGoal(DigGoal):
 
         return not game_state.is_rubble_tile(self.dig_c)
 
-    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
-        return False
-
     @property
     def key(self) -> str:
         return str(self)
@@ -1266,11 +1169,6 @@ class ClearRubbleGoal(DigGoal):
 
         return min_cost, min_steps
 
-    def _get_min_cost_and_steps_max_nr_digs(self, game_state: GameState) -> Tuple[float, int]:
-        move_steps_after_pickup = self._get_min_steps_move_to_c_after_optional_power_pickup(self.dig_c, game_state)
-        power_used = move_steps_after_pickup * self.unit.move_power_cost
-        return super()._get_min_cost_and_steps_max_nr_digs(game_state, non_dig_power_used_after_pickup=power_used)
-
     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
         return 0
 
@@ -1284,9 +1182,6 @@ class DestroyLichenGoal(DigGoal):
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return not game_state.is_opponent_lichen_tile(self.dig_c)
-
-    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
-        return False
 
     @property
     def key(self) -> str:
@@ -1366,7 +1261,6 @@ class DestroyLichenGoal(DigGoal):
         return benefit_lichen_removed
 
     def _get_lichen_removed(self, n_digs: int, game_state: GameState) -> int:
-        # TODO lichen removed depends on when you arrive, so for action plan evaluation might need to adapt this
         max_lichen_removed = self.unit.lichen_removed_per_dig * n_digs
         nr_steps_to_lichen = self._get_min_nr_steps_to_c_optional_power_pickup(self.dig_c, game_state)
         nr_steps_to_remove_lichen = nr_steps_to_lichen + n_digs
@@ -1395,153 +1289,6 @@ class DestroyLichenGoal(DigGoal):
 
         return min_cost, min_steps
 
-    def _get_min_cost_and_steps_max_nr_digs(self, game_state: GameState) -> Tuple[float, int]:
-        move_steps_after_pickup = self._get_min_steps_move_to_c_after_optional_power_pickup(self.dig_c, game_state)
-        power_used = move_steps_after_pickup * self.unit.move_power_cost
-        return super()._get_min_cost_and_steps_max_nr_digs(game_state, non_dig_power_used_after_pickup=power_used)
-
-    def quantity_ice_to_transfer(self, game_state: GameState) -> int:
-        return 0
-
-    def quantity_ore_to_transfer(self, game_state: GameState) -> int:
-        return 0
-
-
-@dataclass
-class CampResourceGoal(UnitGoal):
-    resource_c: Coordinate
-    pickup_power: bool
-
-    def __repr__(self) -> str:
-        return f"camp_{self.resource_c}"
-
-    def key(self) -> str:
-        return str(self)
-
-    @property
-    def assignment_key(self) -> str:
-        return f"{self.key}_{self.pickup_power}"
-
-    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
-        return self.unit.tc.distance_to(self.resource_c) <= 1 and not self.unit.is_under_threath(game_state)
-
-    def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
-        # TODO this only makes sense when camping right next to a factory, need something else for other cases
-        is_factory_next_to_c_destroyed = game_state.get_min_distance_to_any_opp_factory(self.resource_c) > 1
-        if is_factory_next_to_c_destroyed:
-            return True
-
-        # TODO  If cannot safely go home next step would be better
-        return self.unit.power < 0.1 * self.unit.battery_capacity
-
-    def generate_action_plan(
-        self, game_state: GameState, constraints: Constraints, power_tracker: PowerTracker
-    ) -> UnitActionPlan:
-        self._init_action_plan()
-
-        if self.unit.tc.distance_to(self.resource_c) > 2:
-            # TODO in the case that opponent will have more power:
-            #      add preference diagonal to resource_c such that we have two ways to get next to resource_c
-            self._add_actions_move_near_to_resource_c(
-                distance=2, reckless=False, game_state=game_state, constraints=constraints
-            )
-
-        if self.unit.tc.distance_to(self.resource_c) > 1:
-            self._add_actions_move_near_to_resource_c(
-                distance=1, reckless=True, game_state=game_state, constraints=constraints
-            )
-
-        self._optional_add_repetitive_move_actions(game_state, constraints)
-        return self.action_plan
-
-    def _add_actions_move_near_to_resource_c(
-        self, distance: int, reckless: bool, game_state: GameState, constraints: Constraints
-    ) -> None:
-        actions_move_next_to = self._get_move_near_actions(
-            start_tc=self.cur_tc,
-            goal=self.resource_c,
-            reckless=reckless,
-            constraints=constraints,
-            distance=distance,
-            board=game_state.board,
-        )
-        if not self.action_plan.can_add_actions(actions_move_next_to, game_state):
-            raise NoSolutionError
-
-        self.action_plan.extend(actions_move_next_to)
-
-    def _optional_add_repetitive_move_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        if not self.action_plan and not self.unit.is_under_threath(game_state):
-            self.action_plan.append(MoveAction(Direction.CENTER, n=20))
-            return
-
-        while self.action_plan.nr_primitive_actions < 20:
-            if self.cur_tc.distance_to(self.resource_c) == 1:
-                actions = self._get_move_to_actions(self.cur_tc, self.resource_c, constraints, game_state.board)
-            else:
-                actions = self._get_move_near_actions(
-                    self.cur_tc,
-                    self.resource_c,
-                    distance=1,
-                    reckless=False,
-                    constraints=constraints,
-                    board=game_state.board,
-                )
-
-            if not self.action_plan.can_add_actions(actions, game_state):
-                break
-
-            self.action_plan.extend(actions)
-
-    def get_power_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        # TODO if not moving around but waiting, the opponent will not be chasing either and the benefit is lower
-        nr_steps_moving_around_factory_plan = self._get_nr_steps_moving_around_factory(action_plan, game_state)
-        nr_steps_can_continue_to_move_around_factory = self._get_nr_steps_can_continue_to_move_around_factory(
-            action_plan, game_state
-        )
-        nr_steps_moving_around = nr_steps_moving_around_factory_plan + nr_steps_can_continue_to_move_around_factory
-        return self._get_power_benefit_n_steps_moving_around_factory(nr_steps_moving_around)
-
-    def _get_nr_steps_moving_around_factory(self, action_plan: UnitActionPlan, game_state: GameState) -> int:
-        return sum(1 for tc in action_plan.get_time_coordinates(game_state) if tc.distance_to(self.resource_c) <= 1)
-
-    def _get_nr_steps_can_continue_to_move_around_factory(
-        self, action_plan: UnitActionPlan, game_state: GameState
-    ) -> int:
-        final_ptc = action_plan.get_final_ptc(game_state)
-        power_getting_back = self._get_power_cost_to_any_player_factory(final_ptc, game_state)
-        power_left = max(final_ptc.p - power_getting_back, 0)
-        nr_steps_can_continue = floor(power_left / self.unit.move_power_cost)
-        return nr_steps_can_continue
-
-    def _get_power_cost_to_any_player_factory(self, c: Coordinate, game_state: GameState) -> float:
-        nr_steps_getting_back = game_state.board.get_min_distance_to_any_player_factory(c)
-        power_getting_back = nr_steps_getting_back * self.unit.unit_cfg.MOVE_COST
-        return power_getting_back
-
-    def _get_power_benefit_n_steps_moving_around_factory(self, n: int) -> float:
-        # TODO add risk of being captured
-        cost_not_mining_ice_per_step = CONFIG.ICE_TO_POWER * HEAVY_CONFIG.DIG_RESOURCE_GAIN - HEAVY_CONFIG.DIG_COST
-        cost_not_mining_ice = n * cost_not_mining_ice_per_step
-        # Assume you will be chased by the same unit
-        power_cost_chasing = n * self.unit.move_power_cost
-        return cost_not_mining_ice + power_cost_chasing
-
-    def _get_max_power_benefit(self, game_state: GameState) -> float:
-        power_available = self.unit.battery_capacity if self.pickup_power else self.unit.power
-        _, power_to_c = self._get_min_nr_steps_moving_and_power_pickup_to_c(self.resource_c, game_state)
-        power_getting_back = self._get_power_cost_to_any_player_factory(self.resource_c, game_state)
-        power_left = max(power_available - power_to_c - power_getting_back, 0)
-        max_nr_steps_moving_around_factory = floor(power_left / self.unit.move_power_cost)
-
-        return self._get_power_benefit_n_steps_moving_around_factory(max_nr_steps_moving_around_factory)
-
-    def _get_min_power_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
-        # Only the cost of getting there if we start threatening each other it will cost our opponent the same cost as
-        # ours approximately so that would be ok
-        # TODO consider on adding the cost of going back as well
-        return self._get_min_cost_and_steps_go_to_c(self.resource_c, game_state)
-
     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
         return 0
 
@@ -1561,10 +1308,6 @@ class DefendTileGoal(UnitGoal):
 
     def __repr__(self) -> str:
         return f"defend_{self.tile_c}_from_{self.opp}"
-
-    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
-        # TODO
-        return False
 
     @property
     def key(self) -> str:
@@ -1681,9 +1424,6 @@ class DefendLichenTileGoal(UnitGoal):
     def __repr__(self) -> str:
         return f"defend_lichen_{self.tile_c}_from_{self.opp}"
 
-    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
-        return False
-
     @property
     def key(self) -> str:
         return str(self)
@@ -1781,305 +1521,12 @@ class DefendLichenTileGoal(UnitGoal):
         return 0
 
 
-# @dataclass
-# class HuntGoal(UnitGoal):
-#     opp: Unit
-#     pickup_power: bool
-
-#     def __post_init__(self):
-#         self._init_action_plan()
-
-#     def __repr__(self) -> str:
-#         return f"hunt_{self.opp}"
-
-#     def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
-#         return not self.opp.acted_out_last_action_and_no_update_queue
-
-#     @property
-#     def key(self) -> str:
-#         return str(self)
-
-#     @property
-#     def assignment_key(self) -> str:
-#         return f"{self.key}_{self.pickup_power}"
-
-#     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
-#         return self.opp not in game_state.opp_units or game_state.is_opponent_factory_tile(self.opp.tc)
-
-#     def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
-#         game_state = schedule_info.game_state
-#         constraints = schedule_info.constraints
-
-#         constraints_with_current_danger = self._add_opp_danger_constraints(constraints, game_state)
-#         self.opp_time_coordinates = self.opp.get_tcs_action_queue(game_state)
-
-#         self._init_action_plan()
-#         if self.pickup_power:
-#             self._add_power_pickup_actions(schedule_info, Coordinate(*self.opp.tc.xy), later_pickup=False)
-
-#         constraints_with_current_danger = self._add_opp_danger_constraints(constraints, game_state)
-
-#         self._add_hunt_actions(game_state, constraints_with_current_danger)
-#         self._optional_add_alternating_moves(game_state, constraints_with_current_danger)
-#         self.action_plan.filter_out_actions_after_n_steps(20)
-#         if not self.action_plan.unit_has_enough_power(game_state):
-#             raise InvalidGoalError
-#         return self.action_plan
-
-#     def _add_opp_danger_constraints(self, constraints: Constraints, game_state: GameState) -> Constraints:
-#         if self.unit.is_stronger_than(self.opp):
-#             return constraints
-
-#         constraints_with_danger = copy(constraints)
-#         danger = {
-#             tc: 10_000.0
-#             for tc in self.opp.get_non_stationary_tcs_neighboring_action_queue(game_state)
-#             if not game_state.is_player_factory_tile(tc)
-#         }
-#         constraints_with_danger.add_stationary_danger_coordinates(danger)
-
-#         cur_power = self.action_plan.get_final_p(game_state)
-#         nr_primitive_actions = self.action_plan.nr_primitive_actions
-#         opp_actions_carried_out = self.opp.primitive_actions_in_queue[:nr_primitive_actions]
-#         opp_power = self.opp.get_power_after_actions(opp_actions_carried_out, game_state)
-#         if cur_power < opp_power:
-#             constraints_with_danger.add_moving_danger_coordinates(danger)
-
-#         return constraints_with_danger
-
-#     def _add_hunt_actions(self, game_state: GameState, constraints: Constraints) -> None:
-#         try:
-#             self._add_hunt_actions_before_end_tc(game_state, constraints)
-#         except Exception:
-#             self._add_hunt_actions_end_c(game_state, constraints)
-
-#     def _add_hunt_actions_before_end_tc(self, game_state: GameState, constraints: Constraints) -> None:
-#         opp_tcs_and_next_actions = self.get_reachable_opp_tcs_and_next_actions(game_state)
-
-#         for opp_tc, next_action in opp_tcs_and_next_actions:
-#             try:
-#                 self._add_hunt_actions_opp_tc(opp_tc, next_action, game_state, constraints)
-#                 return
-#             except Exception:
-#                 continue
-
-#         raise NoSolutionError
-
-#     def _add_hunt_actions_opp_tc(
-#         self, opp_tc: TimeCoordinate, opp_next_action: UnitAction, game_state: GameState, constraints: Constraints
-#     ) -> None:
-
-#         add_action_functions = [self._add_collide_actions, self._add_actions_move_to_next_tc_and_follow_until_invalid]
-#         if opp_next_action.is_stationary:
-#             add_action_functions.append(self._add_actions_move_next_to_tc)
-
-#         for f in add_action_functions:
-#             try:
-#                 f(opp_tc, game_state, constraints)
-#                 return
-#             except Exception:
-#                 continue
-
-#         raise NoSolutionError
-
-#     def _add_collide_actions(self, opp_tc: TimeCoordinate, game_state: GameState, constraints: Constraints) -> None:
-#         if constraints.tc_not_allowed(opp_tc):
-#             raise NoSolutionError
-
-#         tc_one_step_before = TimeCoordinate(opp_tc.x, opp_tc.y, opp_tc.t - 1)
-#         actions_next_to = self._get_move_next_to_time_actions(
-#             self.cur_tc, tc_one_step_before, constraints, game_state.board
-#         )
-
-#         final_tc = self.unit.get_tc_after_actions(actions_next_to)
-#         direction_to_opp_tc = final_tc.direction_to(opp_tc)
-#         collide_action = MoveAction(direction_to_opp_tc)
-#         actions = actions_next_to + [collide_action]
-
-#         if not self.action_plan.can_add_actions(actions, game_state):
-#             raise NoSolutionError
-
-#         self.action_plan.extend(actions)
-
-#     def _add_actions_move_to_next_tc_and_follow_until_invalid(
-#         self, opp_tc: TimeCoordinate, game_state: GameState, constraints: Constraints
-#     ) -> None:
-#         self._add_actions_move_to_next_tc(opp_tc, game_state, constraints)
-#         self._add_actions_follow_until_invalid(game_state, constraints)
-
-#     def _add_actions_move_to_next_tc(
-#         self, opp_tc: TimeCoordinate, game_state: GameState, constraints: Constraints
-#     ) -> None:
-
-#         tc_one_step_after = TimeCoordinate(opp_tc.x, opp_tc.y, opp_tc.t + 1)
-#         actions_to = self._get_move_to_time_actions(self.cur_tc, tc_one_step_after, constraints, game_state.board)
-#         if not self.action_plan.can_add_actions(actions_to, game_state):
-#             raise NoSolutionError
-
-#         self.action_plan.extend(actions_to)
-
-#     def _add_actions_follow_until_invalid(self, game_state: GameState, constraints: Constraints) -> None:
-#         opp_primitive_actions = get_primitive_actions_from_list(self.opp.action_queue)
-#         index_action_before_on_opp_last_tc = self.action_plan.nr_primitive_actions - 1
-#         opp_actions_to_follow = opp_primitive_actions[index_action_before_on_opp_last_tc:]
-
-#         for opp_action in opp_actions_to_follow:
-#             if opp_action.is_stationary:
-#                 return
-
-#             next_tc = self.cur_tc.add_action(opp_action)
-
-#             if constraints.tc_not_allowed(next_tc) or not self.action_plan.can_add_action(opp_action, game_state):
-#                 return
-
-#             self.action_plan.append(opp_action)
-
-#     def _add_actions_move_next_to_tc(
-#         self, opp_tc: TimeCoordinate, game_state: GameState, constraints: Constraints
-#     ) -> None:
-
-#         actions_next_to = self._get_move_next_to_time_actions(self.cur_tc, opp_tc, constraints, game_state.board)
-#         if not self.action_plan.can_add_actions(actions_next_to, game_state):
-#             raise NoSolutionError
-
-#         self.action_plan.extend(actions_next_to)
-
-#     def _add_hunt_actions_end_c(self, game_state: GameState, constraints: Constraints) -> None:
-#         # This seems to be stupid when they return to their factories
-#         self._add_actions_move_next_to_opp_final_c(game_state, constraints)
-#         self._optional_add_action_move_onto_final_c(game_state, constraints)
-
-#     def _add_actions_move_next_to_opp_final_c(self, game_state: GameState, constraints: Constraints) -> None:
-#         opp_final_tc = self.opp_time_coordinates[-1]
-#         actions_move_next_to = self._get_move_near_actions(
-#             start_tc=self.cur_tc,
-#             goal=opp_final_tc,
-#             reckless=False,
-#             constraints=constraints,
-#             distance=1,
-#             board=game_state.board,
-#         )
-#         if not self.action_plan.can_add_actions(actions_move_next_to, game_state):
-#             raise NoSolutionError
-
-#         self.action_plan.extend(actions_move_next_to)
-
-#     def _optional_add_action_move_onto_final_c(self, game_state: GameState, constraints: Constraints) -> None:
-#         move_action = self._get_move_action_to_opp_final_tc()
-
-#         if not self.action_plan.can_add_action(move_action, game_state):
-#             return
-
-#         final_tc = self.action_plan.get_tc_after_adding_action(move_action)
-#         if constraints.tc_not_allowed(final_tc) or not game_state.board.is_valid_c_for_player(final_tc):
-#             return
-
-#         self.action_plan.append(move_action)
-
-#     def _get_move_action_to_opp_final_tc(self) -> MoveAction:
-#         opp_final_tc = self.opp_time_coordinates[-1]
-#         direction_to_final_c = self.cur_tc.direction_to(opp_final_tc)
-#         return MoveAction(direction_to_final_c)
-
-#     def get_reachable_opp_tcs_and_next_actions(self, game_state: GameState) -> zip[Tuple[TimeCoordinate, UnitAction]]:
-#         index_first_reach = self.get_nr_steps_after_half_distance(game_state)
-#         MAX_FUTURE_STEP_TO_REACH = 15
-
-#         if index_first_reach >= self.opp.nr_primitive_actions_in_queue:
-#             return zip([])
-
-#         tcs = self.opp_time_coordinates[index_first_reach:MAX_FUTURE_STEP_TO_REACH]
-#         actions = self.opp.primitive_actions_in_queue[index_first_reach:MAX_FUTURE_STEP_TO_REACH]
-
-#         return zip(tcs, actions)
-
-#     def get_opp_tc_in_half_distance_steps(self, game_state: GameState) -> TimeCoordinate:
-#         nr_steps_half_distance = self.get_nr_steps_after_half_distance(game_state)
-#         actions_carried_out = self.opp.primitive_actions_in_queue[:nr_steps_half_distance]
-#         opp_tc = self.opp.get_tc_after_actions(actions_carried_out)
-#         return opp_tc
-
-#     def get_cur_opp_tc(self, game_state: GameState) -> TimeCoordinate:
-#         return self.opp.get_tc_in_n_steps(game_state, self.action_plan.nr_primitive_actions)
-
-#     def get_nr_steps_after_half_distance(self, game_state: GameState) -> int:
-#         half_distance = self.get_cur_distance_to_opp(game_state) // 2
-#         nr_steps_taken = self.action_plan.nr_primitive_actions
-#         nr_steps_half_distance = nr_steps_taken + half_distance
-#         return nr_steps_half_distance
-
-#     def get_cur_distance_to_opp(self, game_state: GameState) -> int:
-#         opp_tc = self.get_cur_opp_tc(game_state)
-#         distance_to_opp = self.action_plan.final_tc.distance_to(opp_tc)
-#         return distance_to_opp
-
-#     def _optional_add_alternating_moves(self, game_state: GameState, constraints: Constraints) -> None:
-#         last_move_action_opponent = self._get_last_move_action_opponent(game_state)
-#         next_direction = get_reversed_direction(last_move_action_opponent.unit_direction)
-
-#         while self.action_plan.nr_primitive_actions < 30:
-#             action = MoveAction(next_direction)
-#             next_tc = self.cur_tc.add_action(action)
-
-#             if (
-#                 constraints.tc_not_allowed(next_tc)
-#                 or not game_state.is_valid_c_for_player(next_tc)
-#                 or not self.action_plan.can_add_action(action, game_state)
-#             ):
-#                 return
-
-#             self.action_plan.append(action)
-#             next_direction = get_reversed_direction(next_direction)
-
-#     def _get_last_move_action_opponent(self, game_state: GameState) -> UnitAction:
-#         actions_carried_out = self.opp.primitive_actions_in_queue[: self.action_plan.nr_primitive_actions]
-#         reversed_actions_carried_out = actions_carried_out[::-1]
-#         try:
-#             last_move_action = next(ma for ma in reversed_actions_carried_out
-#                                     if ma.unit_direction != Direction.CENTER)
-#         except StopIteration:
-#             random_direction = get_psuedo_random_direction([Direction.CENTER], seed=game_state.real_env_steps)
-#             last_move_action = MoveAction(random_direction)
-
-#         return last_move_action
-
-#     @property
-#     def opp_tc_end_own_action_plan(self) -> TimeCoordinate:
-#         nr_actions = self.action_plan.nr_primitive_actions
-#         try:
-#             opp_tc_end_own_action_plan = self.opp_time_coordinates[nr_actions]
-#         except IndexError:
-#             opp_tc_end_own_action_plan = self.opp_time_coordinates[-1]
-
-#         return opp_tc_end_own_action_plan
-
-#     def get_power_benefit_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-#         return CONFIG.HUNT_VALUE
-
-#     def _get_max_power_benefit(self, game_state: GameState) -> float:
-#         return CONFIG.HUNT_VALUE
-
-#     def _get_min_power_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
-#         # TODO opp_tc_in_half_distance_steps is not set properly to take into account where the unit moved to if
-#         # picking up power first
-#         return self._get_min_cost_and_steps_go_to_c(self.get_opp_tc_in_half_distance_steps(game_state), game_state)
-
-#     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
-#         return 0
-
-#     def quantity_ore_to_transfer(self, game_state: GameState) -> int:
-#         return 0
-
-
 @dataclass
 class FleeGoal(UnitGoal):
     is_dummy_goal = True
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return not self.unit.is_under_threath(game_state)
-
-    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
-        return False
 
     def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
         game_state = schedule_info.game_state
@@ -2160,9 +1607,6 @@ class UnitNoGoal(UnitGoal):
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return True
 
-    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
-        return False
-
     def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
         game_state = schedule_info.game_state
         constraints = schedule_info.constraints
@@ -2176,7 +1620,7 @@ class UnitNoGoal(UnitGoal):
         return 0
 
     def get_power_cost_action_plan(self, action_plan: UnitActionPlan, game_state: GameState) -> float:
-        # TODO under threath should be weighted based on the chance they will hit you
+        # TODO under threath should be weighted based on the chance they will collide with you
         if self.unit.is_under_threath(game_state) or self._invalidates_constraint:
             return CONFIG.COST_POTENTIALLY_LOSING_UNIT
 
@@ -2211,9 +1655,6 @@ class EvadeConstraintsGoal(UnitGoal):
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return True
-
-    def plan_needs_adapting(self, action_plan: UnitActionPlan, game_state: GameState) -> bool:
-        return False
 
     def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
         game_state = schedule_info.game_state

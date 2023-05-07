@@ -5,12 +5,10 @@ import numpy as np
 from dataclasses import dataclass
 from collections import defaultdict
 from objects.coordinate import Coordinate, CoordinateList
-from logic.goals.unit_goal import DigGoal, CampResourceGoal
-from utils.image_processing import get_islands
+from logic.goals.unit_goal import DigGoal
 from utils.distances import (
     init_empty_positions,
     get_min_distances_between_positions,
-    get_n_closests_positions_between_positions,
 )
 from utils.positions import append_positions, positions_to_set
 from config import CONFIG
@@ -47,13 +45,8 @@ class Board:
 
         self.ice_positions_set = {tuple(pos) for pos in self.ice_positions}
         self.ore_positions_set = {tuple(pos) for pos in self.ore_positions}
-        self.rubble_positions_set = {tuple(pos) for pos in self.rubble_positions}
-
-        self.ice_coordinates = self._get_ice_coordinates()
-        self.ore_coordinates = self._get_ore_coordinates()
 
         self.is_empty_array = self._get_is_empty_array()
-        self.empty_islands = get_islands(self.is_empty_array)
 
         self.player_factory_tiles_set = {tuple(pos) for factory in self.player_factories for pos in factory.positions}
         self.opp_factory_tiles_set = {tuple(pos) for factory in self.opp_factories for pos in factory.positions}
@@ -64,13 +57,6 @@ class Board:
 
         self._pos_tuple_to_player_unit = defaultdict(lambda: None, {unit.tc.xy: unit for unit in self.player_units})
         self._pos_tuple_to_opp_unit = defaultdict(lambda: None, {unit.tc.xy: unit for unit in self.opp_units})
-
-        self.player_nr_lights = len(self.player_lights)
-        self.player_nr_heavies = len(self.player_heavies)
-        with np.errstate(invalid="ignore"):
-            self.player_light_heavy_ratio = np.divide(self.player_nr_lights, self.player_nr_heavies)
-
-        self.player_nr_factories = len(self.player_factories)
 
         valid_tiles_set = {(x, y) for x in range(self.size) for y in range(self.size)}
         self.valid_tiles_set = valid_tiles_set - self.opp_factory_tiles_set
@@ -86,22 +72,11 @@ class Board:
                 closest_factory = min(self.player_factories, key=lambda f: unit.tc.distance_to(f.center_tc))
                 closest_factory.add_unit(unit)
 
-        # self.rubble_to_remove_for_pathing = self._get_rubble_to_remove_for_pathing()
-        # self.rubble_to_remove_for_lichen_growth = self._get_rubble_to_remove_for_lichen_growth()
-        # self.rubble_to_remove_positions = self._get_rubble_to_remove_positions()
-
-        self.player_water = sum(factory.water for factory in self.player_factories)
-        self.opp_water = sum(factory.water for factory in self.opp_factories)
-        self.player_nr_lichen_tiles = sum(factory.nr_lichen_tiles for factory in self.player_factories)
-        self.opp_nr_lichen_tiles = sum(factory.nr_lichen_tiles for factory in self.opp_factories)
-
         self.player_factory_tiles = self._get_factory_tiles(self.player_factories)
         self.opp_factory_tiles = self._get_factory_tiles(self.opp_factories)
         self.player_lichen_tiles = self._get_lichen_coordinates_from_factories(factories=self.player_factories)
         self.opp_lichen_tiles = self._get_lichen_coordinates_from_factories(factories=self.opp_factories)
         self.player_factories_or_lichen_tiles = self.player_factory_tiles + self.player_lichen_tiles
-        self.opp_factories_or_lichen_tiles = self.opp_factory_tiles + self.opp_lichen_tiles
-
         self._strain_id_to_index = {factory.strain_id: i for i, factory in enumerate(self.player_factories)}
 
         if self.player_factory_tiles:
@@ -122,9 +97,6 @@ class Board:
         self._min_distance_to_opp_heavies = self._get_min_dis_tiles_to_opponent_heavies()
         self._min_distance_to_player_factory_or_lichen = self._get_min_dis_tiles_to_positions(
             self.player_factories_or_lichen_tiles
-        )
-        self._min_distance_to_opp_factory_or_lichen = self._get_min_dis_tiles_to_positions(
-            self.opp_factories_or_lichen_tiles
         )
 
         if self.player_factory_tiles and self.opp_factory_tiles:
@@ -165,41 +137,6 @@ class Board:
             return init_empty_positions()
 
         return self.opp_factory_tiles.to_positions()
-
-    # def _get_rubble_to_remove_for_pathing(self) -> Counter[Tuple[int, int]]:
-    #    values_pathing_player = sum([factory.rubble_positions_pathing for factory in self.player_factories], Counter())
-    #     values_pathing_opponent = sum([factory.rubble_positions_pathing for factory in self.opp_factories], Counter())
-    #     values_pathing_net = values_pathing_player - values_pathing_opponent
-    #     return Counter({pos: value for pos, value in values_pathing_net.items() if value > 0})
-
-    # def _get_rubble_to_remove_for_lichen_growth(self) -> Counter[Tuple[int, int]]:
-    #     values_lichen_player = self._get_rubble_to_remove_value_for_lichen_multiple_factories(self.player_factories)
-    #     values_lichen_opponent = self._get_rubble_to_remove_value_for_lichen_multiple_factories(self.opp_factories)
-    #     values_pathing_net = values_lichen_player - values_lichen_opponent
-    #     return Counter({pos: value for pos, value in values_pathing_net.items() if value > 0})
-
-    # @staticmethod
-    # def _get_rubble_to_remove_value_for_lichen_multiple_factories(factories: Iterable[Factory]) -> Counter:
-    #     rubble_values = (factory.rubble_positions_values_for_lichen for factory in factories)
-    #     return reduce(lambda x, y: x | y, rubble_values, Counter())
-
-    # def _get_rubble_to_remove_positions(self) -> np.ndarray:
-    #     positions = self.rubble_to_remove_for_pathing.keys() | self.rubble_to_remove_for_lichen_growth.keys()
-    #     if not positions:
-    #         return init_empty_positions()
-
-    #     return np.array(list(positions))
-
-    # def get_importance_removing_rubble_for_pathing(self, c: Coordinate) -> float:
-    #     return self.rubble_to_remove_for_pathing[c.xy]
-
-    # def get_importance_removing_rubble_for_lichen_growth(self, c: Coordinate) -> float:
-    #     return self.rubble_to_remove_for_lichen_growth[c.xy]
-
-    # def get_rubble_to_remove_positions(self, c: Coordinate, max_distance: int) -> np.ndarray:
-    #     pos = np.array(c.xy)
-    #     distances = get_distances_between_pos_and_positions(pos, self.rubble_to_remove_positions)
-    #     return self.rubble_to_remove_positions[distances <= max_distance]
 
     def are_empty_postions(self, positions: np.ndarray) -> np.ndarray:
         return self.is_empty_array[positions[:, 0], positions[:, 1]]
@@ -267,14 +204,6 @@ class Board:
         lichen_coordinates = np.argwhere(np.isin(self.lichen_strains, strain_ids) & (self.lichen > 0))
         return CoordinateList([Coordinate(*xy) for xy in lichen_coordinates])
 
-    def _get_ice_coordinates(self) -> CoordinateList:
-        ice_locations = np.argwhere(self.ice == 1)
-        return CoordinateList([Coordinate(*xy) for xy in ice_locations])
-
-    def _get_ore_coordinates(self) -> CoordinateList:
-        ore_locations = np.argwhere(self.ore == 1)
-        return CoordinateList([Coordinate(*xy) for xy in ore_locations])
-
     def _get_rubble_positions(self) -> np.ndarray:
         is_rubble_no_resource = self._get_is_rubble_no_resource()
 
@@ -301,9 +230,6 @@ class Board:
     def get_min_distance_to_player_factory_or_lichen(self, c: Coordinate) -> int:
         return self._min_distance_to_player_factory_or_lichen[c.x, c.y]
 
-    def get_min_distance_to_opp_factory_or_lichen(self, c: Coordinate) -> int:
-        return self._min_distance_to_opp_factory_or_lichen[c.x, c.y]
-
     def is_valid_c_for_player(self, c: Coordinate) -> bool:
         return c.xy in self.valid_tiles_set
 
@@ -313,15 +239,6 @@ class Board:
     def is_opponent_factory_tile(self, c: Coordinate) -> bool:
         return c.xy in self.opp_factory_tiles_set
 
-    def is_on_the_board(self, c: Coordinate) -> bool:
-        return self.is_x_on_the_board(c.x) and self.is_y_on_the_board(c.y)
-
-    def is_x_on_the_board(self, x: int) -> bool:
-        return 0 <= x < self.size
-
-    def is_y_on_the_board(self, y: int) -> bool:
-        return 0 <= y < self.size
-
     def is_off_the_board(self, c: Coordinate) -> bool:
         return not self.is_off_the_board(c=c)
 
@@ -330,12 +247,6 @@ class Board:
 
     def get_opp_unit_on_c(self, c: Coordinate) -> Optional[Unit]:
         return self._pos_tuple_to_opp_unit[c.xy]
-
-    def get_n_closest_ore_positions_to_factory(self, factory: Factory, n: int) -> np.ndarray:
-        return get_n_closests_positions_between_positions(self.ore_positions, factory.positions, n)
-
-    def get_n_closest_ice_positions_to_factory(self, factory: Factory, n: int) -> np.ndarray:
-        return get_n_closests_positions_between_positions(self.ice_positions, factory.positions, n)
 
     def get_closest_player_factory(self, c: Coordinate) -> Factory:
         closest_factory_index = self._closest_player_factory[c.x, c.y]
@@ -355,12 +266,6 @@ class Board:
         closest_player_factory_tile_index = self._closest_player_factory_tile[c.x, c.y]
         return self.player_factory_tiles[closest_player_factory_tile_index]
 
-    def is_ice_tile(self, c: Coordinate) -> bool:
-        return self.ice[c.x, c.y] == 1
-
-    def is_ore_tile(self, c: Coordinate) -> bool:
-        return self.ore[c.x, c.y] == 1
-
     def is_rubble_tile(self, c: Coordinate) -> bool:
         return self._is_rubble_no_resource[c.x, c.y]
 
@@ -370,24 +275,6 @@ class Board:
 
         lichen_strain = self.lichen_strains[c.xy]
         return lichen_strain in {f.strain_id for f in self.opp_factories}
-
-    def is_resource_tile(self, c: Coordinate) -> bool:
-        return self.is_ice_tile(c) or self.is_ore_tile(c)
-
-    def get_closest_ice_tile(self, c: Coordinate) -> Coordinate:
-        return self.ice_coordinates.get_closest_tile(c=c)
-
-    def get_closest_ore_tile(self, c: Coordinate) -> Coordinate:
-        return self.ore_coordinates.get_closest_tile(c=c)
-
-    def get_n_closest_opp_lichen_tiles(self, c: Coordinate, n: int) -> CoordinateList:
-        return self.opp_lichen_tiles.get_n_closest_tiles(c=c, n=n)
-
-    def get_n_closest_ice_tiles(self, c: Coordinate, n: int) -> CoordinateList:
-        return self.ice_coordinates.get_n_closest_tiles(c=c, n=n)
-
-    def get_n_closest_ore_tiles(self, c: Coordinate, n: int) -> CoordinateList:
-        return self.ore_coordinates.get_n_closest_tiles(c=c, n=n)
 
     def get_min_dis_to_opp_heavy(self, c: Coordinate) -> float:
         return self._min_distance_to_opp_heavies[c.x, c.y]
@@ -408,10 +295,6 @@ class Board:
 
         return neighboring_opponents
 
-    # @property
-    # def hunted_opp_units(self) -> set[Unit]:
-    #     return {unit.goal.opp for unit in self.player_units if isinstance(unit.goal, HuntGoal)}
-
     @property
     def positions_in_dig_goals(self) -> set[tuple]:
         return {unit.goal.dig_c.xy for unit in self.player_units if isinstance(unit.goal, DigGoal)}
@@ -419,17 +302,6 @@ class Board:
     @property
     def positions_in_heavy_dig_goals(self) -> set[tuple]:
         return {unit.goal.dig_c.xy for unit in self.player_units if unit.is_heavy and isinstance(unit.goal, DigGoal)}
-
-    @property
-    def positions_in_camp_goals(self) -> set[tuple]:
-        return {unit.goal.resource_c.xy for unit in self.player_units if isinstance(unit.goal, CampResourceGoal)}
-
-    @property
-    def ice_positions_next_to_opp_factory(self) -> set[tuple]:
-        min_distances = get_min_distances_between_positions(self.ice_positions, self.opp_factory_positions)
-        next_to_distances_mask = min_distances == 1
-        ice_positions_next_to_opp_factory = self.ice_positions[next_to_distances_mask]
-        return positions_to_set(ice_positions_next_to_opp_factory)
 
     def is_resource_c(self, c: Coordinate) -> bool:
         return c.xy in self.resource_positions_set
