@@ -60,8 +60,6 @@ class Constraints:
     def _get_moving_danger_cost(self, tc: TimeCoordinate) -> float:
         return self.moving_danger_coordinates.get(tc.xyt, 0)
 
-        return max(xyt[2] for xyt in self.negative)
-
     def any_tc_violates_constraint(self, tcs: Iterable[TimeCoordinate]) -> bool:
         if not self:
             return False
@@ -74,9 +72,6 @@ class Constraints:
 
         return self.tc_not_allowed(tc=tc)
 
-    def tc_allowed(self, tc: TimeCoordinate) -> bool:
-        return not self.tc_not_allowed(tc)
-
     def tc_not_allowed(self, tc: TimeCoordinate) -> bool:
         return tc.xyt in self.negative
 
@@ -86,9 +81,6 @@ class Constraints:
             return True
 
         return False
-
-    def can_not_add_negative_constraint(self, tc: TimeCoordinate) -> bool:
-        return self.tc_not_allowed(tc)
 
     def __repr__(self) -> str:
         neg_str = f"neg={self.negative}, " if self.negative else ""

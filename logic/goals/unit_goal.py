@@ -14,8 +14,6 @@ from search.search import (
     EvadeConstraintsGraph,
     MoveToGraph,
     MoveNearCoordinateGraph,
-    MoveToTimeGraph,
-    MoveNextToTimeGraph,
     DigAtGraph,
     FleeTowardsAnyFactoryGraph,
     FleeDistanceGraph,
@@ -184,13 +182,6 @@ class UnitGoal(Goal):
         actions = self._search_graph(graph=graph, start=recharge_tc)
         return actions
 
-    def _add_move_to_actions(
-        self, start_tc: TimeCoordinate, goal: Coordinate, constraints: Constraints, board: Board
-    ) -> None:
-        goal = Coordinate(*goal.xy)
-        actions = self._get_move_to_actions(start_tc, goal, constraints, board)
-        self.action_plan.extend(actions)
-
     def _get_move_to_actions(
         self,
         start_tc: TimeCoordinate,
@@ -202,38 +193,6 @@ class UnitGoal(Goal):
         graph = self._get_move_to_graph(board=board, goal=goal, constraints=constraints)
         actions = self._search_graph(graph=graph, start=start_tc)
         return actions
-
-    def _add_move_to_time_actions(
-        self, start_tc: TimeCoordinate, goal: TimeCoordinate, constraints: Constraints, board: Board
-    ) -> None:
-        goal = TimeCoordinate(*goal.xyt)
-        actions = self._get_move_to_time_actions(start_tc, goal, constraints, board)
-        self.action_plan.extend(actions)
-
-    def _get_move_to_time_actions(
-        self,
-        start_tc: TimeCoordinate,
-        goal: TimeCoordinate,
-        constraints: Constraints,
-        board: Board,
-    ) -> list[UnitAction]:
-        goal = TimeCoordinate(*goal.xyt)
-        graph = self._get_move_to_time_graph(board=board, goal=goal, constraints=constraints)
-        actions = self._search_graph(graph=graph, start=start_tc)
-        return actions
-
-    def _get_move_to_time_graph(self, board: Board, goal: TimeCoordinate, constraints: Constraints) -> MoveToTimeGraph:
-        goal = TimeCoordinate(*goal.xyt)
-        graph = MoveToTimeGraph(
-            unit_type=self.unit.unit_type,
-            board=board,
-            time_to_power_cost=self.unit.time_to_power_cost,
-            unit_cfg=self.unit.unit_cfg,
-            goal=goal,
-            constraints=constraints,
-        )
-
-        return graph
 
     def _get_move_near_actions(
         self,
@@ -312,35 +271,6 @@ class UnitGoal(Goal):
             constraints,
             self.cur_tc,
             distance,
-        )
-
-        return graph
-
-    def _get_move_next_to_time_actions(
-        self,
-        start_tc: TimeCoordinate,
-        goal: TimeCoordinate,
-        constraints: Constraints,
-        board: Board,
-    ) -> list[UnitAction]:
-
-        goal = TimeCoordinate(*goal.xyt)
-        graph = self._get_move_next_to_time_graph(board=board, goal=goal, constraints=constraints)
-        actions = self._search_graph(graph=graph, start=start_tc)
-        return actions
-
-    def _get_move_next_to_time_graph(
-        self, board: Board, goal: TimeCoordinate, constraints: Constraints
-    ) -> MoveNextToTimeGraph:
-
-        goal = TimeCoordinate(*goal.xyt)
-        graph = MoveNextToTimeGraph(
-            unit_type=self.unit.unit_type,
-            board=board,
-            time_to_power_cost=self.unit.time_to_power_cost,
-            unit_cfg=self.unit.unit_cfg,
-            goal=goal,
-            constraints=constraints,
         )
 
         return graph
@@ -538,9 +468,7 @@ class DigGoal(UnitGoal):
 
         return self._get_benefit_n_digs(action_plan.nr_digs, game_state)
 
-    def _get_min_cost_and_steps_max_nr_digs(
-        self, game_state: GameState, non_dig_power_used_after_pickup: int
-    ) -> tuple[float, int]:
+    def _get_min_cost_and_steps_max_nr_digs(self, game_state: GameState) -> tuple[float, int]:
         max_nr_digs = self._get_best_max_nr_digs(game_state)
         min_cost_digging = max_nr_digs * self.unit.dig_power_cost
 
@@ -704,13 +632,6 @@ class CollectGoal(DigGoal):
         min_steps = max_nr_digs + min_steps_go_to_c + min_steps_transfer
 
         return min_cost, min_steps
-
-    def _get_min_cost_and_steps_max_nr_digs(self, game_state: GameState) -> Tuple[float, int]:
-        move_steps_after_pickup = self._get_min_steps_move_to_c_after_optional_power_pickup(self.dig_c, game_state)
-        min_move_steps_transfer = self._get_min_move_steps_to_factory(game_state)
-        nr_move_steps = move_steps_after_pickup + min_move_steps_transfer
-        power_used = nr_move_steps * self.unit.move_power_cost
-        return super()._get_min_cost_and_steps_max_nr_digs(game_state, non_dig_power_used_after_pickup=power_used)
 
     def _get_min_cost_and_steps_transfer_resource(self, game_state: GameState) -> tuple[float, int]:
         nr_steps_move_to_factory = self._get_min_move_steps_to_factory(game_state)
@@ -1248,11 +1169,6 @@ class ClearRubbleGoal(DigGoal):
 
         return min_cost, min_steps
 
-    def _get_min_cost_and_steps_max_nr_digs(self, game_state: GameState) -> Tuple[float, int]:
-        move_steps_after_pickup = self._get_min_steps_move_to_c_after_optional_power_pickup(self.dig_c, game_state)
-        power_used = move_steps_after_pickup * self.unit.move_power_cost
-        return super()._get_min_cost_and_steps_max_nr_digs(game_state, non_dig_power_used_after_pickup=power_used)
-
     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
         return 0
 
@@ -1372,11 +1288,6 @@ class DestroyLichenGoal(DigGoal):
         min_steps = max_nr_digs + min_steps_go_to_c
 
         return min_cost, min_steps
-
-    def _get_min_cost_and_steps_max_nr_digs(self, game_state: GameState) -> Tuple[float, int]:
-        move_steps_after_pickup = self._get_min_steps_move_to_c_after_optional_power_pickup(self.dig_c, game_state)
-        power_used = move_steps_after_pickup * self.unit.move_power_cost
-        return super()._get_min_cost_and_steps_max_nr_digs(game_state, non_dig_power_used_after_pickup=power_used)
 
     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
         return 0
