@@ -39,5 +39,5 @@ class Goal(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def get_best_value_per_step(self, game_state: GameState) -> float:
+    def get_best_case_value_per_step(self, game_state: GameState) -> float:
         ...

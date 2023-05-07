@@ -33,7 +33,7 @@ class BuildHeavyGoal(FactoryGoal):
         self.action_plan = FactoryActionPlan(self.factory, [BuildHeavyAction()])
         return self.action_plan
 
-    def get_best_value_per_step(self, game_state: GameState) -> float:
+    def get_best_case_value_per_step(self, game_state: GameState) -> float:
         return 10_000
 
     def get_power_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
@@ -49,7 +49,7 @@ class BuildLightGoal(FactoryGoal):
         self.action_plan = FactoryActionPlan(self.factory, [BuildLightAction()])
         return self.action_plan
 
-    def get_best_value_per_step(self, game_state: GameState) -> float:
+    def get_best_case_value_per_step(self, game_state: GameState) -> float:
         return 10_000
 
     def get_power_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
@@ -66,7 +66,7 @@ class WaterGoal(FactoryGoal):
         self.action_plan = FactoryActionPlan(self.factory, [WaterAction()])
         return self.action_plan
 
-    def get_best_value_per_step(self, game_state: GameState) -> float:
+    def get_best_case_value_per_step(self, game_state: GameState) -> float:
         return 10_000
 
     def get_power_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:
@@ -81,7 +81,7 @@ class FactoryNoGoal(FactoryGoal):
     def generate_action_plan(self, schedule_info: ScheduleInfo) -> FactoryActionPlan:
         return FactoryActionPlan(self.factory)
 
-    def get_best_value_per_step(self, game_state: GameState) -> float:
+    def get_best_case_value_per_step(self, game_state: GameState) -> float:
         return 0.0
 
     def get_power_benefit_action_plan(self, action_plan: FactoryActionPlan, game_state: GameState) -> float:

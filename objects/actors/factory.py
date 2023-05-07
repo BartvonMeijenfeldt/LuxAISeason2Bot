@@ -32,15 +32,15 @@ from logic.goals.unit_goal import (
     TransferOreGoal,
 )
 from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal, FactoryGoal
-from distances import (
+from utils.distances import (
     get_min_distance_between_positions,
     get_min_distance_between_pos_and_positions,
     get_min_distances_between_positions,
     get_closest_pos_between_pos_and_positions,
     get_positions_on_optimal_path_between_pos_and_pos,
 )
-from image_processing import get_islands
-from positions import init_empty_positions, get_neighboring_positions, append_positions, positions_to_set
+from utils.image_processing import get_islands
+from utils.positions import init_empty_positions, get_neighboring_positions, append_positions, positions_to_set
 from lux.config import EnvConfig, LIGHT_CONFIG, HEAVY_CONFIG
 from config import CONFIG
 
@@ -914,7 +914,9 @@ class Factory(Actor):
         if not potential_assignments:
             raise NoValidGoalFoundError
 
-        unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(schedule_info.game_state))
+        unit, goal = max(
+            potential_assignments, key=lambda x: x[1].get_best_case_value_per_step(schedule_info.game_state)
+        )
         if isinstance(goal, DigGoal):
             schedule_info = schedule_info.copy_without_units_on_dig_c(goal.dig_c)
 
@@ -990,7 +992,7 @@ class Factory(Actor):
         if not potential_assignments:
             raise NoValidGoalFoundError
 
-        supplying_unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
+        supplying_unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_case_value_per_step(game_state))
         receiving_unit = goal.receiving_unit
         receiving_c = goal.receiving_c
 
@@ -1136,7 +1138,7 @@ class Factory(Actor):
         if not potential_assignments:
             raise NoValidGoalFoundError
 
-        unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_value_per_step(game_state))
+        unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_case_value_per_step(game_state))
 
         goal = unit.generate_camp_resource_goals(schedule_info=schedule_info, resource_c=goal.resource_c)
         return goal

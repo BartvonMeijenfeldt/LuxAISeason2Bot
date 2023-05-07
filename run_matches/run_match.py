@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 from lux.config import EnvConfig
 
 from agent import Agent
-from visualize.interactions import interact
+from run_matches.interactions import interact
 
 parser = ArgumentParser()
 parser.add_argument("--nr_steps", default=1000, type=int)

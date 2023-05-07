@@ -7,7 +7,7 @@ from typing import Tuple, TYPE_CHECKING
 
 from search.search import TilesToClearGraph, Search
 from objects.coordinate import Coordinate
-from positions import init_empty_positions
+from utils.positions import init_empty_positions
 
 if TYPE_CHECKING:
     from objects.board import Board
