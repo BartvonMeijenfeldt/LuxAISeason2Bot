@@ -27,9 +27,6 @@ class FactoryActionPlan(ActionPlan):
     def get_resource_cost(self) -> float:
         return sum(action.get_resource_cost(self.actor) for action in self.actions)
 
-    def actor_can_carry_out_plan(self, game_state: GameState) -> bool:
-        return self.actor_has_enough_resources()
-
     def actor_has_enough_resources(self) -> bool:
         return self.actor_has_enough_power and self.actor_has_enough_metal and self.actor_has_enough_water()
 

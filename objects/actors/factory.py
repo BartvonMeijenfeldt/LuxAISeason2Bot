@@ -27,7 +27,6 @@ from logic.goals.unit_goal import (
     CollectIceGoal,
     SupplyPowerGoal,
     DestroyLichenGoal,
-    CampResourceGoal,
     TransferIceGoal,
     TransferOreGoal,
 )
@@ -128,22 +127,23 @@ class Factory(Actor):
                 board, self.ice_positions_distance_sorted[:5]
             )
 
-            # TODO add other rubble positions
             self._rubble_positions_to_clear = (
                 self._rubble_positions_to_clear_for_ore | self._rubble_positions_to_clear_for_ice
             )
 
         self.lichen_positions = np.argwhere(board.lichen_strains == self.strain_id)
         self.lichen_positions_set = positions_to_set(self.lichen_positions)
-        # TODO, sort them, and add incoming invaders as well
+
         self.sorted_threaths_invaders = [
             unit
             for unit in board.opp_units
-            if unit.tc.xy in self.lichen_positions_set or self.min_distance_to_c(unit.tc) <= 4
+            if unit.tc.xy in self.lichen_positions_set
+            or self.min_distance_to_c(unit.tc) <= CONFIG.DISTANCE_TO_FACTORY_CONSIDERED_INVADER
         ]
-        self.sorted_threaths_invaders.sort(key=lambda unit: self.min_distance_to_c(unit.tc) - 100 * unit.is_heavy)
+        self.sorted_threaths_invaders.sort(
+            key=lambda unit: self.min_distance_to_c(unit.tc) - CONFIG.INVADER_HEAVY_PRIORITY * unit.is_heavy
+        )
 
-        self.nr_lichen_tiles = len(self.lichen_positions)
         self.connected_lichen_positions = self._get_connected_lichen_positions(board)
         self.spreadable_lichen_positions = self._get_spreadable_lichen_positions(board)
         self.non_spreadable_connected_lichen_positions = self._get_not_spreadable_connected_lichen_positions(board)
@@ -152,8 +152,6 @@ class Factory(Actor):
         self.can_spread_to_positions = self._get_can_spread_to_positions(board, self.can_spread_positions)
         self.connected_positions = self._get_empty_or_lichen_connected_positions(board)
 
-        # self.rubble_positions_pathing = self._get_rubble_positions_to_clear_for_resources(board)
-        # self.rubble_positions_values_for_lichen = self._get_rubble_positions_to_clear_for_lichen(board)
         self.rubble_positions_next_to_can_spread_pos = self._get_rubble_positions_next_to_can_spread_pos(board)
         self.rubble_positions_next_to_can_not_spread_lichen = self._get_rubble_next_to_can_not_spread_lichen(board)
         self.closest_rubble_positions_within_4_distance_set = self._get_rubble_within_4_distance_to_base(board)
@@ -165,9 +163,7 @@ class Factory(Actor):
         self.nr_connected_lichen_tiles = len(self.connected_lichen_positions)
         self.min_lichen_in_connected_lichens = self._get_min_lichen_in_connected_lichens(board)
         self.nr_connected_lichen_tiles_after_not_watering = self._get_nr_connected_lichen_after_not_watering(board)
-        self.nr_can_spread_positions = len(self.can_spread_positions)
         self.nr_connected_positions = len(self.connected_positions)
-        self.nr_connected_positions_non_lichen_connected = self.nr_connected_positions - self.nr_connected_lichen_tiles
         self.max_nr_tiles_to_water = len(self.connected_lichen_positions) + len(self.can_spread_to_positions)
 
     def _get_min_lichen_in_connected_lichens(self, board: Board) -> int:
@@ -178,29 +174,6 @@ class Factory(Actor):
 
     def _get_nr_connected_lichen_after_not_watering(self, board: Board) -> int:
         return sum(1 for lichen_pos in self.lichen_positions_set if board.get_lichen_at_pos(lichen_pos) > 1)
-
-    #     if board.player_factories and board.opp_factories:
-    #         self.internal_normalized_resource_ownership = self._get_internal_resource_ownership(board)
-
-    # def _get_internal_resource_ownership(self, board: Board) -> dict[tuple, float]:
-    #     resource_positions = board.resource_positions
-    #     if len(board.player_factories) == 1:
-    #         normalized_ownership = np.ones(resource_positions.shape[0], dtype=float)
-    #     else:
-    #         sum_distances = sum(
-    #             [
-    #                 get_min_distances_between_positions(resource_positions, fact.positions)
-    #                 for fact in board.player_factories
-    #             ]
-    #         )
-
-    #         self_distances = get_min_distances_between_positions(resource_positions, self.positions)
-    #         normalized_ownership = (sum_distances - self_distances) / sum_distances
-    #         normalized_ownership = (
-    #             normalized_ownership / (len(board.player_factories) - 1) * len(board.player_factories)
-    #         )
-
-    #     return {tuple(pos): percent for pos, percent in zip(resource_positions, normalized_ownership)}
 
     def _set_positions_once(self, board: Board) -> None:
         self.ice_positions_distance_sorted = self._get_positions_distance_sorted(board.ice_positions)
@@ -322,25 +295,6 @@ class Factory(Actor):
 
         return positions_to_set(rubble_positions)
 
-    # def _get_rubble_positions_to_clear_for_resources(self, board: Board) -> Counter[Tuple[int, int]]:
-    #     closest_2_ice_positions = board.get_n_closest_ice_positions_to_factory(self, n=2)
-    #     closest_2_ore_positions = board.get_n_closest_ore_positions_to_factory(self, n=2)
-    #     closest_resource_positions = append_positions(closest_2_ice_positions, closest_2_ore_positions)
-
-    #     positions = init_empty_positions()
-
-    #     for pos in closest_resource_positions:
-    #         closest_factory_pos = get_closest_pos_between_pos_and_positions(pos, self.positions)
-    #         optimal_positions = get_positions_on_optimal_path_between_pos_and_pos(pos, closest_factory_pos, board)
-    #         positions = append_positions(positions, optimal_positions)
-
-    #     rubble_mask = board.are_rubble_positions(positions)
-    #     rubble_positions = positions[rubble_mask]
-
-    #     rubble_value_dict = Counter({tuple(pos): CONFIG.RUBBLE_VALUE_CLEAR_FOR_RESOURCE for pos in rubble_positions})
-
-    #     return rubble_value_dict
-
     def _get_rubble_positions_to_clear_for_lichen(self, board: Board) -> Counter[Tuple[int, int]]:
         rubble_positions, distances = self._get_rubble_positions_and_distances_within_max_distance(board)
         values = self._get_rubble_positions_to_clear_for_lichen_score(distances)
@@ -446,9 +400,6 @@ class Factory(Actor):
         if self.water_after_processing - self.water_cost < EnvConfig.FACTORY_WATER_CONSUMPTION:
             return False
 
-        # min_ratio_always_water = min(game_state.steps_left, CONFIG.MIN_RATIO_WATER_WATER_COST_ALWAYS_GROW_LICHEN)
-        # if game_state.real_env_steps > 200 and self.water_after_processing / self.water_cost > min_ratio_always_water:
-        #     return True
         if self.water_after_processing / self.water_cost > game_state.steps_left:
             return True
 
@@ -462,8 +413,6 @@ class Factory(Actor):
         if water_available <= 0:
             return False
 
-        # lichen_size_after_water = self.max_nr_tiles_to_water
-        # current_lichen_size = self.nr_connected_lichen_tiles
         target_lichen_size = self.get_lichen_size_target_for_current_water_collection()
         target_lichen_size = target_lichen_size * CONFIG.WATER_LICHEN_SIZE_FRACTION
 
@@ -515,10 +464,6 @@ class Factory(Actor):
     @property
     def nr_scheduled_units(self) -> int:
         return sum(1 for _ in self.scheduled_units)
-
-    @property
-    def nr_attack_scheduled_units(self) -> int:
-        return sum(1 for _ in self.attack_scheduled_units)
 
     @property
     def daily_charge(self) -> int:
@@ -606,7 +551,6 @@ class Factory(Actor):
 
     def get_expected_power_consumption(self) -> float:
         metal_in_factory = self.metal + self.ore / EnvConfig.ORE_METAL_RATIO
-        # TODO should this be times some amount of steps to make sure we realized more metal consumption is incoming
         metal_collection = self.get_metal_collection_per_step()
         metal_expected = metal_in_factory + metal_collection
 
@@ -663,7 +607,7 @@ class Factory(Actor):
             ratio_day_night = EnvConfig.DAY_LENGTH / EnvConfig.CYCLE_LENGTH
             average_power_charge = ratio_day_night * unit.recharge_power
             net_power_change_per_dig = unit.dig_power_cost - average_power_charge
-            # This is approximate value which will be different for day and night
+            # This is an approximate value which will be different for day and night
             max_nr_digs = power_available_for_digging / net_power_change_per_dig
             nr_steps_digging = min(unit.nr_digs_empty_to_full_cargo, max_nr_digs)
 
@@ -690,7 +634,7 @@ class Factory(Actor):
         return nr_positions
 
     @property
-    def has_heavy_unsupplied_collecting_next_to_factory_free_supply_c(self) -> bool:
+    def has_unsupplied_heavy_collecting_next_to_factory_free_supply_c(self) -> bool:
         return any(True for _ in self.heavy_units_unsupplied_collecting_next_to_factory_free_supply_c)
 
     @property
@@ -726,7 +670,6 @@ class Factory(Actor):
 
     @property
     def available_units(self) -> List[Unit]:
-        # TODO some checks to see if there is enough power or some other mechanic to set units as unavailable
         return [
             unit
             for unit in self.units
@@ -740,10 +683,6 @@ class Factory(Actor):
     @property
     def light_available_units(self) -> List[Unit]:
         return [unit for unit in self.available_units if unit.is_light]
-
-    @property
-    def attack_scheduled_units(self) -> List[Unit]:
-        return [unit for unit in self.scheduled_units if isinstance(unit.goal, DestroyLichenGoal)]
 
     @property
     def scheduled_units(self) -> List[Unit]:
@@ -786,7 +725,7 @@ class Factory(Actor):
         return any(not unit.private_action_plan for unit in self.units)
 
     def schedule_units(self, strategy: Strategy, schedule_info: ScheduleInfo) -> List[UnitGoal]:
-        if self.has_heavy_unsupplied_collecting_next_to_factory_free_supply_c and self.has_light_unit_available:
+        if self.has_unsupplied_heavy_collecting_next_to_factory_free_supply_c and self.has_light_unit_available:
             try:
                 return self._schedule_supply_goal_and_reschedule_receiving_unit(schedule_info)
             except NoValidGoalFoundError:
@@ -1015,7 +954,7 @@ class Factory(Actor):
                 schedule_info=schedule_info, c=receiving_c, is_supplied=True, factory=self, quantity=unit.goal.quantity
             )
 
-        raise RuntimeError("Not supposed to happen")
+        raise ValueError("Goal is not a Collect Ice or Collect Ore Goal")
 
     def _schedule_supply_goal(
         self,
@@ -1032,7 +971,6 @@ class Factory(Actor):
         return goal
 
     def schedule_strategy_collect_ore(self, schedule_info: ScheduleInfo) -> UnitGoal:
-        # Collect Ore / Clear Path to Ore / Supply Power to heavy on Ore
         if self.has_heavy_unit_available:
             return self._schedule_heavy_on_ore(schedule_info)
         else:
@@ -1118,30 +1056,7 @@ class Factory(Actor):
         return self.get_best_assignment(potential_assignments, schedule_info)  # type: ignore
 
     def schedule_strategy_attack_opponent(self, schedule_info: ScheduleInfo) -> UnitGoal:
-        # try:
-        #     return self._schedule_unit_camp_resource(schedule_info)
-        # except Exception:
         return self._schedule_unit_destroy_lichen(schedule_info)
-
-    def _schedule_unit_camp_resource(self, schedule_info: ScheduleInfo) -> CampResourceGoal:
-        game_state = schedule_info.game_state
-        valid_postions = game_state.ice_positions_next_to_opp_factory - game_state.positions_in_camp_goals
-        units = self.heavy_available_units
-
-        potential_assignments = [
-            (unit, goal)
-            for pos in valid_postions
-            for unit in units
-            for goal in unit.get_camp_resource_goals(schedule_info.game_state, Coordinate(*pos))
-        ]
-
-        if not potential_assignments:
-            raise NoValidGoalFoundError
-
-        unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_case_value_per_step(game_state))
-
-        goal = unit.generate_camp_resource_goals(schedule_info=schedule_info, resource_c=goal.resource_c)
-        return goal
 
     def _schedule_unit_destroy_lichen(self, schedule_info: ScheduleInfo) -> DestroyLichenGoal:
         game_state = schedule_info.game_state

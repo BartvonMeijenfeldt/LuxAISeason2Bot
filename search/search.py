@@ -160,7 +160,6 @@ class FleeDistanceGraph(FleeGraph):
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
         min_distance_cost = min_nr_steps * min_cost_per_step
         return min_distance_cost
-        return 0
 
 
 @dataclass

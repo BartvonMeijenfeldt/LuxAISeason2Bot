@@ -60,11 +60,6 @@ class Constraints:
     def _get_moving_danger_cost(self, tc: TimeCoordinate) -> float:
         return self.moving_danger_coordinates.get(tc.xyt, 0)
 
-    @property
-    def max_t(self) -> Optional[int]:
-        if not self.negative:
-            return None
-
         return max(xyt[2] for xyt in self.negative)
 
     def any_tc_violates_constraint(self, tcs: Iterable[TimeCoordinate]) -> bool:

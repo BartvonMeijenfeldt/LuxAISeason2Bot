@@ -80,30 +80,6 @@ class Agent:
         else:
             logging.warning(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
 
-    @staticmethod
-    def get_power_tracker(actors: Sequence[Actor]) -> PowerTracker:
-        factories = [factory for factory in actors if isinstance(factory, Factory)]
-        return PowerTracker(factories)
-
-    @staticmethod
-    def _actor_importance_key(actor: Actor) -> int:
-        if isinstance(actor, Factory):
-            return 1
-        elif isinstance(actor, Unit):
-            if actor.unit_type == "HEAVY":
-                if actor.has_actions_in_queue:
-                    return 2
-                else:
-                    return 3
-            else:
-                if actor.has_actions_in_queue:
-                    return 4
-                else:
-                    return 5
-
-        else:
-            raise ValueError(f"{actor} is not of type Unit or Factory")
-
     def get_actions(self, game_state: GameState) -> Dict[str, Any]:
         actions = {}
 

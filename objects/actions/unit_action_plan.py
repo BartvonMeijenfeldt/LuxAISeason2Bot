@@ -187,9 +187,6 @@ class UnitActionPlan(ActionPlan):
         new_action_plan = self + actions
         return new_action_plan.unit_has_enough_power(game_state, min_power_end=min_power_end)
 
-    def actor_can_carry_out_plan(self, game_state: GameState) -> bool:
-        return self.unit_has_enough_power(game_state=game_state)
-
     def is_empty(self) -> bool:
         return not self.original_actions
 

@@ -31,7 +31,6 @@ from tests.init_constraints import init_constraints
 
 ENV_CFG = EnvConfig()
 LIGHT_CFG = ENV_CFG.LIGHT_ROBOT
-HEAVY_CFG = ENV_CFG.HEAVY_ROBOT
 
 
 class TestMoveToSearch(unittest.TestCase):

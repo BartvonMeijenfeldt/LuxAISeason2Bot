@@ -26,10 +26,6 @@ class ActionPlan(metaclass=ABCMeta):
     actor: Actor
     actions: list[Action] = field(init=False)
 
-    @abstractmethod
-    def actor_can_carry_out_plan(self, game_state: GameState) -> bool:
-        ...
-
     @property
     @abstractmethod
     def next_tc(self) -> Optional[TimeCoordinate]:

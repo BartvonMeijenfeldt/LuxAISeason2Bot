@@ -17,7 +17,7 @@ from objects.actions.unit_action import UnitAction
 from objects.actions.unit_action_plan import UnitActionPlan
 from objects.cargo import Cargo
 from logic.constraints import Constraints
-from objects.direction import Direction, NON_STATIONARY_DIRECTIONS
+from objects.direction import Direction
 from logic.goals.unit_goal import (
     UnitGoal,
     CollectIceGoal,
@@ -34,7 +34,6 @@ from logic.goals.unit_goal import (
     SupplyPowerGoal,
     DefendTileGoal,
     DefendLichenTileGoal,
-    CampResourceGoal,
 )
 from config import CONFIG
 from exceptions import NoValidGoalFoundError
@@ -103,15 +102,11 @@ class Unit(Actor):
         self.infeasible_assignments.clear()
         self.x = self.tc.x
         self.y = self.tc.y
-        self.power_space_left = self.battery_capacity - self.power
         self.cargo_space_left = self.unit_cfg.CARGO_SPACE - self.cargo.total
         self.can_update_action_queue = self.power >= self.update_action_queue_power_cost
         self.can_update_action_queue_and_move = self.power >= self.update_action_queue_power_cost + self.move_power_cost
-        self.has_actions_in_queue = len(self.action_queue) > 0
         self.can_be_assigned = not self.goal and self.can_update_action_queue
-        self.agent_id = f"player_{self.team_id}"
         self.primitive_actions_in_queue = get_primitive_actions_from_list(self.action_queue)
-        self.nr_primitive_actions_in_queue = len(self.primitive_actions_in_queue)
         self.main_cargo = self._get_main_cargo()
 
     def _get_main_cargo_threshold(self) -> int:
@@ -138,14 +133,6 @@ class Unit(Actor):
         first_action = self.primitive_actions_in_queue[0]
         power_after_action = self.power + first_action.get_power_change(self.unit_cfg, self.tc, game_state.board)
         return power_after_action < 0
-
-    def get_tcs_action_queue(self, game_state: GameState) -> List[TimeCoordinate]:
-        return [self.tc] + UnitActionPlan(self, self.action_queue).get_time_coordinates(game_state)
-
-    def get_non_stationary_tcs_neighboring_action_queue(self, game_state: GameState) -> List[TimeCoordinate]:
-        return [
-            tc + direction for tc in self.get_tcs_action_queue(game_state) for direction in NON_STATIONARY_DIRECTIONS
-        ]
 
     def _last_player_private_action_was_carried_out(self, action_queue: list[UnitAction]) -> bool:
         if self.private_action_plan.is_first_action_move_center():
@@ -486,15 +473,6 @@ class Unit(Actor):
 
         return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
 
-    def generate_camp_resource_goals(self, schedule_info: ScheduleInfo, resource_c: Coordinate) -> CampResourceGoal:
-        camp_resource_goals = self.get_camp_resource_goals(schedule_info.game_state, resource_c)
-        goal = self.get_best_goal(camp_resource_goals, schedule_info)
-        return goal  # type: ignore
-
-    def get_camp_resource_goals(self, game_state: GameState, resource_c: Coordinate) -> List[CampResourceGoal]:
-        goals = [CampResourceGoal(self, resource_c, pickup_power) for pickup_power in [False, True]]
-        return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
-
     def get_defend_lichen_goals(self, game_state: GameState, opp: Unit) -> List[DefendLichenTileGoal]:
         goals = [DefendLichenTileGoal(self, opp.tc, opp, pickup_power) for pickup_power in [False, True]]
         return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
@@ -584,9 +562,6 @@ class Unit(Actor):
     def set_send_no_action_queue(self) -> None:
         self.send_action_queue = None
 
-    def set_private_action_plan(self, action_plan: UnitActionPlan) -> None:
-        self.private_action_plan = action_plan
-
     def schedule_goal(self, goal: UnitGoal) -> None:
         self.goal = goal
         self.private_action_plan = goal.action_plan
@@ -618,21 +593,6 @@ class Unit(Actor):
 
     def set_unsupplied(self) -> None:
         self.supplied_by = None
-
-    def get_tc_after_actions(self, actions: list[UnitAction]) -> TimeCoordinate:
-        action_plan = UnitActionPlan(self, actions)
-        return action_plan.final_tc
-
-    def get_power_after_actions(self, actions: list[UnitAction], game_state: GameState) -> int:
-        action_plan = UnitActionPlan(self, actions)
-        final_ptc = action_plan.get_final_ptc(game_state)
-        return final_ptc.p
-
-    def get_tc_in_n_steps(self, game_state: GameState, n: int) -> TimeCoordinate:
-        if n >= len(self.primitive_actions_in_queue):
-            return self.get_tcs_action_queue(game_state)[-1]
-
-        return self.get_tcs_action_queue(game_state)[n]
 
     def get_nr_digs_to_quantity_resource(self, resource: Resource, q: int) -> int:
         resource_in_cargo = self.get_quantity_resource(resource)

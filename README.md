@@ -8,7 +8,7 @@
 - search: A* [link] implementation to find optimal paths from one coordinate to another
 - utils: utils
 - tests: tests
-- run_matches: used
+- run_matches: functionality to run matches or parse results of match output
 
 ### Files
 - agent.py: agent
