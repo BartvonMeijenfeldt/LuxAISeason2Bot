@@ -27,23 +27,6 @@ class FactoryActionPlan(ActionPlan):
     def get_resource_cost(self) -> float:
         return sum(action.get_resource_cost(self.actor) for action in self.actions)
 
-    def actor_has_enough_resources(self) -> bool:
-        return self.actor_has_enough_power and self.actor_has_enough_metal and self.actor_has_enough_water()
-
-    @property
-    def actor_has_enough_power(self) -> bool:
-        power_requested = sum(action.requested_power for action in self.actions)
-        return power_requested <= self.actor.power
-
-    @property
-    def actor_has_enough_metal(self) -> bool:
-        metal_requested = sum(action.quantity_metal_cost for action in self.actions)
-        return metal_requested <= self.actor.cargo.metal
-
-    def actor_has_enough_water(self) -> bool:
-        power_requested = sum(action.get_water_cost(factory=self.actor) for action in self.actions)
-        return power_requested <= self.actor.cargo.water
-
     @property
     def next_tc(self) -> Optional[TimeCoordinate]:
         if not self.actions:

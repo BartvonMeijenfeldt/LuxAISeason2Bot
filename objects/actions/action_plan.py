@@ -47,10 +47,6 @@ class ActionPlan(metaclass=ABCMeta):
     def nr_time_steps(self) -> int:
         return len(self.actions)
 
-    @property
-    def power_requested(self) -> int:
-        return sum(action.requested_power for action in self.actions)
-
     def __iter__(self) -> Iterator[Action]:
         return iter(self.actions)
 

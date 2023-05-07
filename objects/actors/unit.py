@@ -71,7 +71,6 @@ class Unit(Actor):
         if self._last_player_private_action_was_carried_out(action_queue):
             self.private_action_plan.step()
 
-        self.acted_out_last_action_and_no_update_queue = self._acted_out_last_action_and_no_update_queue(action_queue)
         self.action_queue = action_queue
         if self.private_action_plan and self.action_queue == self.private_action_plan.actions:
             self.private_action_plan.is_set = True
@@ -144,14 +143,6 @@ class Unit(Actor):
             return True
 
         return last_action_queue != action_queue
-
-    def _acted_out_last_action_and_no_update_queue(self, action_queue: list[UnitAction]) -> bool:
-        last_step_plan = UnitActionPlan(self, self.action_queue)
-        current_plan = UnitActionPlan(self, action_queue)
-
-        last_step_plan.step()
-
-        return last_step_plan.actions == current_plan.actions
 
     @property
     def first_action_of_queue_and_private_action_plan_same(self) -> bool:

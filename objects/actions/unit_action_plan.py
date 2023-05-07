@@ -25,7 +25,6 @@ class UnitActionPlan(ActionPlan):
     def __post_init__(self):
         self._actions: Optional[list[UnitAction]] = None
         self._primitive_actions: Optional[list[UnitAction]] = None
-        self._value: Optional[int] = None
         self._final_tc: Optional[TimeCoordinate] = None
         self._final_ptc: Optional[PowerTimeCoordinate] = None
 
@@ -58,9 +57,6 @@ class UnitActionPlan(ActionPlan):
     def extend(self, actions: Sequence[UnitAction]) -> None:
         self.original_actions.extend(actions)
         self.__post_init__()
-
-    def filter_out_actions_after_n_steps(self, n: int) -> None:
-        self.set_actions(self.primitive_actions[:n])
 
     def set_actions(self, actions: List[UnitAction]) -> None:
         self.original_actions = actions
@@ -120,13 +116,6 @@ class UnitActionPlan(ActionPlan):
     def nr_digs(self) -> int:
         return sum(dig_action.n for dig_action in self.actions if isinstance(dig_action, DigAction))
 
-    def get_tc_after_adding_actions(self, actions: list[UnitAction]) -> TimeCoordinate:
-        new_action_plan = self + actions
-        return new_action_plan.final_tc
-
-    def get_tc_after_adding_action(self, action: UnitAction) -> TimeCoordinate:
-        return self.get_tc_after_adding_actions([action])
-
     @property
     def final_tc(self) -> TimeCoordinate:
         if self._final_tc is None:
@@ -180,19 +169,12 @@ class UnitActionPlan(ActionPlan):
 
         return total_power
 
-    def can_add_action(self, action: UnitAction, game_state: GameState, min_power_end: int = 0) -> bool:
-        return self.can_add_actions([action], game_state, min_power_end=min_power_end)
-
     def can_add_actions(self, actions: List[UnitAction], game_state: GameState, min_power_end: int = 0) -> bool:
         new_action_plan = self + actions
         return new_action_plan.unit_has_enough_power(game_state, min_power_end=min_power_end)
 
     def is_empty(self) -> bool:
         return not self.original_actions
-
-    def remove_invalid_actions(self, game_state: GameState) -> None:
-        nr_valid_primitive_actions = self.get_nr_valid_primitive_actions(game_state)
-        self.original_actions = self.primitive_actions[:nr_valid_primitive_actions]
 
     def get_actions_valid_to_add(self, actions: list[UnitAction], game_state: GameState) -> list[UnitAction]:
         new_action_plan = self + actions

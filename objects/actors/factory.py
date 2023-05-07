@@ -6,7 +6,6 @@ import numpy as np
 from typing import Tuple, TYPE_CHECKING, Optional, Iterable, Set, List
 from itertools import product
 from dataclasses import dataclass, field
-from collections import Counter
 from enum import Enum, auto
 from math import floor
 
@@ -93,13 +92,9 @@ class Factory(Actor):
         self.ore = self.cargo.ore
         self.metal = self.cargo.metal
         self.water_after_processing = self._get_water_after_processing()
-        self.water_including_processed_ice = self._get_water_including_processed_ice()
 
     def _get_water_after_processing(self) -> int:
         return self.water + floor(min(self.ice, EnvConfig.FACTORY_PROCESSING_RATE_WATER) / EnvConfig.ICE_WATER_RATIO)
-
-    def _get_water_including_processed_ice(self) -> int:
-        return self.water + floor(self.ice / EnvConfig.ICE_WATER_RATIO)
 
     def update_state(self, center_tc: TimeCoordinate, power: int, cargo: Cargo) -> None:
         self.center_tc = center_tc
@@ -125,10 +120,6 @@ class Factory(Actor):
             )
             self._rubble_positions_to_clear_for_ice = self._get_positions_to_clear_for_resource_pathing(
                 board, self.ice_positions_distance_sorted[:5]
-            )
-
-            self._rubble_positions_to_clear = (
-                self._rubble_positions_to_clear_for_ore | self._rubble_positions_to_clear_for_ice
             )
 
         self.lichen_positions = np.argwhere(board.lichen_strains == self.strain_id)
@@ -191,15 +182,6 @@ class Factory(Actor):
         connected_mask = distances == 1
         connected_ice_positions = board.ice_positions[connected_mask]
         return [Coordinate(*pos) for pos in connected_ice_positions]
-
-    @property
-    def maintain_lichen_water_cost(self) -> float:
-        """Assumes watering every other turn"""
-        return EnvConfig.FACTORY_WATER_CONSUMPTION + self.water_cost / 2
-
-    def get_rubble_positions_to_clear(self, game_state: GameState) -> Set[Tuple]:
-        rubble_positions_free = self._rubble_positions_to_clear - game_state.positions_in_dig_goals
-        return rubble_positions_free
 
     def get_rubble_positions_to_clear_for_ice(self, game_state: GameState) -> Set[Tuple]:
         rubble_positions_free = self._rubble_positions_to_clear_for_ice - game_state.positions_in_dig_goals
@@ -295,13 +277,6 @@ class Factory(Actor):
 
         return positions_to_set(rubble_positions)
 
-    def _get_rubble_positions_to_clear_for_lichen(self, board: Board) -> Counter[Tuple[int, int]]:
-        rubble_positions, distances = self._get_rubble_positions_and_distances_within_max_distance(board)
-        values = self._get_rubble_positions_to_clear_for_lichen_score(distances)
-        rubble_value_dict = Counter({tuple(pos): value for pos, value in zip(rubble_positions, values)})
-
-        return rubble_value_dict
-
     def _get_rubble_positions_next_to_can_spread_pos(self, board: Board) -> np.ndarray:
         distances = get_min_distances_between_positions(board.rubble_positions, self.can_spread_positions)
         valid_distance_mask = distances == 1
@@ -342,24 +317,8 @@ class Factory(Actor):
         rubble_positions = board.rubble_positions[valid_distance_mask]
         return rubble_positions
 
-    def _get_rubble_positions_to_clear_for_lichen_score(self, distances: np.ndarray) -> np.ndarray:
-        base_score = CONFIG.RUBBLE_VALUE_CLEAR_FOR_LICHEN_BASE
-        distance_penalty = CONFIG.RUBBLE_VALUE_CLEAR_FOR_LICHEN_DISTANCE_PENALTY
-        return base_score - distance_penalty * distances
-
-    def _get_rubble_positions_and_distances_within_max_distance(self, board: Board) -> Tuple[np.ndarray, np.ndarray]:
-        distances = get_min_distances_between_positions(board.rubble_positions, self.can_spread_positions)
-        valid_distance_mask = distances < CONFIG.RUBBLE_CLEAR_FOR_LICHEN_MAX_DISTANCE
-        rubble_postions_within_max_distance = board.rubble_positions[valid_distance_mask]
-        distances_within_max_distance = distances[valid_distance_mask]
-        return rubble_postions_within_max_distance, distances_within_max_distance
-
     def add_unit(self, unit: Unit) -> None:
         self.units.add(unit)
-
-    def min_distance_to_connected_positions(self, positions: np.ndarray) -> int:
-        rel_positions = np.append(self.positions, self.connected_positions, axis=0)
-        return get_min_distance_between_positions(rel_positions, positions)
 
     def schedule_build_or_no_goal(self, schedule_info: ScheduleInfo) -> FactoryActionPlan:
         goal = self.get_build_or_no_goal(schedule_info.game_state)
@@ -462,14 +421,6 @@ class Factory(Actor):
         return sum(1 for _ in self.heavy_units)
 
     @property
-    def nr_scheduled_units(self) -> int:
-        return sum(1 for _ in self.scheduled_units)
-
-    @property
-    def daily_charge(self) -> int:
-        return self.env_cfg.FACTORY_CHARGE
-
-    @property
     def expected_power_gain(self) -> int:
         return self.env_cfg.FACTORY_CHARGE + self.nr_connected_lichen_tiles
 
@@ -480,9 +431,6 @@ class Factory(Actor):
     @property
     def can_build_light(self) -> bool:
         return self.power >= LIGHT_CONFIG.POWER_COST and self.cargo.metal >= LIGHT_CONFIG.METAL_COST
-
-    def can_water(self):
-        return self.cargo.water >= self.water_cost
 
     @property
     def pos_slice(self) -> Tuple[slice, slice]:
@@ -620,20 +568,6 @@ class Factory(Actor):
         return resource_collection_per_step
 
     @property
-    def nr_can_spread_to_positions_being_cleared(self) -> int:
-        nr_positions = 0
-
-        for unit in self.units:
-            goal = unit.goal
-            if isinstance(goal, ClearRubbleGoal):
-                dig_pos = np.array(goal.dig_c.xy)  # type: ignore
-                dis = get_min_distance_between_pos_and_positions(dig_pos, self.can_spread_positions)
-                if dis == 1:
-                    nr_positions += 1
-
-        return nr_positions
-
-    @property
     def has_unsupplied_heavy_collecting_next_to_factory_free_supply_c(self) -> bool:
         return any(True for _ in self.heavy_units_unsupplied_collecting_next_to_factory_free_supply_c)
 
@@ -719,10 +653,6 @@ class Factory(Actor):
     @property
     def units_collecting_ice(self) -> List[Unit]:
         return [unit for unit in self.units if isinstance(unit.goal, CollectIceGoal)]
-
-    @property
-    def has_unassigned_units(self) -> bool:
-        return any(not unit.private_action_plan for unit in self.units)
 
     def schedule_units(self, strategy: Strategy, schedule_info: ScheduleInfo) -> List[UnitGoal]:
         if self.has_unsupplied_heavy_collecting_next_to_factory_free_supply_c and self.has_light_unit_available:
