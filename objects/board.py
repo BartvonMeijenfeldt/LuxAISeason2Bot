@@ -6,11 +6,9 @@ from dataclasses import dataclass
 from collections import defaultdict
 from objects.coordinate import Coordinate, CoordinateList
 from logic.goals.unit_goal import DigGoal
-from utils.image_processing import get_islands
 from utils.distances import (
     init_empty_positions,
     get_min_distances_between_positions,
-    get_n_closests_positions_between_positions,
 )
 from utils.positions import append_positions, positions_to_set
 from config import CONFIG

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Sequence
 
 from abc import abstractmethod
 from dataclasses import dataclass, field, replace
-from typing import Optional, Tuple
+from typing import Optional
 from math import ceil, inf
 from copy import copy
 from functools import lru_cache

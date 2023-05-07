@@ -6,7 +6,7 @@ try:
     from termcolor import colored
 
     TERM_COLORS = True
-except:
+except Exception:
     pass
 
 
