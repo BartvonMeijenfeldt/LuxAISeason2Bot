@@ -17,7 +17,7 @@ from objects.actions.unit_action import UnitAction, MoveAction, DigAction, Picku
 from objects.resource import Resource
 
 from logic.constraints import Constraints
-from utils import PriorityQueue
+from utils.utils import PriorityQueue
 from lux.config import HEAVY_CONFIG
 from config import CONFIG
 from exceptions import NoSolutionError, SolutionNotFoundWithinBudgetError

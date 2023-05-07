@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from objects.resource import Resource
 from objects.direction import Direction
 from objects.actions.unit_action import UnitAction, DigAction, PickupAction, TransferAction
-from utils import is_day
+from utils.utils import is_day
 
 if TYPE_CHECKING:
     from lux.config import UnitConfig

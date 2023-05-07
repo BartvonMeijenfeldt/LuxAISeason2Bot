@@ -6,7 +6,7 @@ from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
 from objects.direction import Direction
 from objects.actions.unit_action import DigAction, MoveAction
 from objects.actions.action_plan import ActionPlan, PowerRequest
-from utils import is_day
+from utils.utils import is_day
 from lux.config import EnvConfig
 
 if TYPE_CHECKING:

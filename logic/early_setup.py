@@ -4,8 +4,8 @@ from typing import Optional, List
 from scipy.ndimage.filters import minimum_filter
 
 from objects.board import Board
-from distances import get_distances_between_positions
-from image_processing import get_islands
+from utils.distances import get_distances_between_positions
+from utils.image_processing import get_islands
 from lux.config import EnvConfig
 from config import CONFIG
 

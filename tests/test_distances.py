@@ -3,7 +3,7 @@ import numpy as np
 
 from typing import Tuple
 
-from distances import (
+from utils.distances import (
     get_distances_between_positions,
     get_min_distance_between_positions,
     get_closest_pos_and_pos_between_positions,

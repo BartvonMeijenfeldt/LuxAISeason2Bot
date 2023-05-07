@@ -6,7 +6,7 @@ from functools import lru_cache
 from math import ceil
 
 from copy import copy
-from utils import PriorityQueue
+from utils.utils import PriorityQueue
 from objects.actors.actor import Actor
 from objects.actions.unit_action_plan import get_primitive_actions_from_list
 from lux.config import UnitConfig
@@ -323,7 +323,7 @@ class Unit(Actor):
             if not self.is_feasible_assignment(goal):
                 continue
 
-            best_value = goal.get_best_value_per_step(game_state)
+            best_value = goal.get_best_case_value_per_step(game_state)
             if best_value < 0 and not goal.is_dummy_goal:
                 continue
 
