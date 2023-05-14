@@ -856,8 +856,7 @@ class SupplyPowerGoal(UnitGoal):
         final_tc = self.action_plan.final_tc
         closest_factory = game_state.get_closest_player_factory(final_tc)
         factory_power_income = closest_factory.expected_power_gain
-        MIN_POWER_STREAM_FOR_OTHER_UNITS = 0
-        max_power_transfer = 2 * (factory_power_income - MIN_POWER_STREAM_FOR_OTHER_UNITS)
+        max_power_transfer = 2 * factory_power_income
         power_transfer_minus_income = min(power_transfer, max_power_transfer)
         return power_transfer_minus_income
 
@@ -1545,10 +1544,9 @@ class FleeGoal(UnitGoal):
         return self.action_plan
 
     def _add_actions_move_some_steps(self, game_state: GameState, constraints: Constraints) -> None:
-        STANDARD_FLEE_DISTANCE = 5
         actions_move_next_to = self._get_flee_distance_actions(
             start_tc=self.cur_tc,
-            distance=STANDARD_FLEE_DISTANCE,
+            distance=CONFIG.STANDARD_FLEE_DISTANCE,
             constraints=constraints,
             board=game_state.board,
         )

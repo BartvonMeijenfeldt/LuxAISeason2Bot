@@ -29,7 +29,7 @@ class Agent:
         self.prev_step_actors: dict[str, Actor] = {}
         self.DEBUG_MODE = debug_mode
 
-    def early_setup(self, step: int, obs, remainingOverageTime: int = 60):
+    def early_setup(self, step: int, obs, remaing_overage_time: int = 60):
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_step_actors)
 
         if step == 0:
@@ -40,7 +40,7 @@ class Agent:
                 return dict(spawn=spawn_loc, metal=150, water=150)
             return dict()
 
-    def act(self, step: int, obs, remainingOverageTime: int = 60):
+    def act(self, step: int, obs, remaining_overage_time: int = 60):
 
         """
         optionally do forward simulation to simulate positions of units, lichen, etc. in the future

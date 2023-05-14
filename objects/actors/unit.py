@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from copy import copy
 from dataclasses import dataclass, field, replace
-from functools import lru_cache
 from math import ceil
 from typing import TYPE_CHECKING, Iterable, List, Optional
 
@@ -470,20 +469,6 @@ class Unit(Actor):
         goals = [DefendLichenTileGoal(self, opp.tc, opp, pickup_power) for pickup_power in [False, True]]
         return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
 
-    # def generate_hunt_unit_goals(self, schedule_info: ScheduleInfo, opp: Unit) -> HuntGoal:
-    #     hunt_goals = self.get_hunt_unit_goals(schedule_info.game_state, opp)
-    #     goal = self.get_best_goal(hunt_goals, schedule_info)
-    #     return goal  # type: ignore
-
-    # def get_hunt_unit_goals(self, game_state: GameState, opp: Unit) -> List[HuntGoal]:
-    #     goals = [
-    #         HuntGoal(self, opp, pickup_power)
-    #         for pickup_power in [False, True]
-    #         if pickup_power or self.power > opp.power
-    #     ]
-    #     return self._filter_out_invalid_goals(goals, game_state)  # type: ignore
-
-    @lru_cache(8)
     def is_under_threath(self, game_state: GameState) -> bool:
         if self.is_on_factory(game_state):
             return False

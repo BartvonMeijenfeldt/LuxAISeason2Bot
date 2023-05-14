@@ -18,7 +18,7 @@ def agent_fn(observation, configurations):
     step = observation.step
 
     player = observation.player
-    remainingOverageTime = observation.remainingOverageTime
+    remaining_overage_time = observation.remainingOverageTime
     if step == 0:
         env_cfg = EnvConfig.from_dict(configurations["env_cfg"])
         agent_dict[player] = Agent(player, env_cfg)
@@ -29,9 +29,9 @@ def agent_fn(observation, configurations):
     agent_prev_obs[player] = obs
     agent.step = step
     if obs["real_env_steps"] < 0:
-        actions = agent.early_setup(step, obs, remainingOverageTime)
+        actions = agent.early_setup(step, obs, remaining_overage_time)
     else:
-        actions = agent.act(step, obs, remainingOverageTime)
+        actions = agent.act(step, obs, remaining_overage_time)
 
     return process_action(actions)
 
