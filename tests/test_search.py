@@ -486,7 +486,7 @@ class TestPowerPickupSearch(unittest.TestCase):
         state = get_state(factory_positions=factory_positions)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
-        expected_actions = [PA(amount=50, resource=Resource.POWER)]
+        expected_actions = [PA(amount=49, resource=Resource.POWER)]
 
         self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
 
@@ -495,7 +495,7 @@ class TestPowerPickupSearch(unittest.TestCase):
         state = get_state(factory_positions=factory_positions, real_env_steps=1)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
-        expected_actions = [MA(D.CENTER), PA(amount=49, resource=Resource.POWER)]
+        expected_actions = [MA(D.CENTER), PA(amount=48, resource=Resource.POWER)]
 
         self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
 
@@ -504,7 +504,7 @@ class TestPowerPickupSearch(unittest.TestCase):
         state = get_state(factory_positions=factory_positions, real_env_steps=31)
 
         start = PTC(x=3, y=3, t=31, p=100, unit_cfg=LIGHT_CFG, game_state=state)
-        expected_actions = [MA(D.CENTER), PA(amount=50, resource=Resource.POWER)]
+        expected_actions = [MA(D.CENTER), PA(amount=49, resource=Resource.POWER)]
 
         self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
 
@@ -515,7 +515,7 @@ class TestPowerPickupSearch(unittest.TestCase):
         state = get_state(factory_positions=factory_positions, tiles=tiles)
 
         start = PTC(x=0, y=0, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
-        expected_actions = [MA(D.RIGHT), MA(D.RIGHT), PA(amount=60, resource=Resource.POWER)]
+        expected_actions = [MA(D.RIGHT), MA(D.RIGHT), PA(amount=59, resource=Resource.POWER)]
 
         self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
 
@@ -524,7 +524,7 @@ class TestPowerPickupSearch(unittest.TestCase):
         state = get_state(factory_positions=factory_positions)
 
         start = PTC(x=1, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
-        expected_actions = [MA(D.RIGHT), PA(amount=50, resource=Resource.POWER)]
+        expected_actions = [MA(D.RIGHT), PA(amount=49, resource=Resource.POWER)]
 
         self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
 
@@ -533,7 +533,7 @@ class TestPowerPickupSearch(unittest.TestCase):
         state = get_state(factory_positions=factory_positions)
 
         start = PTC(x=1, y=3, t=31, p=100, unit_cfg=LIGHT_CFG, game_state=state)
-        expected_actions = [MA(D.RIGHT), PA(amount=51, resource=Resource.POWER)]
+        expected_actions = [MA(D.RIGHT), PA(amount=50, resource=Resource.POWER)]
 
         self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
 
@@ -544,7 +544,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         next_goal_c = C(5, 3)
-        expected_actions = [MA(D.RIGHT), PA(amount=50, resource=Resource.POWER)]
+        expected_actions = [MA(D.RIGHT), PA(amount=49, resource=Resource.POWER)]
 
         state = get_state(factory_positions=factory_positions)
 
@@ -563,7 +563,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         next_goal_c = C(3, 1)
-        expected_actions = [MA(D.UP), PA(amount=50, resource=Resource.POWER)]
+        expected_actions = [MA(D.UP), PA(amount=49, resource=Resource.POWER)]
 
         state = get_state(factory_positions=factory_positions)
 
@@ -582,7 +582,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         next_goal_c = C(3, 5)
-        expected_actions = [MA(D.DOWN), PA(amount=50, resource=Resource.POWER)]
+        expected_actions = [MA(D.DOWN), PA(amount=49, resource=Resource.POWER)]
 
         state = get_state(factory_positions=factory_positions)
 
@@ -601,7 +601,7 @@ class TestPowerPickupSearch(unittest.TestCase):
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
         next_goal_c = C(1, 3)
-        expected_actions = [MA(D.LEFT), PA(amount=50, resource=Resource.POWER)]
+        expected_actions = [MA(D.LEFT), PA(amount=49, resource=Resource.POWER)]
 
         state = get_state(factory_positions=factory_positions)
 
@@ -640,6 +640,7 @@ class TestTransferResearchesSearch(unittest.TestCase):
             unit_cfg=unit_cfg,
             constraints=constraints,
             resource=resource,
+            q=unit_cfg.CARGO_SPACE,
         )
         search = Search(move_to_graph)
         actions = search.get_actions_to_complete_goal(start=start_ptc)
