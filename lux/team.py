@@ -1,13 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-
-TERM_COLORS = False
-try:
-    from termcolor import colored
-
-    TERM_COLORS = True
-except Exception:
-    pass
+from typing import Optional
 
 
 @dataclass
@@ -30,7 +23,7 @@ class Team:
         self,
         team_id: int,
         agent: str,
-        faction: FactionTypes = None,
+        faction: Optional[FactionTypes] = None,
         water=0,
         metal=0,
         factories_to_place=0,
@@ -50,21 +43,3 @@ class Team:
         # whether this team gets to place factories down first or not. The bid winner has this set to True.
         # If tied, player_0's team has this True
         self.place_first = place_first
-
-    def state_dict(self):
-        return dict(
-            team_id=self.team_id,
-            faction=self.faction.name,
-            # note for optimization, water,metal, factories_to_place doesn't change after the early game.
-            water=self.init_water,
-            metal=self.init_metal,
-            factories_to_place=self.factories_to_place,
-            factory_strains=self.factory_strains,
-            place_first=self.place_first,
-        )
-
-    def __str__(self) -> str:
-        out = f"[Player {self.team_id}]"
-        if TERM_COLORS:
-            return colored(out, self.faction.value.color)
-        return out
