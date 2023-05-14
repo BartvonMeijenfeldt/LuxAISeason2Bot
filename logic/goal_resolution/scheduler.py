@@ -20,8 +20,8 @@ from objects.game_state import GameState
 
 
 class Scheduler:
-    def __init__(self, turn_start_time: float, DEBUG_MODE: bool, game_state: GameState):
-        self.time_tracker = TimeTracker(turn_start_time, DEBUG_MODE=DEBUG_MODE)
+    def __init__(self, turn_start_time: float, debug_mode: bool, game_state: GameState):
+        self.time_tracker = TimeTracker(turn_start_time, DEBUG_MODE=debug_mode)
         self._init_constraints_and_power_tracker(game_state)
 
     def schedule_goals(self) -> None:

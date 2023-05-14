@@ -122,3 +122,5 @@ class CONFIG:
 
     MIN_VALUE_PER_STEP_LIGHT: float = 0.2
     MIN_VALUE_PER_STEP_HEAVY: float = 2
+
+    STANDARD_FLEE_DISTANCE: int = 5

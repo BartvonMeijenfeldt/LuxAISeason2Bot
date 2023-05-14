@@ -15,4 +15,15 @@ repos:
     rev: 5.11.5
     hooks:
     -   id: isort
-        args: ["--profile", "black", "--filter-files"]
+        args:
+            - --profile=black
+            - --filter-files
+-   repo: https://github.com/PyCQA/flake8
+    rev: 5.0.0
+    hooks:
+      - id: flake8
+        additional_dependencies: [pep8-naming, flake8-bugbear]
+        args:
+            - --max-line-length=120
+
+exclude: 'tests'

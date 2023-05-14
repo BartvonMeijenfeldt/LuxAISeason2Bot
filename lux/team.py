@@ -27,10 +27,13 @@ class Team:
         water=0,
         metal=0,
         factories_to_place=0,
-        factory_strains=[],
+        factory_strains=None,
         place_first=False,
         bid=0,
     ) -> None:
+        if factory_strains is None:
+            factory_strains = []
+
         self.faction = faction
         self.team_id = team_id
         # the key used to differentiate ownership of things in state

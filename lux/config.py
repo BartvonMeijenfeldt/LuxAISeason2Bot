@@ -135,6 +135,6 @@ class EnvConfig:
 
     @classmethod
     def from_dict(cls, data):
-        LIGHT_ROBOT = UnitConfig(**data["ROBOTS"]["LIGHT"])
-        HEAVY_ROBOT = UnitConfig(**data["ROBOTS"]["HEAVY"])
-        return cls(LIGHT_ROBOT=LIGHT_ROBOT, HEAVY_ROBOT=HEAVY_ROBOT)
+        light_robot = UnitConfig(**data["ROBOTS"]["LIGHT"])
+        heavy_robot = UnitConfig(**data["ROBOTS"]["HEAVY"])
+        return cls(LIGHT_ROBOT=light_robot, HEAVY_ROBOT=heavy_robot)
