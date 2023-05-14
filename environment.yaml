@@ -1,4 +1,4 @@
-name: lux_bots
+name: luxai_s2
 channels:
   - conda-forge
   - pytorch
@@ -30,3 +30,4 @@ dependencies:
     - opensimplex
     - pygame
     - vec_noise
+    - luxai-s2=2.1.9
