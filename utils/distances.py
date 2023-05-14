@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import numpy as np
 import logging
+from typing import TYPE_CHECKING, Tuple
 
-from typing import Tuple, TYPE_CHECKING
+import numpy as np
 
-from search.search import TilesToClearGraph, Search
 from objects.coordinate import Coordinate
+from search.search import Search, TilesToClearGraph
 from utils.positions import init_empty_positions
 
 if TYPE_CHECKING:

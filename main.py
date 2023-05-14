@@ -3,7 +3,7 @@ from argparse import Namespace
 
 from agent import Agent
 from lux.config import EnvConfig
-from lux.kit import process_obs, process_action
+from lux.kit import process_action, process_obs
 
 # DO NOT REMOVE THE FOLLOWING CODE
 agent_dict = dict()  # store potentially multiple dictionaries as kaggle imports code directly

@@ -1,16 +1,21 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 from abc import abstractmethod
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from logic.goals.goal import Goal
-from objects.actions.factory_action import BuildHeavyAction, BuildLightAction, WaterAction
-from objects.game_state import GameState
+from objects.actions.factory_action import (
+    BuildHeavyAction,
+    BuildLightAction,
+    WaterAction,
+)
 from objects.actions.factory_action_plan import FactoryActionPlan
+from objects.game_state import GameState
 
 if TYPE_CHECKING:
-    from objects.actors.factory import Factory
     from logic.goal_resolution.schedule_info import ScheduleInfo
+    from objects.actors.factory import Factory
 
 
 @dataclass

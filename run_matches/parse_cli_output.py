@@ -1,7 +1,8 @@
-import pandas as pd
+import argparse
 import csv
 from typing import List
-import argparse
+
+import pandas as pd
 
 
 def strip_non_alpha_numeric(str_: str) -> str:

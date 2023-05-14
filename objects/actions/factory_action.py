@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from abc import abstractmethod
+from typing import TYPE_CHECKING
+
 import numpy as np
 
+from lux.config import HEAVY_CONFIG, LIGHT_CONFIG, EnvConfig
 from objects.actions.action import Action
-from lux.config import EnvConfig, LIGHT_CONFIG, HEAVY_CONFIG
 
 if TYPE_CHECKING:
     from objects.actors.factory import Factory

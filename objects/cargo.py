@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-from typing import Optional
 from operator import itemgetter
+from typing import Optional
 
-from objects.resource import Resource, NON_POWER_RESOURCES
+from objects.resource import NON_POWER_RESOURCES, Resource
 
 
 @dataclass

@@ -1,43 +1,45 @@
 from __future__ import annotations
 
+from copy import copy
 from dataclasses import dataclass, field, replace
-from typing import List, Optional, TYPE_CHECKING, Iterable
 from functools import lru_cache
 from math import ceil
+from typing import TYPE_CHECKING, Iterable, List, Optional
 
-from copy import copy
-from utils.utils import PriorityQueue
-from objects.actors.actor import Actor
-from objects.actions.unit_action_plan import get_primitive_actions_from_list
-from lux.config import UnitConfig
-from objects.coordinate import TimeCoordinate, Coordinate
-from objects.game_state import GameState
-from objects.resource import Resource
-from objects.actions.unit_action import UnitAction
-from objects.actions.unit_action_plan import UnitActionPlan
-from objects.cargo import Cargo
+from config import CONFIG
+from exceptions import NoValidGoalFoundError
 from logic.constraints import Constraints
-from objects.direction import Direction
+from logic.goal_resolution.schedule_info import ScheduleInfo
 from logic.goals.unit_goal import (
-    UnitGoal,
-    CollectIceGoal,
     ClearRubbleGoal,
     CollectGoal,
+    CollectIceGoal,
     CollectOreGoal,
+    DefendLichenTileGoal,
+    DefendTileGoal,
     DestroyLichenGoal,
-    UnitNoGoal,
+    EvadeConstraintsGoal,
     FleeGoal,
+    SupplyPowerGoal,
     TransferGoal,
     TransferIceGoal,
     TransferOreGoal,
-    EvadeConstraintsGoal,
-    SupplyPowerGoal,
-    DefendTileGoal,
-    DefendLichenTileGoal,
+    UnitGoal,
+    UnitNoGoal,
 )
-from config import CONFIG
-from exceptions import NoValidGoalFoundError
-from logic.goal_resolution.schedule_info import ScheduleInfo
+from lux.config import UnitConfig
+from objects.actions.unit_action import UnitAction
+from objects.actions.unit_action_plan import (
+    UnitActionPlan,
+    get_primitive_actions_from_list,
+)
+from objects.actors.actor import Actor
+from objects.cargo import Cargo
+from objects.coordinate import Coordinate, TimeCoordinate
+from objects.direction import Direction
+from objects.game_state import GameState
+from objects.resource import Resource
+from utils.utils import PriorityQueue
 
 if TYPE_CHECKING:
     from objects.actors.factory import Factory

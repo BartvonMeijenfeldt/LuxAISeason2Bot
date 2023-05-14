@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from objects.actions.action_plan import ActionPlan
 
 if TYPE_CHECKING:
-    from objects.game_state import GameState
     from logic.goal_resolution.schedule_info import ScheduleInfo
+    from objects.game_state import GameState
 
 
 @dataclass

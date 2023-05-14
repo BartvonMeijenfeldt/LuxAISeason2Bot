@@ -1,22 +1,22 @@
-from typing import Dict, Tuple, List
-from collections import defaultdict
 import logging
+from collections import defaultdict
+from typing import Dict, List, Tuple
 
-from objects.game_state import GameState
-from objects.coordinate import TimeCoordinate
-from objects.actors.factory import Factory, Strategy
-from objects.actors.unit import Unit
-from objects.direction import Direction
+from config import CONFIG
+from exceptions import NoValidGoalFoundError
 from logic.constraints import Constraints
+from logic.goal_resolution.factory_signal import SIGNALS
 from logic.goal_resolution.power_tracker import PowerTracker
 from logic.goal_resolution.schedule_info import ScheduleInfo
-from objects.actions.action_plan import ActionPlan
-from logic.goals.factory_goal import BuildLightGoal
-from logic.goals.unit_goal import UnitGoal, DigGoal, SupplyPowerGoal
-from exceptions import NoValidGoalFoundError
-from logic.goal_resolution.factory_signal import SIGNALS
 from logic.goal_resolution.time_tracker import TimeTracker
-from config import CONFIG
+from logic.goals.factory_goal import BuildLightGoal
+from logic.goals.unit_goal import DigGoal, SupplyPowerGoal, UnitGoal
+from objects.actions.action_plan import ActionPlan
+from objects.actors.factory import Factory, Strategy
+from objects.actors.unit import Unit
+from objects.coordinate import TimeCoordinate
+from objects.direction import Direction
+from objects.game_state import GameState
 
 
 class Scheduler:

@@ -1,18 +1,18 @@
-import numpy as np
-
 from collections import defaultdict
-from objects.cargo import Cargo
 from typing import Dict, List
+
+import numpy as np
 
 from lux.config import EnvConfig
 from lux.team import Team
-from objects.actors.actor import Actor
-from objects.actors.unit import Unit
-from objects.game_state import GameState
-from objects.board import Board
-from objects.coordinate import TimeCoordinate
-from objects.actors.factory import Factory
 from objects.actions.unit_action import UnitAction
+from objects.actors.actor import Actor
+from objects.actors.factory import Factory
+from objects.actors.unit import Unit
+from objects.board import Board
+from objects.cargo import Cargo
+from objects.coordinate import TimeCoordinate
+from objects.game_state import GameState
 
 
 def process_action(action):

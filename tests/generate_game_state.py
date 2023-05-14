@@ -1,13 +1,11 @@
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Sequence
+
 import numpy as np
 
-from typing import Dict, Sequence, Optional, List
-from dataclasses import dataclass, field
-
-
-from objects.game_state import GameState
-from lux.kit import obs_to_game_state
 from lux.config import EnvConfig
-
+from lux.kit import obs_to_game_state
+from objects.game_state import GameState
 
 PLAYER_TEAM_ID = 0
 OPP_TEAM_ID = 1

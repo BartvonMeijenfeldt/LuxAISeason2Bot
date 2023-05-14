@@ -1,6 +1,6 @@
 import random
-
 from typing import List, Optional
+
 from logic.constraints import Constraints
 from objects.coordinate import TimeCoordinate as TC
 

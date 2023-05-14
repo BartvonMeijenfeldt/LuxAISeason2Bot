@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional
-from dataclasses import dataclass, field
 
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from logic.goals.goal import Goal
-    from objects.cargo import Cargo
     from objects.actions.action_plan import ActionPlan
+    from objects.cargo import Cargo
 
 
 @dataclass

@@ -2,10 +2,10 @@ from abc import ABCMeta, abstractmethod
 from math import inf, sqrt
 from typing import List
 
-from objects.actors.factory import Factory, Strategy
-from objects.game_state import GameState
 from config import CONFIG
 from lux.config import EnvConfig
+from objects.actors.factory import Factory, Strategy
+from objects.game_state import GameState
 
 
 class FactorySignal(metaclass=ABCMeta):

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
 import numpy as np
 
-from typing import TYPE_CHECKING
-from dataclasses import dataclass
-
-from objects.resource import Resource
+from objects.actions.unit_action import (
+    DigAction,
+    PickupAction,
+    TransferAction,
+    UnitAction,
+)
 from objects.direction import Direction
-from objects.actions.unit_action import UnitAction, DigAction, PickupAction, TransferAction
+from objects.resource import Resource
 from utils.utils import is_day
 
 if TYPE_CHECKING:

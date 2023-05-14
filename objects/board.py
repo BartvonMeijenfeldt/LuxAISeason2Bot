@@ -1,21 +1,20 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Iterable
+
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Iterable, Optional
 
 import numpy as np
-from dataclasses import dataclass
-from collections import defaultdict
-from objects.coordinate import Coordinate, CoordinateList
-from logic.goals.unit_goal import DigGoal
-from utils.distances import (
-    init_empty_positions,
-    get_min_distances_between_positions,
-)
-from utils.positions import append_positions, positions_to_set
+
 from config import CONFIG
+from logic.goals.unit_goal import DigGoal
+from objects.coordinate import Coordinate, CoordinateList
+from utils.distances import get_min_distances_between_positions, init_empty_positions
+from utils.positions import append_positions, positions_to_set
 
 if TYPE_CHECKING:
-    from objects.actors.unit import Unit
     from objects.actors.factory import Factory
+    from objects.actors.unit import Unit
 
 
 @dataclass

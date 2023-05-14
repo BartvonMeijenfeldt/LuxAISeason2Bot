@@ -1,52 +1,63 @@
 from __future__ import annotations
 
-import numpy as np
-
-
-from typing import Tuple, TYPE_CHECKING, Optional, Iterable, Set, List
-from itertools import product
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from itertools import product
 from math import floor
+from typing import TYPE_CHECKING, Iterable, List, Optional, Set, Tuple
 
-from objects.actions.unit_action import TransferAction
-from objects.actions.unit_action_plan import UnitActionPlan
-from objects.cargo import Cargo
-from objects.actions.factory_action import WaterAction
-from objects.actors.actor import Actor
+import numpy as np
+
+from config import CONFIG
 from exceptions import NoValidGoalFoundError
-from objects.coordinate import TimeCoordinate, Coordinate, CoordinateList
-from logic.goals.unit_goal import DigGoal, CollectGoal
-from objects.actions.factory_action_plan import FactoryActionPlan
-from objects.resource import Resource
+from logic.goals.factory_goal import (
+    BuildHeavyGoal,
+    BuildLightGoal,
+    FactoryGoal,
+    FactoryNoGoal,
+    WaterGoal,
+)
 from logic.goals.unit_goal import (
-    UnitGoal,
     ClearRubbleGoal,
-    CollectOreGoal,
+    CollectGoal,
     CollectIceGoal,
-    SupplyPowerGoal,
+    CollectOreGoal,
     DestroyLichenGoal,
+    DigGoal,
+    SupplyPowerGoal,
     TransferIceGoal,
     TransferOreGoal,
+    UnitGoal,
 )
-from logic.goals.factory_goal import BuildHeavyGoal, BuildLightGoal, WaterGoal, FactoryNoGoal, FactoryGoal
+from lux.config import HEAVY_CONFIG, LIGHT_CONFIG, EnvConfig
+from objects.actions.factory_action import WaterAction
+from objects.actions.factory_action_plan import FactoryActionPlan
+from objects.actions.unit_action import TransferAction
+from objects.actions.unit_action_plan import UnitActionPlan
+from objects.actors.actor import Actor
+from objects.cargo import Cargo
+from objects.coordinate import Coordinate, CoordinateList, TimeCoordinate
+from objects.resource import Resource
 from utils.distances import (
-    get_min_distance_between_positions,
-    get_min_distance_between_pos_and_positions,
-    get_min_distances_between_positions,
     get_closest_pos_between_pos_and_positions,
+    get_min_distance_between_pos_and_positions,
+    get_min_distance_between_positions,
+    get_min_distances_between_positions,
     get_positions_on_optimal_path_between_pos_and_pos,
 )
 from utils.image_processing import get_islands
-from utils.positions import init_empty_positions, get_neighboring_positions, append_positions, positions_to_set
-from lux.config import EnvConfig, LIGHT_CONFIG, HEAVY_CONFIG
-from config import CONFIG
+from utils.positions import (
+    append_positions,
+    get_neighboring_positions,
+    init_empty_positions,
+    positions_to_set,
+)
 
 if TYPE_CHECKING:
     from logic.goal_resolution.scheduler import ScheduleInfo
-    from objects.game_state import GameState
-    from objects.board import Board
     from objects.actors.unit import Unit
+    from objects.board import Board
+    from objects.game_state import GameState
 
 
 class Strategy(Enum):

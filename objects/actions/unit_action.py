@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-import numpy as np
-
-from typing import TYPE_CHECKING, TypeVar
 from abc import abstractmethod
 from dataclasses import dataclass, replace
 from math import floor
+from typing import TYPE_CHECKING, TypeVar
+
+import numpy as np
 
 from objects.actions.action import Action
+from objects.direction import NUMBER_DIRECTION, Direction
 from objects.resource import Resource
-from objects.direction import Direction, NUMBER_DIRECTION
 
 if TYPE_CHECKING:
-    from objects.coordinate import Coordinate
     from lux.config import UnitConfig
     from objects.board import Board
+    from objects.coordinate import Coordinate
 
     TCoordinate = TypeVar("TCoordinate", bound=Coordinate)
 

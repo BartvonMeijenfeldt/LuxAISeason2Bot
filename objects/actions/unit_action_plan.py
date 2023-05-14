@@ -1,17 +1,18 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Sequence, List, Iterable
 
-from dataclasses import dataclass, replace, field
-from objects.coordinate import TimeCoordinate, PowerTimeCoordinate
-from objects.direction import Direction
-from objects.actions.unit_action import DigAction, MoveAction
-from objects.actions.action_plan import ActionPlan, PowerRequest
-from utils.utils import is_day
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Iterable, List, Optional, Sequence
+
 from lux.config import EnvConfig
+from objects.actions.action_plan import ActionPlan, PowerRequest
+from objects.actions.unit_action import DigAction, MoveAction
+from objects.coordinate import PowerTimeCoordinate, TimeCoordinate
+from objects.direction import Direction
+from utils.utils import is_day
 
 if TYPE_CHECKING:
-    from objects.actors.unit import Unit
     from objects.actions.unit_action import UnitAction
+    from objects.actors.unit import Unit
     from objects.board import Board
     from objects.game_state import GameState
 
