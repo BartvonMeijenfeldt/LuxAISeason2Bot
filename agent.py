@@ -1,19 +1,18 @@
 from __future__ import annotations
-import numpy as np
+
 import logging
 import time
-
-from typing import TYPE_CHECKING, Dict, Any
-
-from lux.kit import obs_to_game_state
-from lux.config import EnvConfig
-from lux.utils import is_my_turn_to_place_factory
-from logic.goal_resolution.scheduler import Scheduler
-from objects.game_state import GameState
-from logic.early_setup import get_factory_spawn_loc
-
 from datetime import datetime
+from typing import TYPE_CHECKING, Any, Dict
 
+import numpy as np
+
+from logic.early_setup import get_factory_spawn_loc
+from logic.goal_resolution.scheduler import Scheduler
+from lux.config import EnvConfig
+from lux.kit import obs_to_game_state
+from lux.utils import is_my_turn_to_place_factory
+from objects.game_state import GameState
 
 if TYPE_CHECKING:
     from objects.actors.actor import Actor

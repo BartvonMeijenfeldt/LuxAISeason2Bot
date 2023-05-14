@@ -1,9 +1,8 @@
-import numpy as np
-
 from typing import Set
 
-from lux.config import EnvConfig
+import numpy as np
 
+from lux.config import EnvConfig
 
 NEIGHBORING_DIRECTIONS_POSITIONS = np.array([[1, 0], [-1, 0], [0, 1], [0, -1]])
 

@@ -1,8 +1,9 @@
-from luxai_s2.env import LuxAI_S2
 from argparse import ArgumentParser
-from lux.config import EnvConfig
+
+from luxai_s2.env import LuxAI_S2
 
 from agent import Agent
+from lux.config import EnvConfig
 from run_matches.interactions import interact
 
 parser = ArgumentParser()

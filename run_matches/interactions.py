@@ -1,7 +1,7 @@
-import numpy as np
 import random
-
 from itertools import count
+
+import numpy as np
 from luxai_s2.env import LuxAI_S2
 
 

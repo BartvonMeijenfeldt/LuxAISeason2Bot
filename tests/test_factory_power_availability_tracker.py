@@ -1,12 +1,11 @@
 import unittest
-
 from typing import List
-from objects.actors.factory import Factory
-from objects.actions.action_plan import PowerRequest as PR
+
 from logic.goal_resolution.power_tracker import PowerTracker as FPAT
 from lux.config import EnvConfig
-from tests.generate_game_state import get_state, FactoryPositions, FactoryPos
-
+from objects.actions.action_plan import PowerRequest as PR
+from objects.actors.factory import Factory
+from tests.generate_game_state import FactoryPos, FactoryPositions, get_state
 
 ENV_CFG = EnvConfig()
 DAILY_CHARGE = ENV_CFG.FACTORY_CHARGE

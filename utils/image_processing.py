@@ -1,7 +1,7 @@
-import numpy as np
-
-from scipy import ndimage
 from typing import List
+
+import numpy as np
+from scipy import ndimage
 
 
 def get_islands(array: np.ndarray) -> List[np.ndarray]:

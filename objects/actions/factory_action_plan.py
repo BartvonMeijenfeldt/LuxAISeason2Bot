@@ -1,11 +1,13 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Iterator, List, Optional
+
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Iterator, List, Optional
+
+from objects.actions.action_plan import ActionPlan, PowerRequest
+from objects.actions.factory_action import BuildAction, FactoryAction
 
 # from objects.actors.factory import Factory
 from objects.coordinate import TimeCoordinate
-from objects.actions.action_plan import ActionPlan, PowerRequest
-from objects.actions.factory_action import FactoryAction, BuildAction
 
 if TYPE_CHECKING:
     from objects.actors.factory import Factory

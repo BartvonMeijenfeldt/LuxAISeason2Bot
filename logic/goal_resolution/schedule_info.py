@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 from copy import copy
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from objects.direction import Direction
 from logic.goals.unit_goal import DigGoal
-
+from objects.direction import Direction
 
 if TYPE_CHECKING:
-    from objects.coordinate import Coordinate
-    from objects.game_state import GameState
-    from objects.actors.unit import Unit
     from logic.constraints import Constraints
     from logic.goal_resolution.power_tracker import PowerTracker
+    from objects.actors.unit import Unit
+    from objects.coordinate import Coordinate
+    from objects.game_state import GameState
 
 
 @dataclass

@@ -1,33 +1,37 @@
 from __future__ import annotations
 
-from typing import List, Tuple, Generator, Optional, TYPE_CHECKING
+import itertools
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
-import itertools
+from typing import TYPE_CHECKING, Generator, List, Optional, Tuple
 
-from objects.coordinate import (
-    ResourcePowerTimeCoordinate,
-    DigTimeCoordinate,
-    TimeCoordinate,
-    DigCoordinate,
-    Coordinate,
-)
-from objects.direction import Direction
-from objects.actions.unit_action import UnitAction, MoveAction, DigAction, PickupAction, TransferAction
-from objects.resource import Resource
-
-from logic.constraints import Constraints
-from utils.utils import PriorityQueue
-from lux.config import HEAVY_CONFIG
 from config import CONFIG
 from exceptions import NoSolutionError, SolutionNotFoundWithinBudgetError
-
+from logic.constraints import Constraints
+from lux.config import HEAVY_CONFIG
+from objects.actions.unit_action import (
+    DigAction,
+    MoveAction,
+    PickupAction,
+    TransferAction,
+    UnitAction,
+)
+from objects.coordinate import (
+    Coordinate,
+    DigCoordinate,
+    DigTimeCoordinate,
+    ResourcePowerTimeCoordinate,
+    TimeCoordinate,
+)
+from objects.direction import Direction
+from objects.resource import Resource
+from utils.utils import PriorityQueue
 
 if TYPE_CHECKING:
-    from objects.board import Board
+    from logic.goal_resolution.power_tracker import PowerTracker
     from lux.config import UnitConfig
     from objects.actors.factory import Factory
-    from logic.goal_resolution.power_tracker import PowerTracker
+    from objects.board import Board
 
 
 @dataclass

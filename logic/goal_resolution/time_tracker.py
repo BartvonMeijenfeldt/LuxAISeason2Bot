@@ -1,7 +1,7 @@
-import time
 import logging
-
+import time
 from dataclasses import dataclass
+
 from config import CONFIG
 
 

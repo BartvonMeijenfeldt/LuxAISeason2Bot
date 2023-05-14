@@ -1,56 +1,60 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Sequence
 
 from abc import abstractmethod
-from dataclasses import dataclass, field, replace
-from typing import Optional
-from math import ceil, inf
 from copy import copy
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
+from math import ceil, inf
+from typing import TYPE_CHECKING, Optional, Sequence
+
 import numpy as np
 
-from search.search import (
-    Search,
-    EvadeConstraintsGraph,
-    MoveToGraph,
-    MoveNearCoordinateGraph,
-    DigAtGraph,
-    FleeTowardsAnyFactoryGraph,
-    FleeDistanceGraph,
-    PickupPowerGraph,
-    Graph,
-    MoveRecklessNearCoordinateGraph,
-    TransferToFactoryResourceGraph,
-    TransferPowerToUnitResourceGraph,
-)
-from lux.config import HEAVY_CONFIG
-from objects.actions.unit_action import DigAction, MoveAction, TransferAction, PickupAction
-from objects.actions.unit_action_plan import UnitActionPlan
-from objects.direction import Direction
-from objects.resource import Resource
-from objects.coordinate import (
-    ResourcePowerTimeCoordinate,
-    DigCoordinate,
-    DigTimeCoordinate,
-    TimeCoordinate,
-    Coordinate,
-    ResourceTimeCoordinate,
-)
-from logic.constraints import Constraints
-from logic.goals.goal import Goal
 from config import CONFIG
 from exceptions import InvalidGoalError, NoSolutionError
-
+from logic.constraints import Constraints
+from logic.goals.goal import Goal
+from lux.config import HEAVY_CONFIG
+from objects.actions.unit_action import (
+    DigAction,
+    MoveAction,
+    PickupAction,
+    TransferAction,
+)
+from objects.actions.unit_action_plan import UnitActionPlan
+from objects.coordinate import (
+    Coordinate,
+    DigCoordinate,
+    DigTimeCoordinate,
+    ResourcePowerTimeCoordinate,
+    ResourceTimeCoordinate,
+    TimeCoordinate,
+)
+from objects.direction import Direction
+from objects.resource import Resource
+from search.search import (
+    DigAtGraph,
+    EvadeConstraintsGraph,
+    FleeDistanceGraph,
+    FleeTowardsAnyFactoryGraph,
+    Graph,
+    MoveNearCoordinateGraph,
+    MoveRecklessNearCoordinateGraph,
+    MoveToGraph,
+    PickupPowerGraph,
+    Search,
+    TransferPowerToUnitResourceGraph,
+    TransferToFactoryResourceGraph,
+)
 
 if TYPE_CHECKING:
-    from objects.actors.unit import Unit
-    from objects.actors.factory import Factory
-    from objects.game_state import GameState
-    from objects.board import Board
-    from lux.config import UnitConfig
-    from objects.actions.unit_action import UnitAction
     from logic.goal_resolution.power_tracker import PowerTracker
     from logic.goal_resolution.schedule_info import ScheduleInfo
+    from lux.config import UnitConfig
+    from objects.actions.unit_action import UnitAction
+    from objects.actors.factory import Factory
+    from objects.actors.unit import Unit
+    from objects.board import Board
+    from objects.game_state import GameState
 
 
 @dataclass

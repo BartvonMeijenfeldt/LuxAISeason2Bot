@@ -1,9 +1,10 @@
 import unittest
 
-from objects.coordinate import Coordinate as C
 from lux.config import EnvConfig
-from tests.generate_game_state import get_state, Tiles, LichenTile as LT, FactoryPositions, FactoryPos
-
+from objects.coordinate import Coordinate as C
+from tests.generate_game_state import FactoryPos, FactoryPositions
+from tests.generate_game_state import LichenTile as LT
+from tests.generate_game_state import Tiles, get_state
 
 ENV_CFG = EnvConfig()
 

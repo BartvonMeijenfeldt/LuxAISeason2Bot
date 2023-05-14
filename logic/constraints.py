@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from copy import copy
 from dataclasses import dataclass, field
 from typing import Iterable
-from copy import copy
 
 from objects.coordinate import TimeCoordinate
 

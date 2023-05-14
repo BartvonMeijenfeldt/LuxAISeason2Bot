@@ -1,13 +1,13 @@
-import numpy as np
+from typing import List, Optional
 
-from typing import Optional, List
+import numpy as np
 from scipy.ndimage.filters import minimum_filter
 
+from config import CONFIG
+from lux.config import EnvConfig
 from objects.board import Board
 from utils.distances import get_distances_between_positions
 from utils.image_processing import get_islands
-from lux.config import EnvConfig
-from config import CONFIG
 
 
 def get_factory_spawn_loc(board: Board, valid_spawns: np.ndarray) -> tuple:

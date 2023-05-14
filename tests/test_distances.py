@@ -1,20 +1,20 @@
 import unittest
-import numpy as np
-
 from typing import Tuple
 
+import numpy as np
+
+from tests.generate_game_state import RubbleTile as RT
+from tests.generate_game_state import Tiles, get_state
 from utils.distances import (
-    get_distances_between_positions,
-    get_min_distance_between_positions,
     get_closest_pos_and_pos_between_positions,
     get_closest_pos_between_pos_and_positions,
-    get_n_closests_positions_between_positions,
     get_distance_between_pos_and_pos,
     get_distances_between_pos_and_positions,
+    get_distances_between_positions,
+    get_min_distance_between_positions,
+    get_n_closests_positions_between_positions,
     get_positions_on_optimal_path_between_pos_and_pos,
 )
-
-from tests.generate_game_state import get_state, Tiles, RubbleTile as RT
 
 
 class TestGetDistancesBetweenPositions(unittest.TestCase):

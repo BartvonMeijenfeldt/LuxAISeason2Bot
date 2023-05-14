@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import numpy as np
-
 from typing import Dict, Iterable
+
+import numpy as np
 
 from objects.actions.action_plan import PowerRequest
 from objects.actors.factory import Factory

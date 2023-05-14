@@ -1,16 +1,17 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Sequence, Set
-from logic.goals.unit_goal import DefendTileGoal, DefendLichenTileGoal
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Optional, Sequence, Set
+
+from logic.goals.unit_goal import DefendLichenTileGoal, DefendTileGoal
 from lux.config import EnvConfig
 
 if TYPE_CHECKING:
-    from objects.board import Board
+    from lux.team import Team
     from objects.actors.actor import Actor
     from objects.actors.factory import Factory
     from objects.actors.unit import Unit
-    from lux.team import Team
+    from objects.board import Board
     from objects.coordinate import Coordinate, CoordinateList
 
 
