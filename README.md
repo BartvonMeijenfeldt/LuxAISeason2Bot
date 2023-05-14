@@ -2,7 +2,7 @@
 
 ## Overview
 
-Logic-based bot built for the [Lux AI Challenge Season 2](https://www.kaggle.com/competitions/lux-ai-season-2/overview) to reach 15th position out of 743 competitors. A summary of the bot can be found on [Kaggle](https://www.kaggle.com/competitions/lux-ai-season-2/discussion/407723). My final 3 submissions for the competition were the more experimental #119 and #118 and the better tested #111. #118 proved best on the leaderboard, obtaining the 15th position. #111 and #119 would have ended up in 17th place.
+Logic-based bot built for the [Lux AI Challenge Season 2](https://www.kaggle.com/competitions/lux-ai-season-2/overview) to reach 15th position out of 743 competitors. A summary of the bot can be found on [Kaggle](https://www.kaggle.com/competitions/lux-ai-season-2/discussion/407723). My final 3 submissions for the competition were the more experimental commits #119 and #118 and the better tested #111. #118 proved best on the leaderboard, obtaining the 15th position. #111 and #119 would have ended up in 17th place.
 
 ## Installation
 

@@ -340,7 +340,7 @@ class PickupPowerGraph(Graph):
 
 
 @dataclass
-class TranserResourceGraph(Graph):
+class TransferResourceGraph(Graph):
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
     resource: Resource
     q: int
@@ -385,7 +385,7 @@ class TranserResourceGraph(Graph):
 
 
 @dataclass
-class TransferPowerToUnitResourceGraph(TranserResourceGraph):
+class TransferPowerToUnitResourceGraph(TransferResourceGraph):
     receiving_unit_c: Coordinate
 
     def _can_transfer(self, c: Coordinate) -> bool:
@@ -403,7 +403,7 @@ class TransferPowerToUnitResourceGraph(TranserResourceGraph):
 
 
 @dataclass
-class TransferToFactoryResourceGraph(TranserResourceGraph):
+class TransferToFactoryResourceGraph(TransferResourceGraph):
     factory: Optional[Factory] = field(default=None)
 
     def cost(self, action: UnitAction, to_c: ResourcePowerTimeCoordinate) -> float:
