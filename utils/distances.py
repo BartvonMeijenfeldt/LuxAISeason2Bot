@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Tuple
 import numpy as np
 
 from objects.coordinate import Coordinate
-from search.search import Search, TilesToClearGraph
+from search.graph import TilesToClearGraph
+from search.search import Search
 from utils.positions import init_empty_positions
 
 if TYPE_CHECKING:
