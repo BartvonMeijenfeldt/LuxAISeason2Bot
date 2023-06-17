@@ -42,15 +42,15 @@ class Graph(metaclass=ABCMeta):
     unit_type: str
     constraints: Constraints
 
-    @abstractmethod
-    def potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
-        ...
-
     def get_valid_action_nodes(self, c: TimeCoordinate) -> Generator[Tuple[UnitAction, TimeCoordinate], None, None]:
-        for action in self.potential_actions(c=c):
+        for action in self._get_potential_actions(c=c):
             to_c = c.add_action(action)
             if self._is_valid_action_node(action, to_c):
                 yield action, to_c
+
+    @abstractmethod
+    def _get_potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
+        ...
 
     def _is_valid_action_node(self, action: UnitAction, to_c: TimeCoordinate) -> bool:
         return (
@@ -59,13 +59,13 @@ class Graph(metaclass=ABCMeta):
             and not self.constraints.get_danger_cost(to_c, action.is_stationary)
         )
 
-    def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
-        action_power_cost = self.get_power_cost(action=action, to_c=to_c)
+    def get_cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
+        action_power_cost = self._get_power_cost(action=action, to_c=to_c)
         on_resource_next_to_base_cost = self._get_penalty_on_resource_next_to_base(action=action, to_c=to_c)
         danger_cost = self._get_danger_cost(action=action, to_c=to_c)
         return action_power_cost + self.time_to_power_cost + on_resource_next_to_base_cost + danger_cost
 
-    def get_power_cost(self, action: UnitAction, to_c: Coordinate) -> float:
+    def _get_power_cost(self, action: UnitAction, to_c: Coordinate) -> float:
         power_change = action.get_power_change_by_end_c(unit_cfg=self.unit_cfg, end_c=to_c, board=self.board)
         power_cost = max(0, -power_change)
         return power_cost
@@ -89,7 +89,7 @@ class Graph(metaclass=ABCMeta):
             return 0
 
     @abstractmethod
-    def heuristic(self, node: Coordinate) -> float:
+    def get_heuristic(self, node: Coordinate) -> float:
         ...
 
     @abstractmethod
@@ -106,7 +106,7 @@ class GoalGraph(Graph):
             self.unit_cfg, self.goal, self.board
         )
 
-    def heuristic(self, node: Coordinate) -> float:
+    def get_heuristic(self, node: Coordinate) -> float:
         return self._get_distance_heuristic(node=node)
 
     def _get_distance_heuristic(self, node: Coordinate) -> float:
@@ -129,7 +129,7 @@ class FleeGraph(Graph):
     def _is_valid_action_node(self, action: UnitAction, to_c: TimeCoordinate) -> bool:
         return not self.constraints.tc_violates_constraint(to_c) and self.board.is_valid_c_for_player(c=to_c)
 
-    def potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
+    def _get_potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
         for action in self._potential_actions:
             yield action
 
@@ -143,7 +143,7 @@ class FleeTowardsAnyFactoryGraph(FleeGraph):
     def node_completes_goal(self, node: Coordinate) -> bool:
         return self.board.get_min_distance_to_any_player_factory(node) == 0
 
-    def heuristic(self, node: Coordinate) -> float:
+    def get_heuristic(self, node: Coordinate) -> float:
         min_nr_steps = self.board.get_min_distance_to_any_player_factory(node)
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
         min_distance_cost = min_nr_steps * min_cost_per_step
@@ -159,7 +159,7 @@ class FleeDistanceGraph(FleeGraph):
     def node_completes_goal(self, node: Coordinate) -> bool:
         return node.distance_to(self.start_c) >= self.distance
 
-    def heuristic(self, node: Coordinate) -> float:
+    def get_heuristic(self, node: Coordinate) -> float:
         min_nr_steps = self.distance - node.distance_to(self.start_c)
         min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
         min_distance_cost = min_nr_steps * min_cost_per_step
@@ -178,18 +178,18 @@ class TilesToClearGraph(GoalGraph):
     def _is_valid_action_node(self, action: UnitAction, to_c: TimeCoordinate) -> bool:
         return self.board.is_valid_c_for_player(c=to_c)
 
-    def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
-        action_power_cost = self.get_power_cost(action=action, to_c=to_c)
+    def get_cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
+        action_power_cost = self._get_power_cost(action=action, to_c=to_c)
         resource_cost = 100 if self.board.is_resource_c(to_c) else 0
         total_cost = action_power_cost + self.time_to_power_cost + resource_cost
         return total_cost
 
     # TODO, consider is_valid_action node to exclude resource tiles Or at least a big extra cost
 
-    def potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
+    def _get_potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
         return self._potential_actions
 
-    def heuristic(self, node: Coordinate) -> float:
+    def get_heuristic(self, node: Coordinate) -> float:
         return self._get_distance_heuristic(node=node)
 
 
@@ -202,10 +202,10 @@ class MoveToGraph(GoalGraph):
         if not self.constraints:
             self._potential_actions = [MoveAction(dir) for dir in Direction if dir != Direction.CENTER]
 
-    def potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
+    def _get_potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
         return self._potential_actions
 
-    def heuristic(self, node: Coordinate) -> float:
+    def get_heuristic(self, node: Coordinate) -> float:
         return self._get_distance_heuristic(node=node)
 
 
@@ -218,10 +218,10 @@ class MoveNearCoordinateGraph(GoalGraph):
         if not self.constraints:
             self._potential_actions = [MoveAction(dir) for dir in Direction if dir != Direction.CENTER]
 
-    def potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
+    def _get_potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
         return self._potential_actions
 
-    def heuristic(self, node: Coordinate) -> float:
+    def get_heuristic(self, node: Coordinate) -> float:
         return self._get_distance_heuristic(node=node)
 
     def node_completes_goal(self, node: Coordinate) -> bool:
@@ -260,10 +260,10 @@ class EvadeConstraintsGraph(Graph):
         constraints_danger_cost = self.constraints.get_danger_cost(to_c, action.is_stationary)
         return base_danger_cost + constraints_danger_cost
 
-    def potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
+    def _get_potential_actions(self, c: TimeCoordinate) -> List[MoveAction]:
         return self._potential_actions
 
-    def heuristic(self, node: TimeCoordinate) -> float:
+    def get_heuristic(self, node: TimeCoordinate) -> float:
         return -node.t
 
     def node_completes_goal(self, node: TimeCoordinate) -> bool:
@@ -278,7 +278,7 @@ class PickupPowerGraph(Graph):
     next_goal_c: Optional[Coordinate] = field(default=None)
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
 
-    def potential_actions(self, c: ResourcePowerTimeCoordinate) -> Generator[UnitAction, None, None]:
+    def _get_potential_actions(self, c: ResourcePowerTimeCoordinate) -> Generator[UnitAction, None, None]:
         if self.board.is_player_factory_tile(c=c):
             factory = self.board.get_closest_player_factory(c=c)
             power_available_in_factory = self.power_tracker.get_power_available(factory, c.t)
@@ -293,8 +293,8 @@ class PickupPowerGraph(Graph):
         for action in self._potential_move_actions:
             yield action
 
-    def cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
-        move_cost = super().cost(action, to_c)
+    def get_cost(self, action: UnitAction, to_c: TimeCoordinate) -> float:
+        move_cost = super().get_cost(action, to_c)
         if self.next_goal_c is None or not isinstance(action, PickupAction):
             return move_cost
 
@@ -308,7 +308,7 @@ class PickupPowerGraph(Graph):
             heuristic_preference_pickup = to_c.t / 100
         return move_cost + min_distance_cost + heuristic_preference_pickup
 
-    def heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
+    def get_heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
         if self.node_completes_goal(node):
             return 0
 
@@ -349,7 +349,7 @@ class TransferResourceGraph(Graph):
     resource: Resource
     q: int
 
-    def potential_actions(self, c: ResourcePowerTimeCoordinate) -> Generator[UnitAction, None, None]:
+    def _get_potential_actions(self, c: ResourcePowerTimeCoordinate) -> Generator[UnitAction, None, None]:
         if self._can_transfer(c):
             receiving_tile = self._get_receiving_tile(c)
             dir = c.direction_to(receiving_tile)
@@ -371,7 +371,7 @@ class TransferResourceGraph(Graph):
     def _get_receiving_tile(self, c: Coordinate) -> Coordinate:
         ...
 
-    def heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
+    def get_heuristic(self, node: ResourcePowerTimeCoordinate) -> float:
         if self.node_completes_goal(node):
             return 0
 
@@ -410,8 +410,8 @@ class TransferPowerToUnitResourceGraph(TransferResourceGraph):
 class TransferToFactoryResourceGraph(TransferResourceGraph):
     factory: Optional[Factory] = field(default=None)
 
-    def cost(self, action: UnitAction, to_c: ResourcePowerTimeCoordinate) -> float:
-        cost = super().cost(action, to_c)
+    def get_cost(self, action: UnitAction, to_c: ResourcePowerTimeCoordinate) -> float:
+        cost = super().get_cost(action, to_c)
 
         # To prefer returning on factory tile instead of next to it when under threath
         if self.node_completes_goal(to_c) and not self.board.is_player_factory_tile(to_c):
@@ -455,14 +455,14 @@ class DigAtGraph(GoalGraph):
                 MoveAction(direction) for direction in Direction if direction != direction.CENTER
             ]
 
-    def potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
+    def _get_potential_actions(self, c: TimeCoordinate) -> Generator[UnitAction, None, None]:
         if self.goal.x == c.x and self.goal.y == c.y:
             yield self._potential_dig_action
 
         for action in self._potential_move_actions:
             yield action
 
-    def heuristic(self, node: DigTimeCoordinate) -> float:
+    def get_heuristic(self, node: DigTimeCoordinate) -> float:
         distance_min_cost = self._get_distance_heuristic(node=node)
         digs_min_cost = self._get_digs_min_cost(node=node)
 
@@ -514,7 +514,7 @@ class Search:
             current_cost = self.cost_so_far[current_node]
 
             for action, next_node in self.graph.get_valid_action_nodes(current_node):
-                new_cost = current_cost + self.graph.cost(action=action, to_c=next_node)
+                new_cost = current_cost + self.graph.get_cost(action=action, to_c=next_node)
                 if next_node not in self.cost_so_far or new_cost < self.cost_so_far[next_node]:
                     self._add_node(node=next_node, action=action, current_node=current_node, node_cost=new_cost)
 
@@ -524,7 +524,7 @@ class Search:
         self.cost_so_far[node] = node_cost
         self.came_from[node] = (action, current_node)
 
-        priority = node_cost + self.graph.heuristic(node)
+        priority = node_cost + self.graph.get_heuristic(node)
         self.frontier.put(node, priority)
 
     def _get_solution_actions(self, final_node: Coordinate) -> List[UnitAction]:
