@@ -19,13 +19,8 @@ from objects.coordinate import ResourceTimeCoordinate as RTC
 from objects.coordinate import TimeCoordinate as TC
 from objects.direction import Direction as D
 from objects.resource import Resource
-from search.search import (
-    DigAtGraph,
-    MoveToGraph,
-    PickupPowerGraph,
-    Search,
-    TransferToFactoryResourceGraph,
-)
+from search.search import Search
+from search.graph import DigAtGraph, MoveToGraph, PickupPowerGraph, TransferToFactoryResourceGraph
 from tests.generate_game_state import FactoryPos, FactoryPositions
 from tests.generate_game_state import RubbleTile as RT
 from tests.generate_game_state import Tiles, get_state
