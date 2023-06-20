@@ -112,7 +112,7 @@ class Graph(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def completes_goal(self, c: Coordinate) -> bool:
+    def completes_goal(self, tc: TimeCoordinate) -> bool:
         ...
 
 
@@ -137,8 +137,8 @@ class GoalGraph(Graph):
         min_distance_cost = (min_nr_steps - 1) * min_cost_per_step + self.last_action_cost
         return min_distance_cost
 
-    def completes_goal(self, c: Coordinate) -> bool:
-        return self.goal == c
+    def completes_goal(self, tc: TimeCoordinate) -> bool:
+        return self.goal == tc
 
 
 @dataclass
@@ -159,8 +159,8 @@ class FleeGraph(Graph):
 
 
 class FleeTowardsAnyFactoryGraph(FleeGraph):
-    def completes_goal(self, c: Coordinate) -> bool:
-        return self.board.get_min_distance_to_any_player_factory(c) == 0
+    def completes_goal(self, tc: TimeCoordinate) -> bool:
+        return self.board.get_min_distance_to_any_player_factory(tc) == 0
 
     def get_heuristic(self, tc: TimeCoordinate) -> float:
         min_nr_steps = self.board.get_min_distance_to_any_player_factory(tc)
@@ -175,8 +175,8 @@ class FleeDistanceGraph(FleeGraph):
     distance: int
     _potential_actions = [MoveAction(direction) for direction in Direction if direction != Direction.CENTER]
 
-    def completes_goal(self, c: Coordinate) -> bool:
-        return c.distance_to(self.start_tc) >= self.distance
+    def completes_goal(self, tc: TimeCoordinate) -> bool:
+        return tc.distance_to(self.start_tc) >= self.distance
 
     def get_heuristic(self, tc: TimeCoordinate) -> float:
         min_nr_steps = self.distance - tc.distance_to(self.start_tc)
@@ -282,8 +282,8 @@ class EvadeConstraintsGraph(Graph):
     def get_heuristic(self, tc: TimeCoordinate) -> float:
         return -tc.t
 
-    def completes_goal(self, c: TimeCoordinate) -> bool:
-        to_c = c.add_action(self._move_center_action)
+    def completes_goal(self, tc: TimeCoordinate) -> bool:
+        to_c = tc.add_action(self._move_center_action)
         return not self.constraints.tc_violates_constraint(to_c)
 
 
@@ -350,13 +350,13 @@ class PickupPowerGraph(Graph):
         return min_distance_cost
 
     def _get_time_supply_heuristic(self, tc: ResourcePowerTimeCoordinate) -> float:
-        if self.completes_goal(c=tc):
+        if self.completes_goal(tc=tc):
             return 0
         else:
             return self.time_to_power_cost
 
-    def completes_goal(self, c: ResourcePowerTimeCoordinate) -> bool:
-        return c.q > 0
+    def completes_goal(self, tc: ResourcePowerTimeCoordinate) -> bool:
+        return tc.q > 0
 
 
 @dataclass
@@ -400,8 +400,8 @@ class TransferResourceGraph(Graph):
     def _get_distance_heuristic(self, tc: TimeCoordinate) -> float:
         ...
 
-    def completes_goal(self, c: ResourcePowerTimeCoordinate) -> bool:
-        return c.q < 0
+    def completes_goal(self, tc: ResourcePowerTimeCoordinate) -> bool:
+        return tc.q < 0
 
 
 @dataclass
@@ -490,5 +490,5 @@ class DigAtGraph(GoalGraph):
         min_cost = nr_digs_required * cost_per_dig
         return min_cost
 
-    def completes_goal(self, c: DigTimeCoordinate) -> bool:
-        return self.goal == c
+    def completes_goal(self, tc: DigTimeCoordinate) -> bool:
+        return self.goal == tc

@@ -41,7 +41,7 @@ class Search:
 
             current_node = self.frontier.pop()
 
-            if self.graph.completes_goal(c=current_node):
+            if self.graph.completes_goal(tc=current_node):
                 return current_node
 
             current_cost = self.cost_so_far[current_node]
