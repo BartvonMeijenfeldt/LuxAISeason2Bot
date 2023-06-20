@@ -1,3 +1,5 @@
+# Competition file supplied by Competition hosts
+
 from collections import defaultdict
 from typing import Dict, List
 

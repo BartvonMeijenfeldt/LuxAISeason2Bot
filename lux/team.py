@@ -1,3 +1,5 @@
+# Competition file supplied by Competition hosts
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional

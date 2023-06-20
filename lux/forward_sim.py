@@ -1,3 +1,6 @@
+# Competition file supplied by Competition hosts
+
+
 def forward_sim(full_obs, env_cfg, n=2):
     """
     Forward sims for `n` steps given the current full observation and env_cfg

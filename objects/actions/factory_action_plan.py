@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING, Iterator, List, Optional
 
 from objects.actions.action_plan import ActionPlan, PowerRequest
 from objects.actions.factory_action import BuildAction, FactoryAction
-
-# from objects.actors.factory import Factory
 from objects.coordinate import TimeCoordinate
 
 if TYPE_CHECKING:
@@ -27,6 +25,7 @@ class FactoryActionPlan(ActionPlan):
         return iter(self.actions)
 
     def get_resource_cost(self) -> float:
+        """The resource cost the action plan will cost to carry out"""
         return sum(action.get_resource_cost(self.actor) for action in self.actions)
 
     @property

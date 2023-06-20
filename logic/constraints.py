@@ -9,6 +9,17 @@ from objects.coordinate import TimeCoordinate
 
 @dataclass
 class Constraints:
+    """Time coordinates the unit is not supposed to be or discouraged to be.
+
+    Time coordinates are represented as tuples (x, y, t) here for performance reasons.
+
+    Args:
+        negative: Forbidden time coordinates
+        stationary_danger_coordinates: Dict of time coordinates that are dangerous to the unit if standing still and the
+            cost value.
+        moving_danger_coordinates: Dict of time coordinates that are dangerous to the unit if moving and the cost value.
+    """
+
     negative: set[tuple[int, int, int]] = field(default_factory=set)
     stationary_danger_coordinates: dict[tuple[int, int, int], float] = field(default_factory=dict)
     moving_danger_coordinates: dict[tuple[int, int, int], float] = field(default_factory=dict)
@@ -18,10 +29,6 @@ class Constraints:
         danger_coordinates = copy(self.stationary_danger_coordinates)
         moving_danger_coordinates = copy(self.moving_danger_coordinates)
         return Constraints(constraints_negative, danger_coordinates, moving_danger_coordinates)
-
-    @property
-    def key(self) -> str:
-        return str(self.negative)
 
     def __bool__(self) -> bool:
         if self.negative:
