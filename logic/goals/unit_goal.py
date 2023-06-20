@@ -31,7 +31,7 @@ from objects.coordinate import (
 )
 from objects.direction import Direction
 from objects.resource import Resource
-from search.search import (
+from search.graph import (
     DigAtGraph,
     EvadeConstraintsGraph,
     FleeDistanceGraph,
@@ -41,10 +41,10 @@ from search.search import (
     MoveRecklessNearCoordinateGraph,
     MoveToGraph,
     PickupPowerGraph,
-    Search,
     TransferPowerToUnitResourceGraph,
     TransferToFactoryResourceGraph,
 )
+from search.search import Search
 
 if TYPE_CHECKING:
     from logic.goal_resolution.power_tracker import PowerTracker
