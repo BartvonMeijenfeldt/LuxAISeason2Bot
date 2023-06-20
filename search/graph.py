@@ -236,28 +236,26 @@ class MoveNearCoordinateGraph(GoalGraph):
         if not self.constraints:
             self._potential_actions = [MoveAction(dir) for dir in Direction if dir != Direction.CENTER]
 
-    def _get_potential_actions(self, tc: TimeCoordinate) -> List[MoveAction]:
-        return self._potential_actions
+    def _get_potential_actions(self, tc: TimeCoordinate) -> Generator[UnitAction, None, None]:
+        for action in self._potential_actions:
+            yield action
 
     def get_heuristic(self, tc: TimeCoordinate) -> float:
         return self._get_distance_heuristic(tc=tc)
 
-    def completes_goal(self, tc: Coordinate) -> bool:
-        return self.goal.distance_to(tc) == self.distance
+    def _get_distance_heuristic(self, tc: TimeCoordinate) -> float:
+        min_nr_steps = self._get_distance_near_goal(tc)
+        min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
+        min_distance_cost = min_nr_steps * min_cost_per_step
+        return min_distance_cost
 
     def _get_distance_near_goal(self, to_tc: TimeCoordinate) -> int:
         distance_to_goal = self.goal.distance_to(to_tc)
         difference_required_distance = abs(distance_to_goal - self.distance)
         return difference_required_distance
 
-    def _get_distance_heuristic(self, tc: TimeCoordinate) -> float:
-        min_nr_steps = self._get_distance_near_goal(tc)
-        if min_nr_steps == 0:
-            return 0
-
-        min_cost_per_step = self.time_to_power_cost + self.unit_cfg.MOVE_COST
-        min_distance_cost = min_nr_steps * min_cost_per_step
-        return min_distance_cost
+    def completes_goal(self, tc: Coordinate) -> bool:
+        return self.goal.distance_to(tc) == self.distance
 
 
 @dataclass
