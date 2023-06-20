@@ -17,11 +17,29 @@ if TYPE_CHECKING:
 
 @dataclass
 class ScheduleInfo:
+    """Class that contains all relevant info for scheduling decisions, the game_state, the constraints and the
+    power_tracker and that is able to make independent copies of itself.
+
+    Args:
+        game_state: Current game state.
+        constraints: Constraints, which time coordinates are promised to units
+        power_tracker: Object that tracks for all factories what power is available for request.
+    """
+
     game_state: GameState
     constraints: Constraints
     power_tracker: PowerTracker
 
     def copy_without_unit_scheduled_actions(self, unit: Unit) -> ScheduleInfo:
+        """Creates a copy without the units scheduled actions effect on constraints and power tracker. The use of this
+        is when you want to consider a new action plan for a unit without already definitively unschedeling the unit.
+
+        Args:
+            unit: Unit whose actions to remove
+
+        Returns:
+            ScheduleInfo object without the unit's scheduled actions.
+        """
         if unit.is_scheduled:
             game_state = self.game_state
             constraints = copy(self.constraints)
@@ -42,6 +60,16 @@ class ScheduleInfo:
         return schedule_info
 
     def copy_without_units_on_dig_c(self, c: Coordinate) -> ScheduleInfo:
+        """Creates a copy without the scheduled actions effect on constraints and power tracker for all units planning
+        to dig on the given Coordinate. The use of this is when you want to consider a new action plan for a unit to dig
+        on the given coordinate, but where other units might already be planning to dig on.
+
+        Args:
+            c: Coordinate from which to remove scheduled units actions if they plan to dig there.
+
+        Returns:
+           ScheduleInfo object without any scheduled actions of units planning to dig on the given Coordinate.
+        """
         game_state = self.game_state
         constraints = copy(self.constraints)
         power_tracker = copy(self.power_tracker)

@@ -20,16 +20,29 @@ if TYPE_CHECKING:
 
 class Agent:
     def __init__(self, player: str, env_cfg: EnvConfig, debug_mode: bool = False) -> None:
+        np.random.seed(0)
         datetime_now = datetime.now().strftime("%Y%m_%d_%H_%M_%S")
         logging.basicConfig(level=logging.INFO, filename=f"data/{datetime_now}_{player}.log")
+
         self.player = player
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
-        np.random.seed(0)
+
         self.env_cfg: EnvConfig = env_cfg
         self.prev_step_actors: dict[str, Actor] = {}
         self.DEBUG_MODE = debug_mode
 
-    def early_setup(self, step: int, obs, remaing_overage_time: int = 60):
+    def early_setup(self, step: int, obs: dict, remaing_overage_time: int = 60):
+        """Method called during the first set up turns of the game in which the players and select the locations of
+        their bases
+
+        Args:
+            step: Step number of game.
+            obs: Observation of the game state.
+            remaing_overage_time: Extra time in seconds to decide, in addition to the 3s per turn.
+
+        Returns:
+            dict indicating the bid, location to pick base, or nothing (if opponent turn).
+        """
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_step_actors)
 
         if step == 0:
@@ -40,20 +53,26 @@ class Agent:
                 return dict(spawn=spawn_loc, metal=150, water=150)
             return dict()
 
-    def act(self, step: int, obs, remaining_overage_time: int = 60):
+    def act(self, step: int, obs: dict, remaining_overage_time: int = 60) -> Dict[str, Any]:
+        """This function schedules the actions of all actors. In the case of a Factory an explicit action to carry out.
+        In the case of a unit that means updating the action queue with multiple actions. Units will update their
+        action plan (which might be longer than the action queue) and only update the action queue if the next action
+        would be different than the current action queue (to save power, every update costs power).
 
-        """
-        optionally do forward simulation to simulate positions of units, lichen, etc. in the future
-        from lux.forward_sim import forward_sim
-        forward_obs = forward_sim(obs, self.env_cfg, n=2)
-        forward_game_states = [obs_to_game_state(step + i, self.env_cfg, f_obs) for i, f_obs in enumerate(forward_obs)]
+        Args:
+            step: Step number of game.
+            obs: Observation of the game state.
+            remaining_overage_time: Extra time in seconds to decide, in addition to the 3s per turn.
+
+        Returns:
+            Actions of all actors.
         """
         self._set_time()
 
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_step_actors)
         self._schedule_goals(game_state=game_state)
         self._store_actors(game_state=game_state)
-        actions = self.get_actions(game_state=game_state)
+        actions = self._get_actions(game_state=game_state)
 
         self._log_time_taken(game_state.real_env_steps, game_state.player_team.team_id)
 
@@ -76,7 +95,7 @@ class Agent:
         else:
             logging.warning(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
 
-    def get_actions(self, game_state: GameState) -> Dict[str, Any]:
+    def _get_actions(self, game_state: GameState) -> Dict[str, Any]:
         actions = {}
 
         for factory in game_state.player_factories:

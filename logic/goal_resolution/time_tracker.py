@@ -7,6 +7,8 @@ from config import CONFIG
 
 @dataclass
 class TimeTracker:
+    """Tracks time used on current move to figure out if we need to abort scheduling early to not go over time."""
+
     start_time: float
     DEBUG_MODE: bool
 

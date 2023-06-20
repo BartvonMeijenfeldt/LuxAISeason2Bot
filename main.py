@@ -1,3 +1,5 @@
+# Competition file supplied by Competition hosts
+
 import json
 from argparse import Namespace
 

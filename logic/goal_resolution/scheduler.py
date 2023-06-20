@@ -25,6 +25,9 @@ class Scheduler:
         self._init_constraints_and_power_tracker(game_state)
 
     def schedule_goals(self) -> None:
+        """Schedules new goals and their corresponding private action plan for each actor. These new goals and their
+        action plans will be stored in the actors.
+        """
         self._remove_completed_goals()
         self._schedule_units_too_little_power_dummy_goal()
         self._reserve_next_tc_for_units_that_can_not_move()
