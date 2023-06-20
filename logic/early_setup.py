@@ -11,16 +11,27 @@ from utils.image_processing import get_islands
 
 
 def get_factory_spawn_loc(board: Board, valid_spawns: np.ndarray) -> tuple:
-    rubble_score = get_rubble_score(board)
-    ice_score = get_ice_score(board)
-    ore_score = get_ore_score(board)
-    border_score = get_closeness_to_border_score(board)
-    scores = get_scores(rubble_score, ice_score, ore_score, border_score, valid_spawns=valid_spawns)
-    spawn_loc = get_coordinate_biggest(scores)
+    """Get the best factory spawn (starting position) location by taking into account the rubble, ice, ore, closeness
+    to the border into account.
+
+    Args:
+        board: Board
+        valid_spawns: Valid spawn locations
+
+    Returns:
+        Spawn location
+    """
+
+    rubble_score = _get_rubble_score(board)
+    ice_score = _get_ice_score(board)
+    ore_score = _get_ore_score(board)
+    border_score = _get_closeness_to_border_score(board)
+    scores = _get_scores(rubble_score, ice_score, ore_score, border_score, valid_spawns=valid_spawns)
+    spawn_loc = _get_coordinate_highest_score(scores)
     return spawn_loc
 
 
-def get_rubble_score(board: Board) -> np.ndarray:
+def _get_rubble_score(board: Board) -> np.ndarray:
     rubble_adjusted = _set_unspreadable_positions_to_inf_rubble(board)
     factory_pos_connects_to_empty_pos = get_factory_pos_connects_to_empty_pos(rubble_adjusted)
     rubble_value = _get_empty_rubble_value(rubble_adjusted, factory_pos_connects_to_empty_pos)
@@ -126,7 +137,7 @@ def _get_potential_factory_positions() -> np.ndarray:
     return positions
 
 
-def get_ice_score(board: Board) -> np.ndarray:
+def _get_ice_score(board: Board) -> np.ndarray:
     tiles_array = board._get_tiles_xy_array()
     min_distances = _get_min_distances_placing_factory_to_positions(tiles_array, board.ice_positions)
     base_scores = get_base_scores(min_distances, base_score=CONFIG.BASE_SCORE_ICE)
@@ -168,7 +179,7 @@ def _get_min_distances_placing_factory_to_positions(tiles_array: np.ndarray, pos
     return min_distances
 
 
-def get_ore_score(board: Board) -> np.ndarray:
+def _get_ore_score(board: Board) -> np.ndarray:
     tiles_array = board._get_tiles_xy_array()
     min_distances = _get_min_distances_placing_factory_to_positions(tiles_array, board.ore_positions)
     base_scores = get_base_scores(min_distances, base_score=CONFIG.BASE_SCORE_ORE)
@@ -177,7 +188,7 @@ def get_ore_score(board: Board) -> np.ndarray:
     return base_scores + closest_neighbor_score
 
 
-def get_closeness_to_border_score(board: Board) -> np.ndarray:
+def _get_closeness_to_border_score(board: Board) -> np.ndarray:
     scores_x = np.ones_like(board.rubble) * 6
     scores_x[1:-1] = 4
     scores_x[2:-2] = 3
@@ -191,7 +202,7 @@ def get_closeness_to_border_score(board: Board) -> np.ndarray:
     return scores
 
 
-def get_scores(
+def _get_scores(
     rubble_score: np.ndarray,
     ice_score: np.ndarray,
     ore_score: np.ndarray,
@@ -209,7 +220,7 @@ def set_invalid_spawns_minus_inf(x: np.ndarray, valid_spawns: np.ndarray) -> np.
     return x
 
 
-def get_coordinate_biggest(x_: np.ndarray):
+def _get_coordinate_highest_score(x_: np.ndarray):
     biggest_loc_int = np.argmax(x_)
     x, y = np.unravel_index(biggest_loc_int, x_.shape)
     return (x, y)

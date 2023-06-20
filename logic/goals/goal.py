@@ -77,8 +77,19 @@ class Goal(metaclass=ABCMeta):
     @property
     @abstractmethod
     def key(self) -> str:
+        """Unique unit, goal combination."""
         ...
 
     @abstractmethod
     def get_best_case_value_per_step(self, game_state: GameState) -> float:
+        """Computes the best case value per step. This is a quick estimation of the best possible value of completing
+        this goal. This method is used to have a rough estimation of the value of goals before going through the more
+        expensive process of computing action plans.
+
+        Args:
+            game_state: Game State
+
+        Returns:
+            Best case value  per step
+        """
         ...

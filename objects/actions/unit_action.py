@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 class UnitAction(Action):
-    n: int
+    n: int  # Number of times to repeat the action
 
     def next_step_equal(self, other: UnitAction) -> bool:
         self_one_step = replace(self, n=1)

@@ -1,3 +1,5 @@
+# Competition file supplied by Competition hosts
+
 from lux.kit import GameState
 
 

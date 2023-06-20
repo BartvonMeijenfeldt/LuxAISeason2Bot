@@ -1,3 +1,5 @@
+# Competition file supplied by Competition hosts
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

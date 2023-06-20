@@ -48,6 +48,7 @@ class UnitActionPlan(ActionPlan):
         return new_action_plan
 
     def step(self) -> None:
+        """Update the action plan to remove the action of the last time step"""
         self.original_actions = self.primitive_actions[1:]
         self.__post_init__()
 
@@ -60,6 +61,11 @@ class UnitActionPlan(ActionPlan):
         self.__post_init__()
 
     def set_actions(self, actions: List[UnitAction]) -> None:
+        """Set the actions in the action plan with the given actions
+
+        Args:
+            actions: Actions to set.
+        """
         self.original_actions = actions
         self.__post_init__()
 

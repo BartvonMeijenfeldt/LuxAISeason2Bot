@@ -65,14 +65,35 @@ class UnitGoal(Goal):
     @property
     @abstractmethod
     def assignment_key(self) -> str:
+        """Unique combination of strategic goal, unit and whether to pick up power before completing the goal."""
         ...
 
     @abstractmethod
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
+        """Is the current goal completed, given the game state and action plan.
+
+        Some goals can be completed before the action plan is finished. For example destroying an enemy lichen tile, as
+        these can also disappear if the opponent did not water it.
+
+        Args:
+            game_state: Current game state.
+            action_plan: Action plan
+
+        Returns:
+            boolean whether the goal is completed
+        """
         ...
 
     @abstractmethod
     def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
+        """Create a specific action plan to complete the goal.
+
+        Args:
+            schedule_info: Schedule Info
+
+        Returns:
+            Unit Action plan to complete the goal.
+        """
         ...
 
     def get_best_case_value_per_step(self, game_state: GameState) -> float:
@@ -89,10 +110,12 @@ class UnitGoal(Goal):
 
     @abstractmethod
     def _get_max_power_benefit(self, game_state: GameState) -> float:
+        """Quick calculation of max power benefit a goal can generate"""
         ...
 
     @abstractmethod
     def _get_min_power_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
+        """Min power cost and number of steps needed to complete the goal."""
         ...
 
     def _get_move_to_graph(self, board: Board, goal: Coordinate, constraints: Constraints) -> MoveToGraph:
@@ -288,10 +311,12 @@ class UnitGoal(Goal):
 
     @abstractmethod
     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
+        """Quantity ice this goal will transfer"""
         ...
 
     @abstractmethod
     def quantity_ore_to_transfer(self, game_state: GameState) -> int:
+        """Quantity ore this goal will transfer"""
         ...
 
     def _get_min_steps_moving_to_power_pickup(self, c: Coordinate, game_state: GameState) -> int:
@@ -333,6 +358,7 @@ class UnitGoal(Goal):
 
     @property
     def cur_tc(self):
+        """Current tc of unit, given the action plan"""
         return self.action_plan.final_tc
 
 
