@@ -109,10 +109,27 @@ class Graph(metaclass=ABCMeta):
 
     @abstractmethod
     def get_heuristic(self, tc: TimeCoordinate) -> float:
+        """Heuristic of cost to omplete the goal. Must be a minimum of the total cost for the A* algorithm to guarantee
+        an optimal solution.
+
+        Args:
+            tc: Current TimeCoordinate
+
+        Returns:
+            Minimum cost for current TimeCoordinate to reach its goal
+        """
         ...
 
     @abstractmethod
     def completes_goal(self, tc: TimeCoordinate) -> bool:
+        """Whether the current TimeCoordinate completes the goal.
+
+        Args:
+            tc: TimeCoordinate
+
+        Returns:
+            Boolean, does current TimeCoordinate complete the goal?
+        """
         ...
 
 
