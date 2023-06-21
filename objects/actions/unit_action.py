@@ -34,17 +34,52 @@ class UnitAction(Action):
     @property
     @abstractmethod
     def unit_direction(self) -> Direction:
+        """The direction the unit will move towards to carry out the action."""
         ...
 
     @abstractmethod
     def get_power_change(self, unit_cfg: UnitConfig, start_c: Coordinate, board: Board) -> int:
+        """Get the power change of the unit to carry out the action. Defined as:
+
+        power_change = power_after_action - power_before_action.
+
+        So units that pick up power will have a positive power change, other actions will leed to non-positive power
+        changes.
+
+        Args:
+            unit_cfg: Unit config.
+            start_c: _Start coordinate of unit.
+            board: Current board.
+
+        Returns:
+            The power change of the unit to carry out the action.
+        """
         ...
 
     @abstractmethod
-    def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
+    def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_: Coordinate, board: Board) -> int:
+        """Calculates power change, like the get_power_change method. But calculates it by using the coordinate the
+        unit is moving to. This method exists as a speed upgrade, when the the end coordinate is already calculated.
+
+        Args:
+            unit_cfg: Unit config.
+            end_c: End coordinate of unit.
+            board: Current board.
+
+        Returns:
+            The power change of the unit to carry out the action.
+        """
         ...
 
     def get_final_c(self, start_c: TCoordinate) -> TCoordinate:
+        """Get the final coordinate of the unit.
+
+        Args:
+            start_c: Start coordinate.
+
+        Returns:
+            Final coordinate of the unit.
+        """
         return start_c.__add__(Direction.CENTER)
 
     @property
