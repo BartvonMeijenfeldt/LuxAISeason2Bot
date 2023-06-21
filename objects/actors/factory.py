@@ -1076,7 +1076,7 @@ class Factory(Actor):
         self, schedule_info: ScheduleInfo, unit: Unit, nr_steps_to_go: int
     ) -> UnitGoal:
         goal: CollectIceGoal = unit.goal  # type: ignore
-        step_ice_incoming = unit.private_action_plan.nr_primitive_actions
+        step_ice_incoming = unit.private_action_plan.nr_time_steps
         if step_ice_incoming <= nr_steps_to_go:
             raise NoValidGoalFoundError
 

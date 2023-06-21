@@ -10,8 +10,10 @@ class Action(metaclass=ABCMeta):
     @property
     @abstractmethod
     def requested_power(self) -> int:
+        """Requested power from factory to carry out the action."""
         ...
 
     @abstractmethod
     def to_lux_output(self):
+        """Convert the action to the output the Lux environment expects."""
         ...

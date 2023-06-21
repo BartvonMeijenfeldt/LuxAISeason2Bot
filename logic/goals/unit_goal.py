@@ -429,7 +429,9 @@ class DigGoal(UnitGoal):
             potential_actions = self._get_actions_up_to_n_digs(actions, mid)
             potential_actions_with_back = potential_actions + actions_move_back
 
-            if self.action_plan.can_add_actions(potential_actions_with_back, game_state, self.safety_level_power):
+            if self.action_plan.has_enough_power_to_add_actions(
+                potential_actions_with_back, game_state, self.safety_level_power
+            ):
                 low = mid
             else:
                 high = mid - 1
@@ -568,9 +570,9 @@ class CollectGoal(DigGoal):
         while self.action_plan.nr_digs:
             actions = self._get_transfer_resources_to_factory_actions(board=game_state.board, constraints=constraints)
 
-            if (self.is_supplied or self._is_heavy_startup(game_state)) or self.action_plan.can_add_actions(
-                actions, game_state, self.safety_level_power
-            ):
+            if (
+                self.is_supplied or self._is_heavy_startup(game_state)
+            ) or self.action_plan.has_enough_power_to_add_actions(actions, game_state, self.safety_level_power):
                 self.action_plan.extend(actions=actions)
                 return
 
@@ -769,7 +771,7 @@ class SupplyPowerGoal(UnitGoal):
 
         power_pickup_turn = self.pickup_power
 
-        while self.action_plan.nr_primitive_actions <= len(receiving_unit_ptcs):
+        while self.action_plan.nr_time_steps <= len(receiving_unit_ptcs):
             if power_pickup_turn:
                 power_tracker_up_to_date = copy(power_tracker)
                 power_requests_up_to_now = self.action_plan.get_power_requests(game_state)
@@ -778,7 +780,7 @@ class SupplyPowerGoal(UnitGoal):
                 actions = self._get_power_pickup_actions(schedule_info, self.receiving_c)
             else:
                 actions = self._get_transfer_resources_to_unit_actions(game_state, constraints)
-                index_transfer = self.action_plan.nr_primitive_actions + len(actions) - 1
+                index_transfer = self.action_plan.nr_time_steps + len(actions) - 1
 
                 if index_transfer >= len(receiving_unit_ptcs):
                     break
@@ -1389,7 +1391,7 @@ class DefendTileGoal(UnitGoal):
             distance=1,
             board=game_state.board,
         )
-        if not self.action_plan.can_add_actions(
+        if not self.action_plan.has_enough_power_to_add_actions(
             actions_move_next_to, game_state, min_power_end=self.min_power_required
         ):
             raise NoSolutionError
@@ -1397,7 +1399,7 @@ class DefendTileGoal(UnitGoal):
         self.action_plan.extend(actions_move_next_to)
 
     def _add_repetitive_move_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        while self.action_plan.nr_primitive_actions < 20:
+        while self.action_plan.nr_time_steps < 20:
             if self.cur_tc.distance_to(self.opp.tc) == 1:
                 actions = self._get_move_to_actions(self.cur_tc, self.opp.tc, constraints, game_state.board)
             else:
@@ -1410,7 +1412,9 @@ class DefendTileGoal(UnitGoal):
                     board=game_state.board,
                 )
 
-            if not self.action_plan.can_add_actions(actions, game_state, min_power_end=self.min_power_required):
+            if not self.action_plan.has_enough_power_to_add_actions(
+                actions, game_state, min_power_end=self.min_power_required
+            ):
                 break
 
             self.action_plan.extend(actions)
@@ -1502,7 +1506,7 @@ class DefendLichenTileGoal(UnitGoal):
             distance=1,
             board=game_state.board,
         )
-        if not self.action_plan.can_add_actions(
+        if not self.action_plan.has_enough_power_to_add_actions(
             actions_move_next_to, game_state, min_power_end=self.min_power_required
         ):
             raise NoSolutionError
@@ -1510,7 +1514,7 @@ class DefendLichenTileGoal(UnitGoal):
         self.action_plan.extend(actions_move_next_to)
 
     def _add_repetitive_move_actions(self, game_state: GameState, constraints: Constraints) -> None:
-        while self.action_plan.nr_primitive_actions < 20:
+        while self.action_plan.nr_time_steps < 20:
             if self.cur_tc.distance_to(self.opp.tc) == 1:
                 actions = self._get_move_to_actions(self.cur_tc, self.opp.tc, constraints, game_state.board)
             else:
@@ -1523,7 +1527,9 @@ class DefendLichenTileGoal(UnitGoal):
                     board=game_state.board,
                 )
 
-            if not self.action_plan.can_add_actions(actions, game_state, min_power_end=self.min_power_required):
+            if not self.action_plan.has_enough_power_to_add_actions(
+                actions, game_state, min_power_end=self.min_power_required
+            ):
                 break
 
             self.action_plan.extend(actions)
@@ -1577,7 +1583,7 @@ class FleeGoal(UnitGoal):
             board=game_state.board,
         )
         while actions_move_next_to:
-            if self.action_plan.can_add_actions(actions_move_next_to, game_state):
+            if self.action_plan.has_enough_power_to_add_actions(actions_move_next_to, game_state):
                 self.action_plan.extend(actions_move_next_to)
                 return
 

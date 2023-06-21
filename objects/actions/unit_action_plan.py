@@ -71,6 +71,9 @@ class UnitActionPlan(ActionPlan):
 
     @property
     def actions(self) -> list[UnitAction]:
+        """Condensed version of actions.
+
+        Repeated succesive actions are condensed into a single action."""
         if self._actions is None:
             self._actions = self._get_condensed_action_plan()
 
@@ -78,6 +81,9 @@ class UnitActionPlan(ActionPlan):
 
     @property
     def nr_time_steps(self) -> int:
+        if self._primitive_actions:
+            return len(self._primitive_actions)
+
         return sum(action.n for action in self.original_actions)
 
     def _get_condensed_action_plan(self) -> list[UnitAction]:
@@ -85,14 +91,13 @@ class UnitActionPlan(ActionPlan):
 
     @property
     def primitive_actions(self) -> list[UnitAction]:
+        """Primitive version of actions.
+
+        Any repeated actions are split into single repeated succesive actions."""
         if self._primitive_actions is None:
             self._primitive_actions = get_primitive_actions_from_list(self.original_actions)
 
         return self._primitive_actions
-
-    @property
-    def nr_primitive_actions(self) -> int:
-        return len(self.primitive_actions)
 
     @property
     def is_first_action_stationary(self) -> bool:
@@ -125,12 +130,21 @@ class UnitActionPlan(ActionPlan):
 
     @property
     def final_tc(self) -> TimeCoordinate:
+        """The final time coordinate of the unit, after completing the actions in the plan."""
         if self._final_tc is None:
             self._final_tc = ActionPlanSimulator(self, unit=self.actor).get_final_tc()
 
         return self._final_tc
 
     def get_final_ptc(self, game_state: GameState) -> PowerTimeCoordinate:
+        """Get the final power time coordinate of the unit, after completing the actions in the plan.
+
+        Args:
+            game_state: The current game state.
+
+        Returns:
+            The final power time coordinate, after complting the actions in the plan.
+        """
         if self._final_ptc is None:
             self._final_ptc = ActionPlanSimulator(self, unit=self.actor).get_final_ptc(game_state)
 
@@ -148,6 +162,14 @@ class UnitActionPlan(ActionPlan):
         return self.actor.tc.add_action(first_action)
 
     def get_time_coordinates(self, game_state: GameState) -> List[TimeCoordinate]:
+        """Get the time coordinates of the unit after each action required to complete its plan.
+
+        Args:
+            game_state: Current game state.
+        Returns:
+            Time coordinates.
+        """
+
         if self.is_empty():
             return [self.actor.tc + Direction.CENTER]
 
@@ -156,6 +178,13 @@ class UnitActionPlan(ActionPlan):
         return time_coordinates
 
     def get_power_time_coordinates(self, game_state: GameState) -> List[PowerTimeCoordinate]:
+        """Get the power time coordinates of the unit after each action required to complete its plan.
+
+        Args:
+            game_state: Current game state.
+        Returns:
+            Power time coordinates.
+        """
         if self.is_empty():
             ptc = PowerTimeCoordinate(*self.actor.tc.xyt, self.actor.power, self.actor.unit_cfg, game_state)
             return [ptc + Direction.CENTER]
@@ -165,6 +194,14 @@ class UnitActionPlan(ActionPlan):
         return power_time_coordinates
 
     def get_power_used(self, board: Board) -> float:
+        """Get the total power used to complete the action plan.
+
+        Args:
+            board: Current board.
+
+        Returns:
+            Total power to use.
+        """
         cur_c = self.actor.tc
         total_power = self.actor.unit_cfg.ACTION_QUEUE_POWER_COST if not self.is_set else 0
 
@@ -176,20 +213,43 @@ class UnitActionPlan(ActionPlan):
 
         return total_power
 
-    def can_add_actions(self, actions: List[UnitAction], game_state: GameState, min_power_end: int = 0) -> bool:
+    def has_enough_power_to_add_actions(
+        self, actions: List[UnitAction], game_state: GameState, min_power_end: int = 0
+    ) -> bool:
+        """Calculates whether the unit has enough power to carry out the current plan and the actions to add.
+
+        Args:
+            actions: Actions to add.
+            game_state: Current game state.
+            min_power_end: Minimum power required at end of action plan.. Defaults to 0.
+
+        Returns:
+            Boolean indicating whether the unit has enough power.
+        """
         new_action_plan = self + actions
         return new_action_plan.unit_has_enough_power(game_state, min_power_end=min_power_end)
 
     def is_empty(self) -> bool:
+        """Whether the current plan is an empty plan, with no actions."""
         return not self.original_actions
 
     def get_actions_valid_to_add(self, actions: list[UnitAction], game_state: GameState) -> list[UnitAction]:
+        """Get the valid primitive actions out of a list of actions that are valid to add, where the unit has enough
+        power for to complete.
+
+        Args:
+            actions: Potential actions to add.
+            game_state: Current game state.
+
+        Returns:
+            List of primitive actions that are valid to add.
+        """
         new_action_plan = self + actions
-        nr_valid_primitive_actions = new_action_plan.get_nr_valid_primitive_actions(game_state)
-        nr_actions_to_add = nr_valid_primitive_actions - self.nr_primitive_actions
+        nr_valid_primitive_actions = new_action_plan._get_nr_valid_primitive_actions(game_state)
+        nr_actions_to_add = nr_valid_primitive_actions - self.nr_time_steps
         return actions[:nr_actions_to_add]
 
-    def get_nr_valid_primitive_actions(self, game_state: GameState):
+    def _get_nr_valid_primitive_actions(self, game_state: GameState):
         if self.is_empty():
             return 0
 
@@ -200,6 +260,15 @@ class UnitActionPlan(ActionPlan):
         return ActionPlanSimulator(action_plan=self, unit=self.actor)
 
     def unit_has_enough_power(self, game_state: GameState, min_power_end: int = 0) -> bool:
+        """Does the unit have enough power to carry out its current plan.
+
+        Args:
+            game_state: Current game state.
+            min_power_end: Min power required at end of action plan. Defaults to 0.
+
+        Returns:
+            Whether the unit has enough power to carry out its current plan.
+        """
         if self.is_empty():
             return True
 
@@ -218,9 +287,18 @@ class UnitActionPlan(ActionPlan):
 
 @dataclass
 class ActionPlanCondenser:
+    """Class to condense the actions into a condensed form. Where single succesive repeated actions get grouped into
+    a single action with repeats.
+
+    Args:
+        original_actions: the current list of actions
+    """
+
+    # TODO, consider converting to functions, seems a bit of an artificial class.
     original_actions: list[UnitAction]
 
     def condense(self) -> list[UnitAction]:
+        """Condense the actions."""
         if not self.original_actions:
             return []
 
@@ -267,10 +345,26 @@ def get_primitive_actions_from_action(action: UnitAction) -> list[UnitAction]:
 
 @dataclass
 class ActionPlanSimulator:
+    """Class to simulate actions forward.
+
+    Args:
+        action_plan: Unit's action plan.
+        unit: The unit to carry out the action plan.
+    """
+
+    # TODO, unit is already given for UnitActinPlan, consider removing unit as argument here.
     action_plan: UnitActionPlan
     unit: Unit
 
     def simulate_action_plan(self, game_state: GameState) -> None:
+        """Simulate action plan.
+
+        Args:
+            game_state: Current game state.
+
+        Raises:
+            ValueError: If unit has too little power to carry out the action plan.
+        """
         self.confirm_power_levels = True
         self._simulate_action_plan(game_state)
 
@@ -279,6 +373,15 @@ class ActionPlanSimulator:
         self._simulate_actions(actions=self.action_plan.actions, game_state=game_state)
 
     def get_time_coordinates(self, game_state: GameState) -> List[TimeCoordinate]:
+        """Get the time coordinates for the unit to carry out the action plan. Adds an extra time coordinate at the
+        current coordinate one time step later, if the unit has too little power to carry out the first action
+
+        Args:
+            game_state: Current game state.
+
+        Returns:
+            List of time coordinates to carry out the action plan
+        """
         self._init_start()
         self._add_center_action_if_too_little_power(game_state)
         self._simulate_actions_for_tc(actions=self.action_plan.primitive_actions)
@@ -335,6 +438,14 @@ class ActionPlanSimulator:
             raise ValueError("Power is below 0")
 
     def get_nr_valid_primitive_actions(self, game_state: GameState) -> int:
+        """Get nr valid primitive actions, the number of actions for which the unit has enough power to carry out.
+
+        Args:
+            game_state: Current game state.
+
+        Returns:
+            Nr of primitive actions for which the unit has enough power to carry out.
+        """
         if len(self.action_plan) == 0:
             return 0
 
@@ -414,6 +525,17 @@ class ActionPlanSimulator:
         return self.cur_tc
 
     def get_final_ptc(self, game_state: GameState) -> PowerTimeCoordinate:
+        """Get the final power time coordinate of the unit after carrying out the action plan.
+
+        Args:
+            game_state: Current game state.
+
+        Raises:
+            ValueError: If unit has too little power to carry out the action plan.
+
+        Returns:
+            Final power time coordinate of the unit after carrying out the action plan.
+        """
         self.simulate_action_plan(game_state)
         return PowerTimeCoordinate(
             self.cur_tc.x, self.cur_tc.y, self.cur_tc.t, self.cur_power, self.unit.unit_cfg, game_state
@@ -424,6 +546,3 @@ class ActionPlanSimulator:
 
     def _increment_primitive_action_nr(self) -> None:
         self.primitive_action_nr += 1
-
-    def can_update_action_queue(self) -> bool:
-        return self.cur_power >= self.unit.unit_cfg.ACTION_QUEUE_POWER_COST
