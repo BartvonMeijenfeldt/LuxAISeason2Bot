@@ -73,6 +73,21 @@ class Strategy(Enum):
 
 @dataclass(eq=False)
 class Factory(Actor):
+    """Factory building that can spawn robots and water lichen. In my implementation I also made the factory decide the
+    strategical focus of the units belonging to the factory
+
+    Args:
+        strain_id: Unique identifier of the factory, the id of the lichen strain it produces.
+        center_tc: The center time coordinate of the 3x3 blocks the factory takes up.
+        env_cfg: Config of the environment.
+        radius: Radius of the factory.
+        units: The units belonging to the factory
+        goal: The goal of the factory
+        private_action_plan: The action plan of the factory.
+        positions_set: Whether the calculations of positions that must only be calculated once a game have been made.
+    """
+
+    # TODO, split Factory Actor logic and Factory object
     strain_id: int
     center_tc: TimeCoordinate
     env_cfg: EnvConfig
@@ -108,12 +123,25 @@ class Factory(Actor):
         return self.water + floor(min(self.ice, EnvConfig.FACTORY_PROCESSING_RATE_WATER) / EnvConfig.ICE_WATER_RATIO)
 
     def update_state(self, center_tc: TimeCoordinate, power: int, cargo: Cargo) -> None:
+        """Update the state of the Factory
+
+        Args:
+            center_tc: The center time coordinate of the 3x3 blocks the factory takes up.
+            power: The power at the factory.
+            cargo: The cargo at the factory.
+        """
         self.center_tc = center_tc
         self.power = power
         self.cargo = cargo
         self._set_unit_state_variables()
 
     def remove_units_not_in_obs(self, obs_units: set[Unit]) -> None:
+        """Remove the units assigned to the factory that are not in the observation any more (because they perished last
+        time step).
+
+        Args:
+            obs_units: All the units in the observation.
+        """
         units_to_remove = self.units.difference(obs_units)
         for unit in units_to_remove:
             unit.remove_goal_and_private_action_plan()
@@ -195,27 +223,52 @@ class Factory(Actor):
         return [Coordinate(*pos) for pos in connected_ice_positions]
 
     def get_rubble_positions_to_clear_for_ice(self, game_state: GameState) -> Set[Tuple]:
+        """Get the rubble positions to clear to improve ice mining.
+
+        Args:
+            game_state: Current game state.
+
+        Returns:
+            The rubble positions to clear to improve ice mining.
+        """
         rubble_positions_free = self._rubble_positions_to_clear_for_ice - game_state.positions_in_dig_goals
         return rubble_positions_free
 
     def get_rubble_positions_to_clear_for_ore(self, game_state: GameState) -> Set[Tuple]:
+        """Get the rubble positions to clear to improve ore mining.
+
+        Args:
+            game_state: Current game state.
+
+        Returns:
+            The rubble positions to clear to improve ore mining.
+        """
         rubble_positions_free = self._rubble_positions_to_clear_for_ore - game_state.positions_in_dig_goals
         return rubble_positions_free
 
     def nr_tiles_needed_to_grow_to_lichen_target(self, game_state: GameState) -> int:
+        """Get the number of tiles needed to grow to the lichen target. The lichen target is based on the current water
+        collection.
+
+        Args:
+            game_state: Current game state.
+
+        Returns:
+            The number of tiles needed to grow to the lichen target.
+        """
         lichen_size_target = self.get_lichen_size_target_for_current_water_collection()
         lichen_size_target = max(CONFIG.MIN_TILES_GROWTH_TARGET, lichen_size_target)
-        nr_connected_positions = self.get_nr_connected_positions_including_being_cleared(game_state)
+        nr_connected_positions = self._get_nr_connected_positions_including_being_cleared(game_state)
         nr_tiles_needed = lichen_size_target - nr_connected_positions
         nr_tiles_needed = max(0, nr_tiles_needed)
         return nr_tiles_needed
 
-    def get_nr_connected_positions_including_being_cleared(self, game_state: GameState) -> int:
+    def _get_nr_connected_positions_including_being_cleared(self, game_state: GameState) -> int:
         # TODO, take into account if positions being cleared connects to other positions
-        nr_positions_being_cleared = self.get_nr_positions_being_cleared_next_to_connected(game_state)
+        nr_positions_being_cleared = self._get_nr_positions_being_cleared_next_to_connected(game_state)
         return self.nr_connected_positions + nr_positions_being_cleared
 
-    def get_nr_positions_being_cleared_next_to_connected(self, game_state: GameState) -> int:
+    def _get_nr_positions_being_cleared_next_to_connected(self, game_state: GameState) -> int:
         return sum(
             1
             for unit in game_state.player_units
@@ -329,10 +382,23 @@ class Factory(Actor):
         return rubble_positions
 
     def add_unit(self, unit: Unit) -> None:
+        """Add unit to the units of the factory.
+
+        Args:
+            unit: Unit to add.
+        """
         self.units.add(unit)
 
     def schedule_build_or_no_goal(self, schedule_info: ScheduleInfo) -> FactoryActionPlan:
-        goal = self.get_build_or_no_goal(schedule_info.game_state)
+        """Schedule a build or no goal goal.
+
+        Args:
+            schedule_info: Schedule info.
+
+        Returns:
+            An action plan corresponding to the scheduled goal.
+        """
+        goal = self._get_build_or_no_goal(schedule_info.game_state)
         return self._generate_and_schedule_action_plan(goal, schedule_info)
 
     def _generate_and_schedule_action_plan(self, goal: FactoryGoal, schedule_info: ScheduleInfo) -> FactoryActionPlan:
@@ -341,7 +407,7 @@ class Factory(Actor):
         self.private_action_plan = action_plan
         return action_plan
 
-    def get_build_or_no_goal(self, game_state: GameState) -> FactoryGoal:
+    def _get_build_or_no_goal(self, game_state: GameState) -> FactoryGoal:
         if game_state.real_env_steps > CONFIG.LAST_STEP_UNIT_BUILDING:
             return FactoryNoGoal(self)
 
@@ -360,13 +426,21 @@ class Factory(Actor):
         return FactoryNoGoal(self)
 
     def schedule_water_or_no_goal(self, schedule_info: ScheduleInfo) -> FactoryActionPlan:
-        goal = self.get_water_or_no_goal(schedule_info.game_state)
+        """Schedule a water or no goal goal
+
+        Args:
+            schedule_info: Schedule info.
+
+        Returns:
+            An action plan corresponding to the scheduled goal.
+        """
+        goal = self._get_water_or_no_goal(schedule_info.game_state)
         return self._generate_and_schedule_action_plan(goal, schedule_info)
 
-    def get_water_or_no_goal(self, game_state: GameState) -> FactoryGoal:
-        return WaterGoal(self) if self.wants_to_add_water_goal(game_state) else FactoryNoGoal(self)
+    def _get_water_or_no_goal(self, game_state: GameState) -> FactoryGoal:
+        return WaterGoal(self) if self._wants_to_add_water_goal(game_state) else FactoryNoGoal(self)
 
-    def wants_to_add_water_goal(self, game_state: GameState) -> bool:
+    def _wants_to_add_water_goal(self, game_state: GameState) -> bool:
         if self.water_after_processing - self.water_cost < EnvConfig.FACTORY_WATER_CONSUMPTION:
             return False
 
@@ -399,49 +473,53 @@ class Factory(Actor):
 
     @property
     def water_safety_level(self) -> int:
+        """Minimum water level, this water is never used for watering."""
         safety_level = floor(CONFIG.MIN_WATER_SAFETY_LEVEL + CONFIG.WATER_SAFETY_SLOPE_PER_STEP * self.center_tc.t)
         safety_level = min(CONFIG.MAX_WATER_SAFETY_LEVEL, safety_level)
         return safety_level
 
     @property
     def watering_grows_lichen(self) -> bool:
+        """Whether watering would result into growing the number of lichen tiles."""
         return self.max_nr_tiles_to_water > self.nr_connected_lichen_tiles
 
     @property
     def not_watering_shrinks_lichen(self) -> bool:
+        """whether not watering would result into shrinking the number of lichen tiles."""
         return self.nr_connected_lichen_tiles_after_not_watering < self.nr_connected_lichen_tiles
 
     @property
     def water_cost(self):
+        """The cost to water."""
         return WaterAction.get_water_cost(self)
 
     @property
     def light_units(self) -> list[Unit]:
+        """Light units assigned to the factory."""
         return [unit for unit in self.units if unit.is_light]
 
     @property
     def heavy_units(self) -> list[Unit]:
+        """Heavy units assigned to the factory."""
         return [unit for unit in self.units if unit.is_heavy]
 
     @property
     def nr_light_units(self) -> int:
-        return sum(1 for _ in self.light_units)
+        return len(self.light_units)
 
     @property
     def nr_heavy_units(self) -> int:
-        return sum(1 for _ in self.heavy_units)
-
-    @property
-    def expected_power_gain(self) -> int:
-        return self.env_cfg.FACTORY_CHARGE + self.nr_connected_lichen_tiles
-
-    @property
-    def can_build_heavy(self) -> bool:
-        return self.power >= HEAVY_CONFIG.POWER_COST and self.cargo.metal >= HEAVY_CONFIG.METAL_COST
+        return len(self.heavy_units)
 
     @property
     def can_build_light(self) -> bool:
+        """Whether factory has enough power and metal to build a light."""
         return self.power >= LIGHT_CONFIG.POWER_COST and self.cargo.metal >= LIGHT_CONFIG.METAL_COST
+
+    @property
+    def can_build_heavy(self) -> bool:
+        """Whether factory has enough power and metal to build a heavy."""
+        return self.power >= HEAVY_CONFIG.POWER_COST and self.cargo.metal >= HEAVY_CONFIG.METAL_COST
 
     @property
     def pos_slice(self) -> Tuple[slice, slice]:
@@ -472,16 +550,34 @@ class Factory(Actor):
 
     @property
     def power_including_units(self) -> float:
+        """Sum of power of factory and all its units."""
         units_power = sum(unit.power for unit in self.units)
         power = self.power + units_power
         return power
 
+    @property
+    def expected_power_gain(self) -> int:
+        """Expected power gain for next turns."""
+        return self.calculate_power_gain(self.nr_connected_lichen_tiles)
+
     def get_expected_power_generation(self, game_state: GameState) -> int:
         expected_lichen_size = self.get_expected_lichen_size(game_state)
-        power_generation = EnvConfig.FACTORY_CHARGE + expected_lichen_size * EnvConfig.POWER_PER_CONNECTED_LICHEN_TILE
-        return power_generation
+        return self.calculate_power_gain(expected_lichen_size)
+
+    @staticmethod
+    def calculate_power_gain(lichen_size: int) -> int:
+        return EnvConfig.FACTORY_CHARGE + lichen_size * EnvConfig.POWER_PER_CONNECTED_LICHEN_TILE
 
     def get_incoming_ice_before_no_water(self, game_state: GameState) -> int:
+        """Get the amount of incoming ice before the water runs out. Assumes the factory will not water in the mean time
+        and the current units action plans and goals.
+
+        Args:
+            game_state: Current game state.
+
+        Returns:
+            The amount of incoming ice before the water runs out.
+        """
         incoming_ice = 0
         for unit in self.scheduled_units:
             if not isinstance(unit.goal, CollectIceGoal) or isinstance(unit.goal, TransferIceGoal):
@@ -495,20 +591,40 @@ class Factory(Actor):
         return incoming_ice
 
     def get_expected_lichen_size(self, game_state: GameState) -> int:
+        """Get the expected lichen size. Assumes watering based on the current units goals and action plans, and that
+        if the target is below the nr connected lichen tiles, that the connected lichen tiles will be maintained.
+
+        Args:
+            game_state: Current game state.
+
+        Returns:
+            The expected lichen size
+        """
         lichen_size_target = self.get_lichen_size_target_for_current_water_collection()
 
         if lichen_size_target < self.nr_connected_lichen_tiles:
             return self.nr_connected_lichen_tiles
 
-        nr_expected_connected_positions = self.get_nr_connected_positions_including_being_cleared(game_state)
+        nr_expected_connected_positions = self._get_nr_connected_positions_including_being_cleared(game_state)
         return min(nr_expected_connected_positions, lichen_size_target)
 
     def get_lichen_size_target_for_current_water_collection(self) -> int:
+        """Get the expected lichen size target, given the current water collection.
+
+        Returns:
+            The expected lichen size target
+        """
         water_collection_per_step = self.get_water_collection_per_step()
         tiles_target = floor(water_collection_per_step * EnvConfig.LICHEN_WATERING_COST_FACTOR) * 2  # Alternating water
         return tiles_target
 
     def get_expected_power_consumption(self) -> float:
+        """Get the expected power consumptions based on the lights and heavies on the board, and the expected units to
+        spawn (based on the expected metal in the short future).
+
+        Returns:
+            _description_
+        """
         metal_in_factory = self.metal + self.ore / EnvConfig.ORE_METAL_RATIO
         metal_collection = self.get_metal_collection_per_step()
         metal_expected = metal_in_factory + metal_collection
@@ -524,11 +640,21 @@ class Factory(Actor):
         return expected_power_usage_per_step
 
     def get_water_collection_per_step(self) -> float:
+        """Get water collection per step, given the units current goals and action plans.
+
+        Returns:
+            The water colection per step.
+        """
         ice_collection_per_step = self.get_ice_collection_per_step()
         water_collection_per_step = ice_collection_per_step / EnvConfig.ICE_WATER_RATIO
         return water_collection_per_step
 
     def get_ice_collection_per_step(self) -> float:
+        """Get ice collection per step, given the units current goals and action plans.
+
+        Returns:
+            The water colection per step.
+        """
         return sum(
             self._resource_collection_per_step(unit.goal)
             for unit in self.scheduled_units

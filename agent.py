@@ -115,7 +115,7 @@ class Agent:
                 unit.set_send_no_action_queue()
                 continue
 
-            if unit.action_queue and unit.first_action_of_queue_and_private_action_plan_same:
+            if unit.action_queue and unit.are_first_action_of_queue_and_private_action_plan_same:
                 unit.set_send_no_action_queue()
                 continue
 

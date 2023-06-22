@@ -107,7 +107,7 @@ class Scheduler:
             if unit.is_under_threath(game_state) and unit.next_step_is_stationary():
                 continue
 
-            if unit.next_step_walks_into_tile_where_it_might_be_captured(game_state):
+            if unit.next_step_queue_dangerous(game_state):
                 continue
 
             if not unit.private_action_plan:
@@ -130,7 +130,7 @@ class Scheduler:
                 self._unschedule_unit_goal(unit)
                 goal = unit.generate_transfer_or_dummy_goal(self.schedule_info)
                 self._schedule_unit_on_goal(goal)
-            elif unit.next_step_walks_into_tile_where_it_might_be_captured(game_state):
+            elif unit.next_step_queue_dangerous(game_state):
                 self._unschedule_unit_goal(unit)
 
     def _reschedule_goals_with_no_private_action_plan(self) -> None:
