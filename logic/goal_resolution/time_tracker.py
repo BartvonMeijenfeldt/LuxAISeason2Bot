@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from config import CONFIG
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class TimeTracker:
@@ -22,7 +24,7 @@ class TimeTracker:
         is_out_of_time = self._get_time_taken() > CONFIG.OUT_OF_TIME_MAIN_SCHEDULING
 
         if is_out_of_time:
-            logging.critical("RAN OUT OF TIME MAIN SCHEDULING")
+            logger.critical("RAN OUT OF TIME MAIN SCHEDULING")
 
         return is_out_of_time
 
@@ -33,6 +35,6 @@ class TimeTracker:
         is_out_of_time = self._get_time_taken() > CONFIG.OUT_OF_TIME_UNASSIGNED_SCHEDULING
 
         if is_out_of_time:
-            logging.critical("RAN OUT OF TIME UNASSIGNED SCHEDULING")
+            logger.critical("RAN OUT OF TIME UNASSIGNED SCHEDULING")
 
         return is_out_of_time

@@ -18,6 +18,9 @@ if TYPE_CHECKING:
     from objects.actors.actor import Actor
 
 
+logger = logging.getLogger(__name__)
+
+
 class Agent:
     def __init__(self, player: str, env_cfg: EnvConfig, debug_mode: bool = False) -> None:
         np.random.seed(0)
@@ -91,9 +94,9 @@ class Agent:
     def _log_time_taken(self, real_env_steps: int, team_id: int) -> None:
         time_taken = self._get_time_taken()
         if time_taken < 1:
-            logging.info(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
+            logger.info(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
         else:
-            logging.warning(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
+            logger.warning(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
 
     def _get_actions(self, game_state: GameState) -> Dict[str, Any]:
         actions = {}

@@ -57,7 +57,7 @@ class UnitAction(Action):
         ...
 
     @abstractmethod
-    def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_: Coordinate, board: Board) -> int:
+    def get_power_change_by_end_c(self, unit_cfg: UnitConfig, end_c: Coordinate, board: Board) -> int:
         """Calculates power change, like the get_power_change method. But calculates it by using the coordinate the
         unit is moving to. This method exists as a speed upgrade, when the the end coordinate is already calculated.
 
