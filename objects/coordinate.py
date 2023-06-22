@@ -33,6 +33,14 @@ class Coordinate:
         return Coordinate(x, y)
 
     def add_action(self, action: UnitAction) -> Coordinate:
+        """Next coordinate of unit if a unit standing on this coordinate would carry out the action.
+
+        Args:
+            action: Action of unit.
+
+        Returns:
+            Next coordinate.
+        """
         x, y = self._add_get_new_xy_action(action)
         return Coordinate(x, y)
 
@@ -82,11 +90,13 @@ class Coordinate:
 
     @property
     def neighbors(self) -> list[Coordinate]:
+        """Neighboring coordinates."""
         neighbors = [self + direction for direction in Direction]
         return neighbors
 
     @property
     def non_stationary_neighbors(self) -> list[Coordinate]:
+        """Neighboring coordinates, excluding the coordinate achieved by being stationary."""
         neighbors = [self + direction for direction in Direction if direction != direction.CENTER]
         return neighbors
 

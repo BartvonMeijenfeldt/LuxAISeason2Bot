@@ -11,6 +11,8 @@ At the start you can see that the blue and red players are alternating between s
 
 We can see the blue player spreading lichen from the start. Lichen shows up on the map as the same color of the player, the intensity depends on the number of lichen. Lichen generates power for the factory, which can be picked up by units to carry out tasks (power is a scarce resource in this game) and counts as score at the end of the game. Around turn 550 we can see the blue player moving towards the red player's lichen to destroy it and around turn 750 the red player returns the favour. In the end stage we can see in the top-left the blue player defending its lichen by sending units to bump into the opponents units which would destroy them. The red player evades them and uses its advantage in unit numbers in the quadrant to destroy as much lichen as possible. In the end the red player was not able to destroy enough, causing the blue player to win with 13634 to 5104 lichen.
 
+For the full rule set see the [official documentation](https://www.lux-ai.org/specs-s2).
+
 ## Installation
 
 After cloning the project, install the Conda environment by running the following commands in the cloned directory:

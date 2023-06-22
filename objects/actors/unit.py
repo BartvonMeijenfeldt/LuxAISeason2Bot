@@ -46,6 +46,23 @@ if TYPE_CHECKING:
 
 @dataclass(eq=False)
 class Unit(Actor):
+    """Unit.
+
+    Args:
+        unit_type: Whether the unit is a light or heavy type.
+        tc: Time coordinate of unit.
+        unit_cfg: Config of the unit.
+        action_queue: Actions currently in the queue of the unit.
+        goal: The strategic goal of the unit.
+        can_be_assigned: Whether the unit can be assigned to a(nother) goal.
+        supplies: Whether the unit is currently planning to supply power to another unit.
+        supplied_by: Whether there is another unit planning to supply power to this unit.
+        private_action_plan: The private action plan of the unit for the next steps.
+
+    Returns:
+        _description_
+    """
+
     unit_type: str  # "LIGHT" or "HEAVY"
     tc: TimeCoordinate
     unit_cfg: UnitConfig
@@ -65,6 +82,14 @@ class Unit(Actor):
         self._set_unit_state_variables()
 
     def update_state(self, tc: TimeCoordinate, power: int, cargo: Cargo, action_queue: List[UnitAction]) -> None:
+        """Update the current state of the unit.
+
+        Args:
+            tc: Time coordinate of unit.
+            power: Power of unit.
+            cargo: Cargo of unit.
+            action_queue: Action queue of unit.
+        """
         self.tc = tc
         self.power = power
         self.cargo = cargo
@@ -146,7 +171,10 @@ class Unit(Actor):
         return last_action_queue != action_queue
 
     @property
-    def first_action_of_queue_and_private_action_plan_same(self) -> bool:
+    def are_first_action_of_queue_and_private_action_plan_same(self) -> bool:
+        """Whether the first action in the action queue and the private action plan are the same. If so that means that
+        for the current turn no power needs to be spent to update the action queue.
+        """
         if not self.action_queue or not self.private_action_plan:
             return False
 
@@ -154,12 +182,20 @@ class Unit(Actor):
         first_action_of_plan = self.private_action_plan.primitive_actions[0]
         return first_action_of_queue.next_step_equal(first_action_of_plan)
 
-    def next_step_walks_into_tile_where_it_might_be_captured(self, game_state: GameState) -> bool:
-        return (self.is_light and self.next_step_walks_into_opponent_heavy(game_state)) or (
-            self.next_step_walks_next_to_opponent_unit_that_can_capture_self(game_state)
+    def next_step_queue_dangerous(self, game_state: GameState) -> bool:
+        """Whether the units next step, if following the current action queue, is a tile where it might perish.
+
+        Args:
+            game_state: Current game state.
+
+        Returns:
+            Whether next step if following the current action queue might lead to the unit perishing.
+        """
+        return (self.is_light and self.next_step_queue_walks_into_opponent_heavy(game_state)) or (
+            self._next_step_next_to_dangerous_opponent_unit(game_state)
         )
 
-    def next_step_walks_next_to_opponent_unit_that_can_capture_self(self, game_state: GameState) -> bool:
+    def _next_step_next_to_dangerous_opponent_unit(self, game_state: GameState) -> bool:
         if not self.private_action_plan:
             return False
 
@@ -168,13 +204,13 @@ class Unit(Actor):
         if game_state.is_player_factory_tile(next_c):
             return False
 
-        return self.is_next_c_next_to_opponent_that_can_capture_self(c=next_c, game_state=game_state)
+        return self._is_next_c_next_to_dangerous_opponent(c=next_c, game_state=game_state)
 
-    def is_next_c_next_to_opponent_that_can_capture_self(self, c: Coordinate, game_state: GameState) -> bool:
+    def _is_next_c_next_to_dangerous_opponent(self, c: Coordinate, game_state: GameState) -> bool:
         if game_state.is_player_factory_tile(c):
             return False
 
-        strongest_neighboring_opponent = self.get_strongest_neighboring_opponent(c, game_state)
+        strongest_neighboring_opponent = self._get_strongest_neighboring_opponent(c, game_state)
         if not strongest_neighboring_opponent:
             return False
 
@@ -183,7 +219,7 @@ class Unit(Actor):
         else:
             return strongest_neighboring_opponent.can_capture_opponent_moving(self)
 
-    def get_strongest_neighboring_opponent(self, c: Coordinate, game_state: GameState) -> Optional[Unit]:
+    def _get_strongest_neighboring_opponent(self, c: Coordinate, game_state: GameState) -> Optional[Unit]:
         neighboring_opponents = game_state.get_neighboring_opponents(c)
         if not neighboring_opponents:
             return None
@@ -192,12 +228,14 @@ class Unit(Actor):
         return strongest_neighboring_opponent
 
     def can_capture_opponent_stationary(self, other: Unit) -> bool:
-        return not other.is_stronger_than(self)
+        return not other.is_stronger_type_than(self)
 
     def can_capture_opponent_moving(self, other: Unit) -> bool:
-        return self.is_stronger_than(other) or (not other.is_stronger_than(self) and self.power >= other.power)
+        return self.is_stronger_type_than(other) or (
+            not other.is_stronger_type_than(self) and self.power >= other.power
+        )
 
-    def next_step_walks_into_opponent_heavy(self, game_state: GameState) -> bool:
+    def next_step_queue_walks_into_opponent_heavy(self, game_state: GameState) -> bool:
         if not self.action_queue:
             return False
 
@@ -253,6 +291,18 @@ class Unit(Actor):
         return self.get_best_goal(goals, schedule_info)
 
     def get_best_goal(self, goals: Iterable[UnitGoal], schedule_info: ScheduleInfo) -> UnitGoal:
+        """Get the goal that has the highest value per step.
+
+        Args:
+            goals: Goals to select from.
+            schedule_info: Schedule info.
+
+        Raises:
+            NoValidGoalFoundError: None of the goals leads to a valid action plan.
+
+        Returns:
+            Best goal
+        """
         game_state = schedule_info.game_state
         constraints = schedule_info.constraints
 
@@ -498,17 +548,17 @@ class Unit(Actor):
         return {
             neighbor_c: 10_000
             for neighbor_c in self.tc.non_stationary_neighbors
-            if self.is_next_c_next_to_opponent_that_can_capture_self(neighbor_c, game_state)
+            if self._is_next_c_next_to_dangerous_opponent(neighbor_c, game_state)
         }
 
     def get_stationary_danger_tcs(self, game_state: GameState) -> dict[TimeCoordinate, float]:
         danger_tcs = {}
         stationary_tc = self.tc + Direction.CENTER
-        if self.is_next_c_next_to_opponent_that_can_capture_self(stationary_tc, game_state):
+        if self._is_next_c_next_to_dangerous_opponent(stationary_tc, game_state):
             danger_tcs[stationary_tc] = 10_000
         return danger_tcs
 
-    def is_stronger_than(self, other: Unit) -> bool:
+    def is_stronger_type_than(self, other: Unit) -> bool:
         return self.is_heavy and other.is_light
 
     def __str__(self) -> str:
@@ -541,12 +591,20 @@ class Unit(Actor):
         self.send_action_queue = None
 
     def schedule_goal(self, goal: UnitGoal) -> None:
+        """Schedule a unit on a goal and set the corresponding private action plan.
+
+        Args:
+            goal: Goal to set unit on.
+        """
         self.goal = goal
         self.private_action_plan = goal.action_plan
         self.is_scheduled = True
         self.can_be_assigned = False
 
     def remove_goal_and_private_action_plan(self) -> None:
+        """Remove the goal of the unit and its private action plan. Also handles unsetting potential supplied or
+        supplying units state to not be supplying/supplied by this unit.
+        """
         if self.supplied_by:
             self.supplied_by.set_not_supplying()
 
@@ -573,6 +631,15 @@ class Unit(Actor):
         self.supplied_by = None
 
     def get_nr_digs_to_quantity_resource(self, resource: Resource, q: int) -> int:
+        """Get the number of digs required to get to at least q amount of the given resource.
+
+        Args:
+            resource: Resource to dig.
+            q: Quantity of resource to dig.
+
+        Returns:
+            Number of digs required.
+        """
         resource_in_cargo = self.get_quantity_resource(resource)
         if resource_in_cargo >= q:
             return 0
@@ -582,9 +649,25 @@ class Unit(Actor):
         return nr_digs_required
 
     def is_feasible_assignment(self, goal: UnitGoal) -> bool:
+        """Whether the assignment can potentially have a feasible action plan.
+
+        Args:
+            goal: Goal to potentially assign unit on.
+
+        Returns:
+            Whether goal is a feasible assignment.
+        """
         return goal.assignment_key not in self.infeasible_assignments
 
     def can_not_move_this_step(self, game_state: GameState) -> bool:
+        """Whether the unit can potentially move this step.
+
+        Args:
+            game_state: Current game state.
+
+        Returns:
+            Whether the unit can potentially move this step.
+        """
         if self.can_update_action_queue_and_move:
             return False
 
