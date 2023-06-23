@@ -142,6 +142,14 @@ class GoalGraph(Graph):
             self.unit_cfg, self.goal, self.board
         )
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}(goal={self.goal}, unit_type={self.unit_type}, "
+            f"time_to_power_cost={self.time_to_power_cost}"
+            f", constraints={self.constraints}, "
+            f"unit_cfg={self.unit_cfg})"
+        )
+
     def get_heuristic(self, tc: TimeCoordinate) -> float:
         return self._get_distance_heuristic(tc=tc)
 
@@ -158,9 +166,17 @@ class GoalGraph(Graph):
         return self.goal == tc
 
 
-@dataclass
+@dataclass(repr=False)
 class FleeGraph(Graph):
     _potential_actions = [MoveAction(direction) for direction in Direction]
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}, unit_type={self.unit_type}, "
+            f"time_to_power_cost={self.time_to_power_cost}"
+            f", constraints={self.constraints}, "
+            f"unit_cfg={self.unit_cfg})"
+        )
 
     def _is_valid_action_node(self, action: UnitAction, to_c: TimeCoordinate) -> bool:
         return not self.constraints.tc_violates_constraint(to_c) and self.board.is_valid_c_for_player(c=to_c)
@@ -202,7 +218,7 @@ class FleeDistanceGraph(FleeGraph):
         return min_distance_cost
 
 
-@dataclass
+@dataclass(repr=False)
 class TilesToClearGraph(GoalGraph):
     time_to_power_cost: int = field(init=False, default=CONFIG.OPTIMAL_PATH_TIME_TO_POWER_COST)
     unit_cfg: UnitConfig = field(init=False, default=HEAVY_CONFIG)
@@ -228,7 +244,7 @@ class TilesToClearGraph(GoalGraph):
         return self._get_distance_heuristic(tc=tc)
 
 
-@dataclass
+@dataclass(repr=False)
 class MoveToGraph(GoalGraph):
     _potential_actions = [MoveAction(direction) for direction in Direction]
 
@@ -244,7 +260,7 @@ class MoveToGraph(GoalGraph):
         return self._get_distance_heuristic(tc=tc)
 
 
-@dataclass
+@dataclass(repr=False)
 class MoveNearCoordinateGraph(GoalGraph):
     distance: int
     _potential_actions = [MoveAction(direction) for direction in Direction]
@@ -285,6 +301,14 @@ class EvadeConstraintsGraph(Graph):
     _potential_actions = [MoveAction(direction) for direction in Direction]
     _move_center_action = MoveAction(Direction.CENTER)
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}(unit_type={self.unit_type}, "
+            f"time_to_power_cost={self.time_to_power_cost}"
+            f", constraints={self.constraints}, "
+            f"unit_cfg={self.unit_cfg})"
+        )
+
     def _is_valid_action_node(self, action: UnitAction, to_c: TimeCoordinate) -> bool:
         return not self.constraints.tc_violates_constraint(to_c) and self.board.is_valid_c_for_player(c=to_c)
 
@@ -310,6 +334,13 @@ class PickupPowerGraph(Graph):
     later_pickup: bool
     next_goal_c: Optional[Coordinate] = field(default=None)
     _potential_move_actions = [MoveAction(direction) for direction in Direction]
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}(later_pickup={self.later_pickup}, next_goal_c={self.next_goal_c}, "
+            f"unit_type={self.unit_type}, time_to_power_cost={self.time_to_power_cost}, "
+            f"power_tracker={self.power_tracker} constraints={self.constraints}, unit_cfg={self.unit_cfg})"
+        )
 
     def _get_potential_actions(self, tc: ResourcePowerTimeCoordinate) -> Generator[UnitAction, None, None]:
         if self.board.is_player_factory_tile(c=tc):
@@ -421,9 +452,18 @@ class TransferResourceGraph(Graph):
         return tc.q < 0
 
 
-@dataclass
+@dataclass(repr=False)
 class TransferPowerToUnitResourceGraph(TransferResourceGraph):
     receiving_unit_c: Coordinate
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}(q={self.q}, resource={self.resource}, "
+            f"receiving_unit={self.receiving_unit_c} unit_type={self.unit_type}, "
+            f"time_to_power_cost={self.time_to_power_cost}"
+            f", constraints={self.constraints}, "
+            f"unit_cfg={self.unit_cfg})"
+        )
 
     def _can_transfer(self, tc: TimeCoordinate) -> bool:
         return tc.distance_to(self.receiving_unit_c) == 1
@@ -439,9 +479,18 @@ class TransferPowerToUnitResourceGraph(TransferResourceGraph):
         return min_distance_cost
 
 
-@dataclass
+@dataclass(repr=False)
 class TransferToFactoryResourceGraph(TransferResourceGraph):
     factory: Optional[Factory] = field(default=None)
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}(q={self.q}, resource={self.resource}, "
+            f"factory={self.factory} unit_type={self.unit_type}, "
+            f"time_to_power_cost={self.time_to_power_cost}"
+            f", constraints={self.constraints}, "
+            f"unit_cfg={self.unit_cfg})"
+        )
 
     def get_cost(self, action: UnitAction, to_c: ResourcePowerTimeCoordinate) -> float:
         cost = super().get_cost(action, to_c)
@@ -475,7 +524,7 @@ class TransferToFactoryResourceGraph(TransferResourceGraph):
         return min_distance_cost
 
 
-@dataclass
+@dataclass(repr=False)
 class DigAtGraph(GoalGraph):
     goal: DigCoordinate
     _potential_move_actions = [MoveAction(direction) for direction in Direction]

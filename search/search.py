@@ -25,9 +25,9 @@ class Search:
         return self._get_solution_actions(final_node)
 
     def _init_search(self, start_tc: Coordinate) -> None:
-        start = start_tc
-        self.cost_so_far[start] = 0
-        self.frontier.put(start, 0)
+        self._start = start_tc
+        self.cost_so_far[self._start] = 0
+        self.frontier.put(self._start, 0)
 
     def _find_optimal_solution(self, budget: Optional[int] = None) -> Coordinate:  # type: ignore
         if not budget:
@@ -35,9 +35,9 @@ class Search:
 
         for i in itertools.count():
             if self.frontier.is_empty():
-                raise NoSolutionError
+                raise NoSolutionError(self._start, self.graph)
             if i > budget:
-                raise SolutionNotFoundWithinBudgetError
+                raise SolutionNotFoundWithinBudgetError(self._start, self.graph)
 
             current_node = self.frontier.pop()
 

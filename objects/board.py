@@ -104,6 +104,12 @@ class Board:
             self.minable_ore_positions_set = self._get_minable_positions(self.ore_positions_set)
             self.minable_positions_set = self.minable_ice_positions_set | self.minable_ore_positions_set
 
+    def __str__(self) -> str:
+        return "Board(...)"
+
+    def __repr__(self) -> str:
+        return str(self)
+
     def _get_minable_positions(self, resource_positoins: Iterable[tuple]) -> set[tuple]:
         min_ownership_required = CONFIG.MIN_OWNERSHIP_REQUIRED_FOR_MINING
         return {tuple(pos) for pos in resource_positoins if self.resource_ownership[pos] > min_ownership_required}

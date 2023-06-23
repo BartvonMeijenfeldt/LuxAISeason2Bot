@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from abc import abstractmethod
 from copy import copy
 from dataclasses import dataclass, field, replace
@@ -10,7 +11,7 @@ from typing import TYPE_CHECKING, Optional, Sequence
 import numpy as np
 
 from config import CONFIG
-from exceptions import InvalidGoalError, NoSolutionError
+from exceptions import InvalidGoalError
 from logic.constraints import Constraints
 from logic.goals.goal import Goal
 from lux.config import HEAVY_CONFIG
@@ -55,6 +56,9 @@ if TYPE_CHECKING:
     from objects.actors.unit import Unit
     from objects.board import Board
     from objects.game_state import GameState
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -164,7 +168,13 @@ class UnitGoal(Goal):
     @staticmethod
     def _search_graph(graph: Graph, start: TimeCoordinate) -> list[UnitAction]:
         search = Search(graph=graph)
-        optimal_actions = search.get_actions_to_complete_goal(start=start)
+        try:
+            optimal_actions = search.get_actions_to_complete_goal(start=start)
+        except Exception as e:
+            logger.debug(str(e))
+            raise e
+            # raise InvalidGoalError(self)
+
         return optimal_actions
 
     def _add_power_pickup_actions(
@@ -396,7 +406,7 @@ class DigGoal(UnitGoal):
                 if actions:
                     return actions
 
-                raise InvalidGoalError
+                raise InvalidGoalError(self)
 
             actions.extend(new_actions)
 
@@ -532,7 +542,7 @@ class CollectGoal(DigGoal):
             self._add_power_pickup_actions(schedule_info, next_goal_c=self.dig_c)
 
             if not self.action_plan.unit_has_enough_power(game_state):
-                raise InvalidGoalError
+                raise InvalidGoalError(self)
 
         self._add_dig_actions(game_state=game_state, constraints=constraints)
         self._add_transfer_resources_to_factory_actions(game_state=game_state, constraints=constraints)
@@ -562,7 +572,7 @@ class CollectGoal(DigGoal):
         )
 
         if len(max_valid_digs_actions) == 0:
-            raise InvalidGoalError
+            raise InvalidGoalError(self)
 
         self.action_plan.extend(max_valid_digs_actions)
 
@@ -578,7 +588,7 @@ class CollectGoal(DigGoal):
 
             self.action_plan.set_actions(self.action_plan.primitive_actions[:-1])
 
-        raise InvalidGoalError
+        raise InvalidGoalError(self)
 
     def _is_heavy_startup(self, game_state: GameState) -> bool:
         return self.unit.is_heavy and game_state.real_env_steps in [1, 2]
@@ -759,7 +769,7 @@ class SupplyPowerGoal(UnitGoal):
         )
         self.action_plan.extend(move_actions)
         if not self.action_plan.unit_has_enough_power(game_state):
-            raise InvalidGoalError
+            raise InvalidGoalError(self)
 
     def _add_supply_actions(self, schedule_info: ScheduleInfo) -> None:
         game_state = schedule_info.game_state
@@ -805,7 +815,7 @@ class SupplyPowerGoal(UnitGoal):
             power_pickup_turn = not power_pickup_turn
 
         if receiving_unit_powers.min() < 0:
-            raise InvalidGoalError
+            raise InvalidGoalError(self)
 
     def _get_transfer_resources_to_unit_actions(
         self, game_state: GameState, constraints: Constraints
@@ -1121,7 +1131,7 @@ class ClearRubbleGoal(DigGoal):
             self._add_power_pickup_actions(schedule_info=schedule_info, next_goal_c=self.dig_c)
 
             if not self.action_plan.unit_has_enough_power(game_state):
-                raise InvalidGoalError
+                raise InvalidGoalError(self)
 
         self._add_clear_rubble_actions(game_state=game_state, constraints=constraints)
         return self.action_plan
@@ -1147,7 +1157,7 @@ class ClearRubbleGoal(DigGoal):
         )
 
         if len(max_valid_digs_actions) == 0:
-            raise InvalidGoalError
+            raise InvalidGoalError(self)
 
         self.action_plan.extend(max_valid_digs_actions)
 
@@ -1232,7 +1242,7 @@ class DestroyLichenGoal(DigGoal):
             self._add_power_pickup_actions(schedule_info=schedule_info, next_goal_c=self.dig_c)
 
             if not self.action_plan.unit_has_enough_power(game_state):
-                raise InvalidGoalError
+                raise InvalidGoalError(self)
 
         self._add_destroy_lichen_actions(game_state=game_state, constraints=constraints)
         return self.action_plan
@@ -1256,7 +1266,7 @@ class DestroyLichenGoal(DigGoal):
         self.action_plan.extend(max_valid_digs_actions)
 
         if self.action_plan.nr_digs == 0:
-            raise InvalidGoalError
+            raise InvalidGoalError(self)
 
     def _get_max_useful_digs(self, game_state: GameState) -> int:
         return self._get_nr_max_digs_to_destroy_lichen(game_state)
@@ -1374,7 +1384,7 @@ class DefendTileGoal(UnitGoal):
 
         cur_power = self.action_plan.get_final_p(game_state)
         if cur_power < self.opp.power and cur_power < 2980:
-            raise InvalidGoalError
+            raise InvalidGoalError(self)
 
         if self.unit.tc.distance_to(self.opp.tc) > 1:
             self._add_actions_move_next_to_opp(game_state=game_state, constraints=constraints)
@@ -1394,7 +1404,7 @@ class DefendTileGoal(UnitGoal):
         if not self.action_plan.has_enough_power_to_add_actions(
             actions_move_next_to, game_state, min_power_end=self.min_power_required
         ):
-            raise NoSolutionError
+            raise InvalidGoalError(self)
 
         self.action_plan.extend(actions_move_next_to)
 
@@ -1485,7 +1495,7 @@ class DefendLichenTileGoal(UnitGoal):
         cur_power = self.action_plan.get_final_p(game_state)
         max_power_minus_queue_update = self.unit.battery_capacity - self.unit.can_update_action_queue
         if cur_power < self.opp.power and cur_power < max_power_minus_queue_update and game_state.real_env_steps < 950:
-            raise InvalidGoalError
+            raise InvalidGoalError(self)
         if (
             cur_power > self.opp.power or cur_power >= max_power_minus_queue_update
         ) and game_state.real_env_steps < 980:
@@ -1509,7 +1519,7 @@ class DefendLichenTileGoal(UnitGoal):
         if not self.action_plan.has_enough_power_to_add_actions(
             actions_move_next_to, game_state, min_power_end=self.min_power_required
         ):
-            raise NoSolutionError
+            raise InvalidGoalError(self)
 
         self.action_plan.extend(actions_move_next_to)
 
@@ -1589,7 +1599,7 @@ class FleeGoal(UnitGoal):
 
             actions_move_next_to = actions_move_next_to[:-1]
 
-        raise NoSolutionError
+        raise InvalidGoalError(self)
 
     def _add_flee_towards_factory_actions(self, game_state: GameState, constraints: Constraints) -> None:
         move_actions = self._get_flee_to_any_factory_actions(
@@ -1598,7 +1608,7 @@ class FleeGoal(UnitGoal):
 
         move_actions = self.action_plan.get_actions_valid_to_add(move_actions, game_state)
         if len(move_actions) == 0:
-            raise InvalidGoalError
+            raise InvalidGoalError(self)
 
         self.action_plan.extend(move_actions)
 
@@ -1707,7 +1717,7 @@ class EvadeConstraintsGoal(UnitGoal):
         self.action_plan.extend(move_actions)
 
         if not self.action_plan.unit_has_enough_power(game_state):
-            raise InvalidGoalError
+            raise InvalidGoalError(self)
 
     def _get_evade_plan(
         self,
