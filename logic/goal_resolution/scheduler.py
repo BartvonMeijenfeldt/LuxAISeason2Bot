@@ -3,7 +3,6 @@ from collections import defaultdict
 from typing import Dict, List, Tuple
 
 from config import CONFIG
-from exceptions import NoValidGoalFoundError
 from logic.constraints import Constraints
 from logic.goal_resolution.factory_signal import SIGNALS
 from logic.goal_resolution.power_tracker import PowerTracker
@@ -87,7 +86,8 @@ class Scheduler:
                 try:
                     schedule_info = self.schedule_info.copy_without_unit_scheduled_actions(unit)
                     goal = unit.get_best_version_goal(unit.goal, schedule_info)
-                except NoValidGoalFoundError:
+                except Exception as e:
+                    logger.debug(str(e))
                     self._unschedule_unit_goal(unit)
                     continue
 
@@ -160,7 +160,8 @@ class Scheduler:
             for factory, strategy in self._get_priority_sorted_strategies_factory(game_state):
                 try:
                     goals = factory.schedule_units(strategy, self.schedule_info)
-                except Exception:
+                except Exception as e:
+                    logger.debug(str(e))
                     continue
 
                 for goal in goals:

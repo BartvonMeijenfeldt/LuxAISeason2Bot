@@ -10,7 +10,11 @@ from typing import TYPE_CHECKING, Iterable, List, Optional, Set, Tuple
 import numpy as np
 
 from config import CONFIG
-from exceptions import NoValidGoalFoundError, NoValidGoalFoundForStrategyError
+from exceptions import (
+    ActorFoundNoValidGoalError,
+    FactorySchedulerNoValidGoalFoundError,
+    NoValidGoalFoundForStrategyError,
+)
 from logic.goals.factory_goal import (
     BuildHeavyGoal,
     BuildLightGoal,
@@ -796,21 +800,19 @@ class Factory(Actor):
         return [unit for unit in self.units if isinstance(unit.goal, CollectIceGoal)]
 
     def schedule_units(self, strategy: Strategy, schedule_info: ScheduleInfo) -> List[UnitGoal]:
+        # TODO, make this a strategy/change structure
         if self.has_unsupplied_heavy_collecting_next_to_factory_free_supply_c and self.has_light_unit_available:
             try:
                 return self._schedule_supply_goal_and_reschedule_receiving_unit(schedule_info)
-            except NoValidGoalFoundError:
-                pass
+            except ActorFoundNoValidGoalError:
+                logger.debug("No schedule supply goal and reschedule receiving unit goal found")
 
         try:
             return [self._schedule_unit_on_strategy(strategy, schedule_info)]
-        except NoValidGoalFoundError:
-            e = NoValidGoalFoundForStrategyError(self, strategy)
+        except Exception as e:
             logger.debug(str(e))
-
-        self.nr_schedule_failures_this_step += 1
-
-        raise NoValidGoalFoundError
+            self.nr_schedule_failures_this_step += 1
+            raise NoValidGoalFoundForStrategyError(self, strategy)
 
     def schedule_defend_lichen_tile(self, schedule_info: ScheduleInfo) -> UnitGoal:
         # TODO, sort the threaths by distance to the factory
@@ -821,10 +823,11 @@ class Factory(Actor):
 
             try:
                 return self.schedule_defend_lichen_tile_from_invader(invader, schedule_info)
-            except Exception:
+            except Exception as e:
+                logging.debug(str(e))
                 continue
 
-        raise NoValidGoalFoundError
+        raise FactorySchedulerNoValidGoalFoundError(self, sub_strategy="defend lichen tile")
 
     def schedule_defend_lichen_tile_from_invader(self, invader: Unit, schedule_info: ScheduleInfo) -> UnitGoal:
         if invader.is_light:
@@ -878,7 +881,9 @@ class Factory(Actor):
 
         rubble_positions = self._get_suitable_dig_positions_for_lichen(game_state)
         if not rubble_positions:
-            raise NoValidGoalFoundError
+            raise FactorySchedulerNoValidGoalFoundError(
+                self, sub_strategy="increase lichen tiles", reason="no rubble positions"
+            )
 
         if game_state.real_env_steps < CONFIG.FIRST_STEP_HEAVY_ALLOWED_TO_DIG_RUBBLE:
             units = self.light_available_units
@@ -892,7 +897,9 @@ class Factory(Actor):
 
         rubble_positions = self._get_suitable_dig_positions_for_clearing_base(game_state)
         if not rubble_positions:
-            raise NoValidGoalFoundError
+            raise FactorySchedulerNoValidGoalFoundError(
+                self, sub_strategy="clear rubble around base", reason="no rubble positions"
+            )
 
         if game_state.real_env_steps < CONFIG.FIRST_STEP_HEAVY_ALLOWED_TO_DIG_RUBBLE:
             units = self.light_available_units
@@ -923,7 +930,10 @@ class Factory(Actor):
         ]
 
         if not potential_assignments:
-            raise NoValidGoalFoundError
+            # TODO, consider whether this sub_strategy get best assignment is valid or whether different error is needed
+            raise FactorySchedulerNoValidGoalFoundError(
+                self, sub_strategy="get best assignment", reason="no potential assignments"
+            )
 
         unit, goal = max(
             potential_assignments, key=lambda x: x[1].get_best_case_value_per_step(schedule_info.game_state)
@@ -933,7 +943,12 @@ class Factory(Actor):
 
         schedule_info = schedule_info.copy_without_unit_scheduled_actions(unit)
 
-        goal = unit.get_best_version_goal(goal, schedule_info)
+        try:
+            goal = unit.get_best_version_goal(goal, schedule_info)
+        except Exception as e:
+            logger.debug(str(e))
+            raise e
+
         return goal
 
     def _get_suitable_dig_positions_for_lichen(self, game_state: GameState) -> Set[Tuple]:
@@ -1001,7 +1016,9 @@ class Factory(Actor):
         ]
 
         if not potential_assignments:
-            raise NoValidGoalFoundError
+            raise FactorySchedulerNoValidGoalFoundError(
+                self, "assign supply and receiving unit", reason="no potential assignments"
+            )
 
         supplying_unit, goal = max(potential_assignments, key=lambda x: x[1].get_best_case_value_per_step(game_state))
         receiving_unit = goal.receiving_unit
@@ -1060,7 +1077,9 @@ class Factory(Actor):
         except Exception:
             rubble_positions = self.get_rubble_positions_to_clear_for_ore(schedule_info.game_state)
             if not rubble_positions:
-                raise NoValidGoalFoundError
+                raise FactorySchedulerNoValidGoalFoundError(
+                    self, "schedule light on clear rubble for ore", "no rubble positions"
+                )
 
             return self._schedule_unit_on_rubble_pos(
                 rubble_positions,
@@ -1105,7 +1124,9 @@ class Factory(Actor):
         except Exception:
             rubble_positions = self.get_rubble_positions_to_clear_for_ice(schedule_info.game_state)
             if not rubble_positions:
-                raise NoValidGoalFoundError
+                raise FactorySchedulerNoValidGoalFoundError(
+                    self, "schedule light on clear rubble for ice", "no rubble positions"
+                )
 
             return self._schedule_unit_on_rubble_pos(rubble_positions, self.light_available_units, schedule_info)
 
@@ -1151,14 +1172,17 @@ class Factory(Actor):
 
     def schedule_strategy_immediately_return_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
         if self.distress_signal_can_not_be_handled:
-            raise NoValidGoalFoundError
+            raise FactorySchedulerNoValidGoalFoundError(
+                self, "schedule strategy immediately return ice", "distress signal can not be handled"
+            )
 
         nr_steps_to_go = self.water - CONFIG.ICE_MUST_COME_IN_BEFORE_LEVEL
 
         for unit in self.units_collecting_ice:
             try:
                 return self._attempt_get_shortened_collect_ice_goal(schedule_info, unit, nr_steps_to_go)
-            except Exception:
+            except Exception as e:
+                logger.debug(e)
                 continue
 
         for unit in self.units_with_ice:
@@ -1167,18 +1191,19 @@ class Factory(Actor):
 
             try:
                 return unit.generate_transfer_ice_goal(schedule_info, self)
-            except Exception:
+            except Exception as e:
+                logger.debug(e)
                 continue
 
         try:
             return self._schedule_any_heavy_on_ice(schedule_info)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(e)
 
         try:
             return self._schedule_any_light_on_ice(schedule_info)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(e)
 
         for unit in self.heavies_with_main_ore:
             if isinstance(unit.goal, TransferOreGoal):
@@ -1186,12 +1211,13 @@ class Factory(Actor):
 
             try:
                 return unit.generate_transfer_ore_goal(schedule_info, self)
-            except Exception:
+            except Exception as e:
+                logger.debug(e)
                 continue
 
         self.distress_signal_can_not_be_handled = True
 
-        raise NoValidGoalFoundError
+        raise FactorySchedulerNoValidGoalFoundError(self, "strategy immediately return ice")
 
     def _schedule_any_heavy_on_ice(self, schedule_info: ScheduleInfo) -> UnitGoal:
         game_state = schedule_info.game_state
@@ -1209,13 +1235,17 @@ class Factory(Actor):
         goal: CollectIceGoal = unit.goal  # type: ignore
         step_ice_incoming = unit.private_action_plan.nr_time_steps
         if step_ice_incoming <= nr_steps_to_go:
-            raise NoValidGoalFoundError
+            raise FactorySchedulerNoValidGoalFoundError(
+                self, "get shortened collect ice goal", reason="ice already on time"
+            )
 
         nr_steps_to_reduce = step_ice_incoming - nr_steps_to_go
         ice_to_transfer = goal.quantity_ice_to_transfer(schedule_info.game_state)
         new_quantity = ice_to_transfer - nr_steps_to_reduce * unit.resources_gained_per_dig
         if new_quantity <= 0:
-            raise NoValidGoalFoundError
+            raise FactorySchedulerNoValidGoalFoundError(
+                self, "get shortened collect ice goal", "can not reduce this number of steps"
+            )
 
         schedule_info_without_unit = schedule_info.copy_without_unit_scheduled_actions(unit)
         return unit.generate_collect_ice_goal(

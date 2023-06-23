@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 
 if TYPE_CHECKING:
     from logic.goal_resolution.factory_signal import Strategy
     from logic.goals.goal import Goal
+    from objects.actors.actor import Actor
     from objects.actors.factory import Factory
     from objects.coordinate import Coordinate
     from search.graph import Graph
@@ -21,13 +22,52 @@ class InvalidGoalError(Exception):
 
     def __str__(self) -> str:
         error_str = f"Invalid Goal for actor: {self.goal.key}"
-        error_str += f", message={self.message}"
+        if self.message:
+            error_str += f", message={self.message}"
         return error_str
 
 
-class NoValidGoalFoundError(Exception):
+class FactorySchedulerNoValidGoalFoundError(Exception):
+    """Exception signifying that the factory did not succeed to schedule a unit on the sub_strategy they wanted.
+
+    Args:
+        factory: factory.
+        sub_strategy: The sub_strategy to complete a goal. E.g., strategy=increase ice mining,
+            sub_strategy=clear rubble for ice mining.
+        reason: The reason no valid goal was found.
+    """
+
+    def __init__(self, factory: Factory, sub_strategy: str, reason: str = "") -> None:
+        self.factory = factory
+        self.sub_strategy = sub_strategy
+        self.reason = reason
+
     def __str__(self) -> str:
-        return "No valid goal found"
+        error_str = f"No valid goal found for {self.factory} to complete {self.sub_strategy}"
+        if self.reason:
+            error_str += f"because of {self.reason}"
+
+        return error_str
+
+
+class ActorFoundNoValidGoalError(Exception):
+    """Actor found no valid goal out of a group of goals.
+
+    Args:
+        actor: Actor.
+        goals: Goals to select from.
+    """
+
+    def __init__(self, actor: Actor, goals: Iterable[Goal]) -> None:
+        self.actor = actor
+        self.goals = goals
+
+    def __str__(self) -> str:
+        actor_str = str(self.actor)
+        goals_str_list = [str(goal) for goal in self.goals]
+        goals_str = ", ".join(goals_str_list)
+        error_str = f"No valid goal found for {actor_str} for goals: [{goals_str}]"
+        return error_str
 
 
 class NoValidGoalFoundForStrategyError(Exception):

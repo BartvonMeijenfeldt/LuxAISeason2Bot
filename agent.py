@@ -71,6 +71,7 @@ class Agent:
             Actions of all actors.
         """
         self._set_time()
+        logger.info(f"----------------------------------------Start turn {step} --------------------------------------")
 
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_step_actors)
         self._schedule_goals(game_state=game_state)

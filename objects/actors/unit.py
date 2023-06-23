@@ -7,7 +7,7 @@ from math import ceil
 from typing import TYPE_CHECKING, Iterable, List, Optional
 
 from config import CONFIG
-from exceptions import InvalidGoalError, NoValidGoalFoundError
+from exceptions import ActorFoundNoValidGoalError, InvalidGoalError
 from logic.constraints import Constraints
 from logic.goal_resolution.schedule_info import ScheduleInfo
 from logic.goals.unit_goal import (
@@ -265,14 +265,14 @@ class Unit(Actor):
     def generate_transfer_ice_goal(self, schedule_info: ScheduleInfo, factory: Factory) -> UnitGoal:
         goal = TransferIceGoal(self, factory)
         if not self._is_valid_goal(goal, schedule_info.game_state):
-            raise NoValidGoalFoundError
+            raise ActorFoundNoValidGoalError(self, [goal])
 
         return self.get_best_goal([goal], schedule_info)
 
     def generate_transfer_ore_goal(self, schedule_info: ScheduleInfo, factory: Factory) -> UnitGoal:
         goal = TransferOreGoal(self, factory)
         if not self._is_valid_goal(goal, schedule_info.game_state):
-            raise NoValidGoalFoundError
+            raise ActorFoundNoValidGoalError(self, [goal])
 
         return self.get_best_goal([goal], schedule_info)
 
@@ -338,7 +338,7 @@ class Unit(Actor):
             if goal == priority_queue[0]:
                 return goal
 
-        raise NoValidGoalFoundError
+        raise ActorFoundNoValidGoalError(self, goals)
 
     def _if_non_dummy_goal_add_to_infeasible_assignments(self, goal: UnitGoal) -> None:
         if not goal.is_dummy_goal:
@@ -391,7 +391,7 @@ class Unit(Actor):
     def generate_no_goal_goal(self, schedule_info: ScheduleInfo) -> UnitNoGoal:
         no_goal_goal = UnitNoGoal(self)
         if not self._is_valid_goal(no_goal_goal, schedule_info.game_state):
-            raise NoValidGoalFoundError
+            raise ActorFoundNoValidGoalError(self, [no_goal_goal])
 
         goal = self.get_best_goal([no_goal_goal], schedule_info)
         return goal  # type: ignore
