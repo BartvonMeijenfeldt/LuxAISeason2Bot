@@ -4,7 +4,7 @@ import itertools
 from typing import List, Optional
 
 from config import CONFIG
-from exceptions import NoSolutionError, SolutionNotFoundWithinBudgetError
+from exceptions import NoSolutionSearchError, SolutionSearchNotFoundWithinBudgetError
 from objects.actions.unit_action import UnitAction
 from objects.coordinate import Coordinate, TimeCoordinate
 from search.graph import Graph
@@ -35,9 +35,9 @@ class Search:
 
         for i in itertools.count():
             if self.frontier.is_empty():
-                raise NoSolutionError(self._start, self.graph)
+                raise NoSolutionSearchError(self._start, self.graph)
             if i > budget:
-                raise SolutionNotFoundWithinBudgetError(self._start, self.graph)
+                raise SolutionSearchNotFoundWithinBudgetError(self._start, self.graph)
 
             current_node = self.frontier.pop()
 

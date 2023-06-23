@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import logging
 from copy import copy
 from dataclasses import dataclass, field, replace
 from math import ceil
 from typing import TYPE_CHECKING, Iterable, List, Optional
 
 from config import CONFIG
-from exceptions import NoValidGoalFoundError
+from exceptions import InvalidGoalError, NoValidGoalFoundError
 from logic.constraints import Constraints
 from logic.goal_resolution.schedule_info import ScheduleInfo
 from logic.goals.unit_goal import (
@@ -42,6 +43,9 @@ from utils.utils import PriorityQueue
 
 if TYPE_CHECKING:
     from objects.actors.factory import Factory
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(eq=False)
@@ -316,12 +320,15 @@ class Unit(Actor):
 
             try:
                 action_plan = goal.generate_action_plan(schedule_info)
-            except Exception:
+            except Exception as e:
+                logger.debug(str(e))
                 self._if_non_dummy_goal_add_to_infeasible_assignments(goal)
                 continue
 
             value = goal.get_value_per_step_of_action_plan(action_plan, game_state)
             if value <= self.min_value_per_step and not goal.is_dummy_goal:
+                e = InvalidGoalError(goal, message="Negative value non-dummy goal")
+                logger.debug(str(e))
                 self._if_non_dummy_goal_add_to_infeasible_assignments(goal)
                 continue
 
@@ -335,7 +342,7 @@ class Unit(Actor):
 
     def _if_non_dummy_goal_add_to_infeasible_assignments(self, goal: UnitGoal) -> None:
         if not goal.is_dummy_goal:
-            self.infeasible_assignments.add(goal.assignment_key)
+            self.infeasible_assignments.add(goal.key)
 
     def _get_constraints_with_danger_tcs(self, constraints: Constraints, game_state: GameState) -> Constraints:
         constraints_with_danger = copy(constraints)
@@ -657,7 +664,7 @@ class Unit(Actor):
         Returns:
             Whether goal is a feasible assignment.
         """
-        return goal.assignment_key not in self.infeasible_assignments
+        return goal.key not in self.infeasible_assignments
 
     def can_not_move_this_step(self, game_state: GameState) -> bool:
         """Whether the unit can potentially move this step.

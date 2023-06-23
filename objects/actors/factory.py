@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from itertools import product
@@ -9,7 +10,7 @@ from typing import TYPE_CHECKING, Iterable, List, Optional, Set, Tuple
 import numpy as np
 
 from config import CONFIG
-from exceptions import NoValidGoalFoundError
+from exceptions import NoValidGoalFoundError, NoValidGoalFoundForStrategyError
 from logic.goals.factory_goal import (
     BuildHeavyGoal,
     BuildLightGoal,
@@ -69,6 +70,9 @@ class Strategy(Enum):
     ATTACK_OPPONENT = auto()
     CLEAR_RUBBLE_AROUND_BASE = auto()
     DEFEND_LICHEN_TILE = auto()
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(eq=False)
@@ -801,7 +805,8 @@ class Factory(Actor):
         try:
             return [self._schedule_unit_on_strategy(strategy, schedule_info)]
         except NoValidGoalFoundError:
-            pass
+            e = NoValidGoalFoundForStrategyError(self, strategy)
+            logger.debug(str(e))
 
         self.nr_schedule_failures_this_step += 1
 

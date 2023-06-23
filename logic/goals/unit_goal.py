@@ -68,7 +68,7 @@ class UnitGoal(Goal):
 
     @property
     @abstractmethod
-    def assignment_key(self) -> str:
+    def key(self) -> str:
         """Unique combination of strategic goal, unit and whether to pick up power before completing the goal."""
         ...
 
@@ -376,6 +376,13 @@ class UnitGoal(Goal):
 class DigGoal(UnitGoal):
     pickup_power: bool
     dig_c: Coordinate
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(unit={self.unit}, dig_c={self.dig_c}, pickup_power={self.pickup_power})"
+
+    @property
+    def key(self) -> str:
+        return repr(self)
 
     @property
     def safety_level_power(self) -> int:
@@ -730,15 +737,14 @@ class SupplyPowerGoal(UnitGoal):
     pickup_power: bool
 
     def __repr__(self) -> str:
-        return f"supply_power_to_{self.receiving_unit}"
+        return (
+            f"{self.__class__.__name__}(unit={self.unit}, receiving_unit={self.receiving_unit}, "
+            f"pickup_power={self.pickup_power})"
+        )
 
     @property
     def key(self) -> str:
-        return str(self)
-
-    @property
-    def assignment_key(self) -> str:
-        return f"{self.key}_{self.pickup_power}"
+        return repr(self)
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         if not self.unit.supplies:
@@ -922,6 +928,13 @@ class TransferGoal(UnitGoal):
     factory: Optional[Factory] = field(default=None)
     resource: Resource = field(init=False)
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(unit={self.unit})"
+
+    @property
+    def key(self) -> str:
+        return repr(self)
+
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return self.unit.get_quantity_resource(self.resource) == 0
 
@@ -993,17 +1006,6 @@ class TransferGoal(UnitGoal):
 class CollectIceGoal(CollectGoal):
     resource = Resource.ICE
 
-    def __repr__(self) -> str:
-        return f"collect_ice_[{self.dig_c}]"
-
-    @property
-    def key(self) -> str:
-        return str(self)
-
-    @property
-    def assignment_key(self) -> str:
-        return f"{self.key}_{self.pickup_power}"
-
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ice(game_state)
 
@@ -1020,17 +1022,6 @@ class CollectIceGoal(CollectGoal):
 @dataclass
 class TransferIceGoal(TransferGoal):
     resource = Resource.ICE
-
-    def __repr__(self) -> str:
-        return f"transfer_ice_[{self.unit}]"
-
-    @property
-    def key(self) -> str:
-        return str(self)
-
-    @property
-    def assignment_key(self) -> str:
-        return self.key
 
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ice(game_state)
@@ -1051,15 +1042,11 @@ class CollectOreGoal(CollectGoal):
     resource = Resource.ORE
 
     def __repr__(self) -> str:
-        return f"collect_ore_[{self.dig_c}]"
+        return f"{self.__class__.__name__}(unit={self.unit})"
 
     @property
     def key(self) -> str:
-        return str(self)
-
-    @property
-    def assignment_key(self) -> str:
-        return f"{self.key}_{self.pickup_power}"
+        return repr(self)
 
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ore(game_state)
@@ -1078,17 +1065,6 @@ class CollectOreGoal(CollectGoal):
 class TransferOreGoal(TransferGoal):
     resource = Resource.ORE
 
-    def __repr__(self) -> str:
-        return f"transfer_ore_[{self.unit}]"
-
-    @property
-    def key(self) -> str:
-        return str(self)
-
-    @property
-    def assignment_key(self) -> str:
-        return self.key
-
     def get_benefit_resource(self, game_state: GameState) -> float:
         return get_benefit_ore(game_state)
 
@@ -1104,22 +1080,11 @@ def get_benefit_ore(game_state: GameState) -> float:
 
 
 class ClearRubbleGoal(DigGoal):
-    def __repr__(self) -> str:
-        return f"clear_rubble_[{self.dig_c}]"
-
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         if not action_plan:
             return True
 
         return not game_state.is_rubble_tile(self.dig_c)
-
-    @property
-    def key(self) -> str:
-        return str(self)
-
-    @property
-    def assignment_key(self) -> str:
-        return f"{self.key}_{self.pickup_power}"
 
     def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
         game_state = schedule_info.game_state
@@ -1218,19 +1183,8 @@ class ClearRubbleGoal(DigGoal):
 
 
 class DestroyLichenGoal(DigGoal):
-    def __repr__(self) -> str:
-        return f"destroy_lichen[{self.dig_c}]"
-
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return not game_state.is_opponent_lichen_tile(self.dig_c)
-
-    @property
-    def key(self) -> str:
-        return str(self)
-
-    @property
-    def assignment_key(self) -> str:
-        return f"destroy_lichen_{self.pickup_power}"
 
     def generate_action_plan(self, schedule_info: ScheduleInfo) -> UnitActionPlan:
         game_state = schedule_info.game_state
@@ -1348,15 +1302,14 @@ class DefendTileGoal(UnitGoal):
         self.min_power_required = self.unit.update_action_queue_power_cost + 3 * self.unit.move_power_cost
 
     def __repr__(self) -> str:
-        return f"defend_{self.tile_c}_from_{self.opp}"
+        return (
+            f"{self.__class__.__name__}(unit={self.unit}, tile={self.tile_c}, opp={self.opp}, "
+            f"pickup_power={self.pickup_power})"
+        )
 
     @property
     def key(self) -> str:
-        return str(self)
-
-    @property
-    def assignment_key(self) -> str:
-        return f"{self.key}_{self.pickup_power}"
+        return repr(self)
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         if not self.action_plan.unit_has_enough_power(game_state, self.min_power_required):
@@ -1465,15 +1418,14 @@ class DefendLichenTileGoal(UnitGoal):
         self.min_power_required = self.unit.update_action_queue_power_cost + 3 * self.unit.move_power_cost
 
     def __repr__(self) -> str:
-        return f"defend_lichen_{self.tile_c}_from_{self.opp}"
+        return (
+            f"{self.__class__.__name__}(unit={self.unit}, tile={self.tile_c}, opp={self.opp}, "
+            f"pickup_power={self.pickup_power})"
+        )
 
     @property
     def key(self) -> str:
-        return str(self)
-
-    @property
-    def assignment_key(self) -> str:
-        return f"{self.key}_{self.pickup_power}"
+        return repr(self)
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return self.opp not in game_state.opp_units or self.opp.tc.distance_to(self.tile_c) > 0
@@ -1570,6 +1522,13 @@ class DefendLichenTileGoal(UnitGoal):
 class FleeGoal(UnitGoal):
     is_dummy_goal = True
 
+    def __repr__(self) -> str:
+        return f"No_Goal_{self.unit.unit_id}"
+
+    @property
+    def key(self) -> str:
+        return str(self)
+
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return not self.unit.is_under_threath(game_state)
 
@@ -1618,17 +1577,6 @@ class FleeGoal(UnitGoal):
 
         return CONFIG.BENEFIT_FLEEING
 
-    def __repr__(self) -> str:
-        return f"No_Goal_{self.unit.unit_id}"
-
-    @property
-    def key(self) -> str:
-        return str(self)
-
-    @property
-    def assignment_key(self) -> str:
-        return self.key
-
     def _get_min_power_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         min_steps = game_state.board.get_min_distance_to_any_player_factory(self.unit.tc)
         min_cost = min_steps * self.unit.move_power_cost
@@ -1647,6 +1595,13 @@ class FleeGoal(UnitGoal):
 
 class UnitNoGoal(UnitGoal):
     is_dummy_goal = True
+
+    def __repr__(self) -> str:
+        return f"No_Goal_{self.unit.unit_id}"
+
+    @property
+    def key(self) -> str:
+        return str(self)
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return True
@@ -1670,22 +1625,11 @@ class UnitNoGoal(UnitGoal):
 
         return 0
 
-    def __repr__(self) -> str:
-        return f"No_Goal_{self.unit.unit_id}"
-
     def _get_max_power_benefit(self, game_state: GameState) -> float:
         return 0
 
     def _get_min_power_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         return 0, 1
-
-    @property
-    def key(self) -> str:
-        return str(self)
-
-    @property
-    def assignment_key(self) -> str:
-        return self.key
 
     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
         return 0
@@ -1696,6 +1640,13 @@ class UnitNoGoal(UnitGoal):
 
 class EvadeConstraintsGoal(UnitGoal):
     is_dummy_goal = True
+
+    def __repr__(self) -> str:
+        return f"No_Goal_{self.unit.unit_id}"
+
+    @property
+    def key(self) -> str:
+        return str(self)
 
     def is_completed(self, game_state: GameState, action_plan: UnitActionPlan) -> bool:
         return True
@@ -1749,22 +1700,11 @@ class EvadeConstraintsGoal(UnitGoal):
 
         return super().get_power_cost_action_plan(action_plan, game_state)
 
-    def __repr__(self) -> str:
-        return f"No_Goal_{self.unit.unit_id}"
-
     def _get_max_power_benefit(self, game_state: GameState) -> float:
         return 0
 
     def _get_min_power_cost_and_steps(self, game_state: GameState) -> tuple[float, int]:
         return self.unit.move_power_cost, 1
-
-    @property
-    def key(self) -> str:
-        return str(self)
-
-    @property
-    def assignment_key(self) -> str:
-        return self.key
 
     def quantity_ice_to_transfer(self, game_state: GameState) -> int:
         return 0
