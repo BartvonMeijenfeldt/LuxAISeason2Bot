@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict
 
@@ -18,21 +20,30 @@ if TYPE_CHECKING:
     from objects.actors.actor import Actor
 
 
+# TODO, from settings
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
+@dataclass
 class Agent:
-    def __init__(self, player: str, env_cfg: EnvConfig, debug_mode: bool = False) -> None:
+    player: str
+    env_cfg: EnvConfig
+    debug_mode: bool = False
+
+    def __post_init__(self) -> None:
         np.random.seed(0)
-        datetime_now = datetime.now().strftime("%Y%m_%d_%H_%M_%S")
-        logging.basicConfig(level=logging.DEBUG, filename=f"data/{datetime_now}_{player}.log")
+        self._init_logging()
 
-        self.player = player
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
-
-        self.env_cfg: EnvConfig = env_cfg
         self.prev_step_actors: dict[str, Actor] = {}
-        self.DEBUG_MODE = debug_mode
+
+    def _init_logging(self) -> None:
+        log_dir = "logs"
+        os.makedirs(log_dir, exist_ok=True)
+        datetime_now = datetime.now().strftime("%Y_%m_%d %H:%M:%S")
+        log_file = os.path.join(log_dir, f"{datetime_now} {self.player}.log")
+        logging.basicConfig(level=logging.INFO, filename=log_file)
 
     def early_setup(self, step: int, obs: dict, remaing_overage_time: int = 60):
         """Method called during the first set up turns of the game in which the players and select the locations of
@@ -86,7 +97,7 @@ class Agent:
         self.start_time = time.time()
 
     def _schedule_goals(self, game_state: GameState) -> None:
-        scheduler = Scheduler(self.start_time, self.DEBUG_MODE, game_state)
+        scheduler = Scheduler(self.start_time, self.debug_mode, game_state)
         scheduler.schedule_goals()
 
     def _get_time_taken(self) -> float:
