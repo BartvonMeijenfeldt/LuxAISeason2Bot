@@ -569,8 +569,7 @@ class Unit(Actor):
         return self.is_heavy and other.is_light
 
     def __str__(self) -> str:
-        out = f"[{self.team_id}] {self.unit_id} {self.unit_type} at {self.tc}"
-        return out
+        return f"Unit[id={self.id}, type={self.unit_type}, tc={self.tc}, team={self.team_id}]"
 
     def __repr__(self) -> str:
         return f"Unit[id={self.unit_id}]"

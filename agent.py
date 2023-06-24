@@ -20,9 +20,7 @@ if TYPE_CHECKING:
     from objects.actors.actor import Actor
 
 
-# TODO, from settings
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 @dataclass
@@ -43,7 +41,8 @@ class Agent:
         os.makedirs(log_dir, exist_ok=True)
         datetime_now = datetime.now().strftime("%Y_%m_%d %H:%M:%S")
         log_file = os.path.join(log_dir, f"{datetime_now} {self.player}.log")
-        logging.basicConfig(level=logging.INFO, filename=log_file)
+        format = "{asctime:15s} {levelname:8s} {name}  {message}"
+        logging.basicConfig(level=logging.DEBUG, filename=log_file, format=format, style="{")
 
     def early_setup(self, step: int, obs: dict, remaing_overage_time: int = 60):
         """Method called during the first set up turns of the game in which the players and select the locations of

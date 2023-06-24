@@ -14,14 +14,11 @@ class TimeTracker:
     start_time: float
     DEBUG_MODE: bool
 
-    def _get_time_taken(self) -> float:
-        return time.time() - self.start_time
-
     def is_out_of_time_main_scheduling(self) -> bool:
         if self.DEBUG_MODE:
             return False
 
-        is_out_of_time = self._get_time_taken() > CONFIG.OUT_OF_TIME_MAIN_SCHEDULING
+        is_out_of_time = self._is_out_of_time(seconds_time_available=CONFIG.OUT_OF_TIME_MAIN_SCHEDULING)
 
         if is_out_of_time:
             logger.critical("RAN OUT OF TIME MAIN SCHEDULING")
@@ -32,9 +29,13 @@ class TimeTracker:
         if self.DEBUG_MODE:
             return False
 
-        is_out_of_time = self._get_time_taken() > CONFIG.OUT_OF_TIME_UNASSIGNED_SCHEDULING
+        is_out_of_time = self._is_out_of_time(seconds_time_available=CONFIG.OUT_OF_TIME_UNASSIGNED_SCHEDULING)
 
         if is_out_of_time:
             logger.critical("RAN OUT OF TIME UNASSIGNED SCHEDULING")
 
         return is_out_of_time
+
+    def _is_out_of_time(self, seconds_time_available: float) -> bool:
+        time_taken = time.time() - self.start_time
+        return time_taken > seconds_time_available
