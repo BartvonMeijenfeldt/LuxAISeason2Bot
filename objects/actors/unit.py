@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import logging
 from copy import copy
 from dataclasses import dataclass, field, replace
 from math import ceil
 from typing import TYPE_CHECKING, Iterable, List, Optional
 
 from config import CONFIG
-from exceptions import NoValidGoalFoundError
+from exceptions import ActorFoundNoValidGoalError, InvalidGoalError
 from logic.constraints import Constraints
 from logic.goal_resolution.schedule_info import ScheduleInfo
 from logic.goals.unit_goal import (
@@ -42,6 +43,9 @@ from utils.utils import PriorityQueue
 
 if TYPE_CHECKING:
     from objects.actors.factory import Factory
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(eq=False)
@@ -261,14 +265,14 @@ class Unit(Actor):
     def generate_transfer_ice_goal(self, schedule_info: ScheduleInfo, factory: Factory) -> UnitGoal:
         goal = TransferIceGoal(self, factory)
         if not self._is_valid_goal(goal, schedule_info.game_state):
-            raise NoValidGoalFoundError
+            raise ActorFoundNoValidGoalError(self, [goal])
 
         return self.get_best_goal([goal], schedule_info)
 
     def generate_transfer_ore_goal(self, schedule_info: ScheduleInfo, factory: Factory) -> UnitGoal:
         goal = TransferOreGoal(self, factory)
         if not self._is_valid_goal(goal, schedule_info.game_state):
-            raise NoValidGoalFoundError
+            raise ActorFoundNoValidGoalError(self, [goal])
 
         return self.get_best_goal([goal], schedule_info)
 
@@ -316,12 +320,15 @@ class Unit(Actor):
 
             try:
                 action_plan = goal.generate_action_plan(schedule_info)
-            except Exception:
+            except Exception as e:
+                logger.debug(e)
                 self._if_non_dummy_goal_add_to_infeasible_assignments(goal)
                 continue
 
             value = goal.get_value_per_step_of_action_plan(action_plan, game_state)
             if value <= self.min_value_per_step and not goal.is_dummy_goal:
+                e = InvalidGoalError(goal, message="Negative value non-dummy goal")
+                logger.debug(e)
                 self._if_non_dummy_goal_add_to_infeasible_assignments(goal)
                 continue
 
@@ -331,11 +338,11 @@ class Unit(Actor):
             if goal == priority_queue[0]:
                 return goal
 
-        raise NoValidGoalFoundError
+        raise ActorFoundNoValidGoalError(self, goals)
 
     def _if_non_dummy_goal_add_to_infeasible_assignments(self, goal: UnitGoal) -> None:
         if not goal.is_dummy_goal:
-            self.infeasible_assignments.add(goal.assignment_key)
+            self.infeasible_assignments.add(goal.key)
 
     def _get_constraints_with_danger_tcs(self, constraints: Constraints, game_state: GameState) -> Constraints:
         constraints_with_danger = copy(constraints)
@@ -384,7 +391,7 @@ class Unit(Actor):
     def generate_no_goal_goal(self, schedule_info: ScheduleInfo) -> UnitNoGoal:
         no_goal_goal = UnitNoGoal(self)
         if not self._is_valid_goal(no_goal_goal, schedule_info.game_state):
-            raise NoValidGoalFoundError
+            raise ActorFoundNoValidGoalError(self, [no_goal_goal])
 
         goal = self.get_best_goal([no_goal_goal], schedule_info)
         return goal  # type: ignore
@@ -562,8 +569,7 @@ class Unit(Actor):
         return self.is_heavy and other.is_light
 
     def __str__(self) -> str:
-        out = f"[{self.team_id}] {self.unit_id} {self.unit_type} at {self.tc}"
-        return out
+        return f"Unit[id={self.id}, type={self.unit_type}, tc={self.tc}, team={self.team_id}]"
 
     def __repr__(self) -> str:
         return f"Unit[id={self.unit_id}]"
@@ -657,7 +663,7 @@ class Unit(Actor):
         Returns:
             Whether goal is a feasible assignment.
         """
-        return goal.assignment_key not in self.infeasible_assignments
+        return goal.key not in self.infeasible_assignments
 
     def can_not_move_this_step(self, game_state: GameState) -> bool:
         """Whether the unit can potentially move this step.

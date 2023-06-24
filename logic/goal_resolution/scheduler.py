@@ -3,7 +3,6 @@ from collections import defaultdict
 from typing import Dict, List, Tuple
 
 from config import CONFIG
-from exceptions import NoValidGoalFoundError
 from logic.constraints import Constraints
 from logic.goal_resolution.factory_signal import SIGNALS
 from logic.goal_resolution.power_tracker import PowerTracker
@@ -17,6 +16,8 @@ from objects.actors.unit import Unit
 from objects.coordinate import TimeCoordinate
 from objects.direction import Direction
 from objects.game_state import GameState
+
+logger = logging.getLogger(__name__)
 
 
 class Scheduler:
@@ -85,7 +86,8 @@ class Scheduler:
                 try:
                     schedule_info = self.schedule_info.copy_without_unit_scheduled_actions(unit)
                     goal = unit.get_best_version_goal(unit.goal, schedule_info)
-                except NoValidGoalFoundError:
+                except Exception as e:
+                    logger.debug(e)
                     self._unschedule_unit_goal(unit)
                     continue
 
@@ -158,7 +160,8 @@ class Scheduler:
             for factory, strategy in self._get_priority_sorted_strategies_factory(game_state):
                 try:
                     goals = factory.schedule_units(strategy, self.schedule_info)
-                except Exception:
+                except Exception as e:
+                    logger.debug(e)
                     continue
 
                 for goal in goals:
@@ -262,7 +265,7 @@ class Scheduler:
 
     def _schedule_unit_on_goal(self, goal: UnitGoal) -> None:
         game_state = self.schedule_info.game_state
-        logging.info(f"{self.schedule_info.game_state.real_env_steps}: schedule {goal.unit} on {goal}")
+        logger.info(f"{self.schedule_info.game_state.real_env_steps}: schedule {goal.unit} on {goal}")
 
         if isinstance(goal, DigGoal):
             self._remove_other_units_from_dig_goal(goal)

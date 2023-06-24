@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict
 
@@ -18,18 +20,29 @@ if TYPE_CHECKING:
     from objects.actors.actor import Actor
 
 
+logger = logging.getLogger(__name__)
+
+
+@dataclass
 class Agent:
-    def __init__(self, player: str, env_cfg: EnvConfig, debug_mode: bool = False) -> None:
+    player: str
+    env_cfg: EnvConfig
+    debug_mode: bool = False
+
+    def __post_init__(self) -> None:
         np.random.seed(0)
-        datetime_now = datetime.now().strftime("%Y%m_%d_%H_%M_%S")
-        logging.basicConfig(level=logging.INFO, filename=f"data/{datetime_now}_{player}.log")
+        self._init_logging()
 
-        self.player = player
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
-
-        self.env_cfg: EnvConfig = env_cfg
         self.prev_step_actors: dict[str, Actor] = {}
-        self.DEBUG_MODE = debug_mode
+
+    def _init_logging(self) -> None:
+        log_dir = "logs"
+        os.makedirs(log_dir, exist_ok=True)
+        datetime_now = datetime.now().strftime("%Y_%m_%d %H:%M:%S")
+        log_file = os.path.join(log_dir, f"{datetime_now} {self.player}.log")
+        format = "{asctime:15s} {levelname:8s} {name}  {message}"
+        logging.basicConfig(level=logging.DEBUG, filename=log_file, format=format, style="{")
 
     def early_setup(self, step: int, obs: dict, remaing_overage_time: int = 60):
         """Method called during the first set up turns of the game in which the players and select the locations of
@@ -68,6 +81,7 @@ class Agent:
             Actions of all actors.
         """
         self._set_time()
+        logger.info(f"----------------------------------------Start turn {step} --------------------------------------")
 
         game_state = obs_to_game_state(step, self.env_cfg, obs, self.player, self.opp_player, self.prev_step_actors)
         self._schedule_goals(game_state=game_state)
@@ -82,7 +96,7 @@ class Agent:
         self.start_time = time.time()
 
     def _schedule_goals(self, game_state: GameState) -> None:
-        scheduler = Scheduler(self.start_time, self.DEBUG_MODE, game_state)
+        scheduler = Scheduler(self.start_time, self.debug_mode, game_state)
         scheduler.schedule_goals()
 
     def _get_time_taken(self) -> float:
@@ -91,9 +105,9 @@ class Agent:
     def _log_time_taken(self, real_env_steps: int, team_id: int) -> None:
         time_taken = self._get_time_taken()
         if time_taken < 1:
-            logging.info(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
+            logger.info(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
         else:
-            logging.warning(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
+            logger.warning(f"{real_env_steps}: player {team_id} {time_taken: 0.1f}")
 
     def _get_actions(self, game_state: GameState) -> Dict[str, Any]:
         actions = {}

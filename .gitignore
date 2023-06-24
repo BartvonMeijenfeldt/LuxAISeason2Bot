@@ -3,9 +3,11 @@ matches
 
 .vscode
 .ipynb_checkpoints
-data*
+
 *.json
 *.prof
 *.gz
 
+data
 prof
+logs

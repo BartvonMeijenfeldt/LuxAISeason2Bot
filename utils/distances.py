@@ -14,6 +14,9 @@ if TYPE_CHECKING:
     from objects.board import Board
 
 
+logger = logging.getLogger(__name__)
+
+
 def get_distances_between_positions(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     b = b.transpose()
     diff = a[..., None] - b[None, ...]
@@ -85,7 +88,7 @@ def get_positions_on_optimal_path_between_pos_and_pos(a: np.ndarray, b: np.ndarr
     try:
         optimal_actions = search.get_actions_to_complete_goal(start=start, budget=500)
     except Exception as e:
-        logging.warning(f"Positions on optimal path failed due to {str(e)} from {a} to {b}")
+        logger.warning(f"Positions on optimal path failed due to {str(e)} from {a} to {b}")
         return init_empty_positions()
 
     positions = []
