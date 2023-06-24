@@ -810,7 +810,7 @@ class Factory(Actor):
         try:
             return [self._schedule_unit_on_strategy(strategy, schedule_info)]
         except Exception as e:
-            logger.debug(str(e))
+            logger.debug(e)
             self.nr_schedule_failures_this_step += 1
             raise NoValidGoalFoundForStrategyError(self, strategy)
 
@@ -824,7 +824,7 @@ class Factory(Actor):
             try:
                 return self.schedule_defend_lichen_tile_from_invader(invader, schedule_info)
             except Exception as e:
-                logging.debug(str(e))
+                logging.debug(e)
                 continue
 
         raise FactorySchedulerNoValidGoalFoundError(self, sub_strategy="defend lichen tile")
@@ -946,7 +946,7 @@ class Factory(Actor):
         try:
             goal = unit.get_best_version_goal(goal, schedule_info)
         except Exception as e:
-            logger.debug(str(e))
+            logger.debug(e)
             raise e
 
         return goal

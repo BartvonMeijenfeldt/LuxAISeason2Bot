@@ -171,7 +171,7 @@ class UnitGoal(Goal):
         try:
             optimal_actions = search.get_actions_to_complete_goal(start=start)
         except Exception as e:
-            logger.debug(str(e))
+            logger.debug(e)
             raise e
             # raise InvalidGoalError(self)
 

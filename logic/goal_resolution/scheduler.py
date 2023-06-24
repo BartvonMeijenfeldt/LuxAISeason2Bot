@@ -87,7 +87,7 @@ class Scheduler:
                     schedule_info = self.schedule_info.copy_without_unit_scheduled_actions(unit)
                     goal = unit.get_best_version_goal(unit.goal, schedule_info)
                 except Exception as e:
-                    logger.debug(str(e))
+                    logger.debug(e)
                     self._unschedule_unit_goal(unit)
                     continue
 
@@ -161,7 +161,7 @@ class Scheduler:
                 try:
                     goals = factory.schedule_units(strategy, self.schedule_info)
                 except Exception as e:
-                    logger.debug(str(e))
+                    logger.debug(e)
                     continue
 
                 for goal in goals:

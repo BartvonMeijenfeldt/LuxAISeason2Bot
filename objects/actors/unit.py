@@ -321,14 +321,14 @@ class Unit(Actor):
             try:
                 action_plan = goal.generate_action_plan(schedule_info)
             except Exception as e:
-                logger.debug(str(e))
+                logger.debug(e)
                 self._if_non_dummy_goal_add_to_infeasible_assignments(goal)
                 continue
 
             value = goal.get_value_per_step_of_action_plan(action_plan, game_state)
             if value <= self.min_value_per_step and not goal.is_dummy_goal:
                 e = InvalidGoalError(goal, message="Negative value non-dummy goal")
-                logger.debug(str(e))
+                logger.debug(e)
                 self._if_non_dummy_goal_add_to_infeasible_assignments(goal)
                 continue
 

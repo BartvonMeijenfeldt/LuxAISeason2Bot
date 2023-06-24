@@ -45,7 +45,7 @@ class FactorySchedulerNoValidGoalFoundError(Exception):
     def __str__(self) -> str:
         error_str = f"No valid goal found for {self.factory} to complete {self.sub_strategy}"
         if self.reason:
-            error_str += f"because of {self.reason}"
+            error_str += f", because of {self.reason}"
 
         return error_str
 
