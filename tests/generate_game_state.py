@@ -151,7 +151,7 @@ class Tiles:
 
 
 def _get_board(tiles: Tiles) -> dict:
-    board_shape = (48, 48)
+    board_shape = (EnvConfig.map_size, EnvConfig.map_size)
     rubble = np.zeros(board_shape)
     ore = np.zeros(board_shape)
     ice = np.zeros(board_shape)

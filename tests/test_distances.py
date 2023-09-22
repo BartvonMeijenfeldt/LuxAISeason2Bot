@@ -2,7 +2,7 @@ import unittest
 from typing import Tuple
 
 import numpy as np
-
+from lux.config import EnvConfig
 from tests.generate_game_state import RubbleTile as RT
 from tests.generate_game_state import Tiles, get_state
 from utils.distances import (
@@ -282,7 +282,7 @@ class TestGetPositionsOnOptimalPathBetweenPosAndPos(unittest.TestCase):
         np.testing.assert_equal(expected, positions)
 
     def test_one_rubble_away(self):
-        rubble_tiles = [RT(24, y, 20) for y in range(48)]
+        rubble_tiles = [RT(24, y, 20) for y in range(EnvConfig.map_size)]
         tiles = Tiles(rubble=rubble_tiles)
         start = np.array([23, 24])
         goal = np.array([25, 24])
@@ -291,7 +291,7 @@ class TestGetPositionsOnOptimalPathBetweenPosAndPos(unittest.TestCase):
         self._test_get_positions(start, goal, tiles, expected)
 
     # def test_go_through_lowest(self):
-    #     rubble_tiles = [RT(24, 46, 1)] + [RT(24, y, 100) for y in range(48) if y != 46]
+    #     rubble_tiles = [RT(24, 46, 1)] + [RT(24, y, 100) for y in range(EnvConfig.map_size) if y != 46]
     #     tiles = Tiles(rubble=rubble_tiles)
     #     start = np.array([23, 45])
     #     goal = np.array([25, 45])

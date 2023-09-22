@@ -9,6 +9,8 @@ from objects.board import Board
 from utils.distances import get_distances_between_positions
 from utils.image_processing import get_islands
 
+MAP_SIZE = EnvConfig.map_size
+
 
 def get_factory_spawn_loc(board: Board, valid_spawns: np.ndarray) -> tuple:
     """Get the best factory spawn (starting position) location by taking into account the rubble, ice, ore, closeness
@@ -46,17 +48,17 @@ def _get_empty_rubble_value(rubble: np.ndarray, factory_pos_connects_to_empty_po
     distances_between_all_positions = _get_distances_between_all_positions()
     scores = np.divide(ratio_empty, distances_between_all_positions, where=distances_between_all_positions != 0)
     scores[factory_pos_connects_to_empty_pos] = 1
-    scores = scores.reshape(48 * 48, 48 * 48)
+    scores = scores.reshape(MAP_SIZE * MAP_SIZE, MAP_SIZE * MAP_SIZE)
     best_indexes = np.argpartition(-scores, CONFIG.BEST_N_RUBBLE_TILES)[..., : CONFIG.BEST_N_RUBBLE_TILES]
     best_scores = scores[np.arange(scores.shape[0])[:, None], best_indexes]
     sum_scores = best_scores.sum(axis=1)
-    return sum_scores.reshape(48, 48)
+    return sum_scores.reshape(MAP_SIZE, MAP_SIZE)
 
 
 def _get_distances_between_all_positions() -> np.ndarray:
     positions_board = np.argwhere(np.ones((EnvConfig.map_size, EnvConfig.map_size)))
     distances_between_all_positions = get_distances_between_positions(positions_board, positions_board)
-    distances_between_all_positions = distances_between_all_positions.reshape((48, 48, 48, 48))
+    distances_between_all_positions = distances_between_all_positions.reshape((MAP_SIZE, MAP_SIZE, MAP_SIZE, MAP_SIZE))
     return distances_between_all_positions
 
 
@@ -79,7 +81,7 @@ def get_factory_pos_connects_to_empty_pos(rubble: np.ndarray) -> np.ndarray:
 def _get_factory_pos_connects_to_island_pos(
     islands_positions_list: List[np.ndarray], factory_positions: np.ndarray
 ) -> np.ndarray:
-    # Returns Shape 48 x 48 x 48 x 48: Does (x1, y1) connects to (x2, y2)?
+    # Returns Shape MAP_SIZE x MAP_SIZE x MAP_SIZE x MAP_SIZE: Does (x1, y1) connects to (x2, y2)?
     factory_pos_connected_to_rubble_pos = np.zeros([EnvConfig.map_size] * 4)
     # nr_cleared_tiles = np.zeros((EnvConfig.map_size, EnvConfig.map_size))
 
@@ -103,7 +105,7 @@ def _get_booleans_to_add(connected_tiles_mask: np.ndarray, island_tiles_mask: np
 
 
 def _get_is_connected_mask(factory_positions: np.ndarray, island_positions: np.ndarray) -> np.ndarray:
-    # Return shape is 48 x 48 x nr_island_positions
+    # Return shape is MAP_SIZE x MAP_SIZE x nr_island_positions
     differences_xy = factory_positions[..., None] - island_positions.transpose()[None, None, None, ...]
     distances_factory_positions_to_island_positions = np.abs(differences_xy).sum(axis=3)
     min_distances_factory_to_tile = distances_factory_positions_to_island_positions.min(axis=2)
@@ -115,7 +117,7 @@ def _get_is_connected_mask(factory_positions: np.ndarray, island_positions: np.n
 
 
 def _get_island_tiles_mask(island_positions: np.ndarray) -> np.ndarray:
-    # Return shape is nr_island_positions x 48 x 48
+    # Return shape is nr_island_positions x MAP_SIZE x MAP_SIZE
     tiles_mask = np.zeros([island_positions.shape[0], EnvConfig.map_size, EnvConfig.map_size], dtype=bool)
     index_ax_0 = np.arange(len(island_positions))
     tiles_mask[index_ax_0, island_positions[:, 0], island_positions[:, 1]] = True
@@ -123,7 +125,7 @@ def _get_island_tiles_mask(island_positions: np.ndarray) -> np.ndarray:
 
 
 def _get_potential_factory_positions() -> np.ndarray:
-    # Shape 48 x 48 x 9 x 2
+    # Shape MAP_SIZE x MAP_SIZE x 9 x 2
     positions = []
     for i in range(EnvConfig.map_size):
         positions_i = []

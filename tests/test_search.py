@@ -492,7 +492,7 @@ class TestPowerPickupSearch(unittest.TestCase):
         state = get_state(factory_positions=factory_positions, real_env_steps=1)
 
         start = PTC(x=3, y=3, t=1, p=100, unit_cfg=LIGHT_CFG, game_state=state)
-        expected_actions = [MA(D.CENTER), PA(amount=48, resource=Resource.POWER)]
+        expected_actions = [MA(D.CENTER), PA(amount=EnvConfig.map_size, resource=Resource.POWER)]
 
         self._test_power_pickup_search(state=state, start=start, expected_actions=expected_actions)
 
